@@ -50,7 +50,7 @@ import { SpotsModule } from './spots/spots.module';
     ThrottlerModule.forRoot([
       {
         name: 'default',
-        ttl: 60000,  // 60초 윈도우
+        ttl: 6000,  // 60초 윈도우
         limit: 30,   // IP당 최대 30회
       },
     ]),
