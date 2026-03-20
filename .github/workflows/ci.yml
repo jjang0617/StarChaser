@@ -1,0 +1,29 @@
+# ──────────────────────────────────────────────────────────────
+# Phase 2 이후 활성화 예정 — 지금은 파일만 생성해둠
+# 활성화 시 이 주석 삭제 후 사용
+# ──────────────────────────────────────────────────────────────
+
+# name: CI
+#
+# on:
+#   push:
+#     branches: [main, develop]
+#   pull_request:
+#     branches: [main, develop]
+#
+# jobs:
+#   lint-and-test:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+#           cache: 'npm'
+#           cache-dependency-path: backend/package-lock.json
+#       - name: Install dependencies
+#         run: cd backend && npm ci
+#       - name: Lint
+#         run: cd backend && npm run lint
+#       - name: Test
+#         run: cd backend && npm test
