@@ -150,5 +150,83 @@ export class StarIndexService {
     if (temp >= 5 && temp <= 20) return 100;
     if (temp < -10 || temp > 35) return 20;
     return 60;
+
+    
   }
+
+// ── 기상청 격자 좌표 변환 (위도·경도 → nx, ny) ───────────────
+private latLngToGrid(lat: number, lng: number): { nx: number; ny: number } {
+  const RE = 6371.00877;   // 지구 반경 (km)
+  const GRID = 5.0;        // 격자 간격 (km)
+  const SLAT1 = 30.0;      // 투영 위도 1 (도)
+  const SLAT2 = 60.0;      // 투영 위도 2 (도)
+  const OLON = 126.0;      // 기준점 경도 (도)
+  const OLAT = 38.0;       // 기준점 위도 (도)
+  const XO = 43;           // 기준점 X 좌표 (격자)
+  const YO = 136;          // 기준점 Y 좌표 (격자)
+
+  const DEGRAD = Math.PI / 180.0;
+
+  const re = RE / GRID;
+  const slat1 = SLAT1 * DEGRAD;
+  const slat2 = SLAT2 * DEGRAD;
+  const olon = OLON * DEGRAD;
+  const olat = OLAT * DEGRAD;
+
+  let sn = Math.tan(Math.PI * 0.25 + slat2 * 0.5) / Math.tan(Math.PI * 0.25 + slat1 * 0.5);
+  sn = Math.log(Math.cos(slat1) / Math.cos(slat2)) / Math.log(sn);
+
+  let sf = Math.tan(Math.PI * 0.25 + slat1 * 0.5);
+  sf = (Math.pow(sf, sn) * Math.cos(slat1)) / sn;
+
+  let ro = Math.tan(Math.PI * 0.25 + olat * 0.5);
+  ro = (re * sf) / Math.pow(ro, sn);
+
+  const ra = Math.tan(Math.PI * 0.25 + lat * DEGRAD * 0.5);
+  const raVal = (re * sf) / Math.pow(ra, sn);
+
+  let theta = lng * DEGRAD - olon;
+  if (theta > Math.PI) theta -= 2.0 * Math.PI;
+  if (theta < -Math.PI) theta += 2.0 * Math.PI;
+  theta *= sn;
+
+  const nx = Math.floor(raVal * Math.sin(theta) + XO + 0.5);
+  const ny = Math.floor(ro - raVal * Math.cos(theta) + YO + 0.5);
+
+  return { nx, ny };
+}
+
+
+async testApiConnections(lat = 37.5665, lng = 126.9780): Promise<void> {
+  const KMA_KEY = process.env.KMA_API_KEY;
+  const AIRKOREA_KEY = process.env.AIRKOREA_API_KEY;
+
+  // GPS → 기상청 격자 변환
+  const { nx, ny } = this.latLngToGrid(lat, lng);
+  this.logger.log(`격자 변환 결과 — lat: ${lat}, lng: ${lng} → nx: ${nx}, ny: ${ny}`);
+
+  const now = new Date();
+  const baseDate = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const baseTime = '0500';
+
+  const kmaUrl = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst?serviceKey=${KMA_KEY}&numOfRows=10&pageNo=1&dataType=JSON&base_date=${baseDate}&base_time=${baseTime}&nx=${nx}&ny=${ny}`;
+
+  const airUrl = `https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty?serviceKey=${AIRKOREA_KEY}&returnType=json&numOfRows=5&pageNo=1&sidoName=서울&ver=1.0`;
+
+  try {
+    const [kmaRes, airRes] = await Promise.all([
+      fetch(kmaUrl),
+      fetch(airUrl),
+    ]);
+
+    const kmaData = await kmaRes.json();
+    const airData = await airRes.json();
+
+    this.logger.log(`기상청 API 응답: ${JSON.stringify(kmaData).slice(0, 200)}`);
+    this.logger.log(`에어코리아 API 응답: ${JSON.stringify(airData).slice(0, 200)}`);
+
+  } catch (e) {
+    this.logger.error(`API 호출 실패: ${e.message}`);
+  }
+}
 }
