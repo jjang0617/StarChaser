@@ -22,4 +22,9 @@ export class StarIndexController {
     // 3. 결과 반환
     return { spotId, score: 0, message: '구현 예정' };
   }
+  @Get('poc-test')
+async pocTest() {
+  await this.starIndexService.testApiConnections();
+  return { message: '로그 확인하세요' };
+}
 }
