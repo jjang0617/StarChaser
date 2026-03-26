@@ -22,7 +22,7 @@ module.exports = {
         border: '#27272A', // Dark border 색상
         primary: '#C9A84C', // Gold 색상
         'primary-foreground': '#0B0B0F', // Dark primary foreground 색상
-        destructive: '#FF3000', // Red 색상
+        destructive: '#FF5A3A', // Red 색상(조금 더 부드러운 톤)
       },
       borderRadius: {
         xl: '12px',
