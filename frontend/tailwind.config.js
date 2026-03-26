@@ -13,7 +13,8 @@ module.exports = {
       // 스타일 가이드 v1
       // shadcn 토큰 체계를 RN/NativeWind로 번역한 권장값
       colors: {
-        background: '#0B0B0F', // Dark background 색상
+        'deep-navy': '#0A0A1A', // Deep navy 색상
+        background: '#0A0A1A', // 기본 배경(Deep navy)
         foreground: '#FFFFFF', // White foreground 색상
         card: '#14141A', // Dark card 색상
         'card-foreground': '#FFFFFF', // White card foreground 색상
