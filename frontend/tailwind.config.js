@@ -1,7 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   presets: [require('nativewind/preset')],
-  // 테일윈드가 적용될 파일 목록
   content: [
     './App.{js,jsx,ts,tsx}',
     './components/**/*.{js,jsx,ts,tsx}',
@@ -10,23 +9,39 @@ module.exports = {
   ],
   theme: {
     extend: {
-      // 스타일 가이드 v1
-      // shadcn 토큰 체계를 RN/NativeWind로 번역한 권장값
+      // ── StarChaser Anti-AI 팔레트 ──
+      // OKLCH → hex (NativeWind는 OKLCH 미지원)
       colors: {
-        'deep-navy': '#0A0A1A', // Deep navy 색상
-        background: '#0A0A1A', // 기본 배경(Deep navy)
-        foreground: '#FFFFFF', // White foreground 색상
-        card: '#14141A', // Dark card 색상
-        'card-foreground': '#FFFFFF', // White card foreground 색상
-        muted: '#1C1C24', // Dark muted 색상
-        'muted-foreground': '#A1A1AA', // Gray muted foreground 색상
-        border: '#27272A', // Dark border 색상
-        primary: '#C9A84C', // Gold 색상
-        'primary-foreground': '#0B0B0F', // Dark primary foreground 색상
-        destructive: '#FF5A3A', // Red 색상(조금 더 부드러운 톤)
+        background:          '#161618',
+        foreground:          '#DEDDE8',
+        card:                '#1A1A1D',
+        'card-foreground':   '#DEDDE8',
+        muted:               '#1E1E22',
+        'muted-foreground':  '#6E6E82',
+        border:              '#2C2C34',
+        'border-subtle':     '#202028',
+        input:               '#1A1A20',
+        ring:                '#B8922A',
+        primary:             '#B8922A',
+        'primary-foreground':'#161618',
+        secondary:           '#222228',
+        'secondary-foreground': '#A8A8BC',
+        destructive:         '#7A2E1A',
+        'destructive-fg':    '#FFFFFF',
+        // StarChaser 전용
+        'star-gold':         '#B8922A',
+        'nebula-steel':      '#4A4A5E',
+        moonlight:           '#C8C8D8',
+        'dim-red':           '#7A2E1A',
+        'dim-red-fg':        '#C85030',
       },
       borderRadius: {
-        xl: '12px',
+        DEFAULT: '6px',
+        sm:      '4px',
+        md:      '6px',
+        lg:      '8px',
+        xl:      '10px',
+        full:    '9999px',
       },
     },
   },

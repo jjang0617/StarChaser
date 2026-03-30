@@ -1,34 +1,91 @@
-import React from 'react';
-import { Text, View } from 'react-native';
+/**
+ * StarChaser — Badge
+ * Anti-AI: 채도 낮은 팔레트 · 각진 radius · Glow 없음
+ * 수치 뱃지(Bortle, 고도)는 mono prop으로 Space Mono 적용
+ */
 
-type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
+import React from 'react';
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { useTheme } from '../../themes/ThemeContext';
+
+export type BadgeVariant = 'gold' | 'steel' | 'muted' | 'red' | 'outline';
 
 interface BadgeProps {
-  label: string;
+  label:    string;
   variant?: BadgeVariant;
+  mono?:    boolean;   // Space Mono — 수치 데이터 뱃지용
+  style?:   ViewStyle;
 }
 
-const badgeClassMap: Record<BadgeVariant, string> = {
-  default: 'bg-primary border-primary',
-  secondary: 'bg-muted border-muted',
-  destructive: 'bg-destructive border-destructive',
-  outline: 'bg-transparent border-border',
-};
+export function Badge({ label, variant = 'muted', mono = false, style }: BadgeProps) {
+  const { theme } = useTheme();
 
-const textClassMap: Record<BadgeVariant, string> = {
-  default: 'text-primary-foreground',
-  secondary: 'text-foreground',
-  destructive: 'text-foreground',
-  outline: 'text-foreground',
-};
+  // variant별 배경/텍스트/테두리 — 채도 낮게
+  const variantStyle = {
+    gold: {
+      bg:     theme.starGold + '1A',  // 10% alpha
+      text:   theme.starGold,
+      border: theme.starGold + '45',  // 27% alpha
+    },
+    steel: {
+      bg:     theme.nebulaSteel + '26',
+      text:   theme.moonlight,
+      border: theme.nebulaSteel + '59',
+    },
+    muted: {
+      bg:     theme.muted,
+      text:   theme.mutedForeground,
+      border: theme.borderSubtle,
+    },
+    red: {
+      bg:     theme.dimRed + '1F',
+      text:   theme.dimRedFg,
+      border: theme.dimRed + '4D',
+    },
+    outline: {
+      bg:     'transparent',
+      text:   theme.mutedForeground,
+      border: theme.border,
+    },
+  }[variant];
 
-export function Badge({ label, variant = 'default' }: BadgeProps) {
   return (
     <View
-      className={`self-start rounded-full border px-2.5 py-1 ${badgeClassMap[variant]}`}
+      style={[
+        styles.base,
+        {
+          backgroundColor: variantStyle.bg,
+          borderColor:     variantStyle.border,
+          borderRadius:    theme.radiusSm,
+        },
+        style,
+      ]}
     >
-      <Text className={`text-xs font-semibold ${textClassMap[variant]}`}>{label}</Text>
+      <Text
+        style={[
+          styles.label,
+          {
+            color:      variantStyle.text,
+            fontFamily: mono ? 'SpaceMono-Regular' : undefined,
+            letterSpacing: mono ? 0.4 : 0.1,
+          },
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
 
+const styles = StyleSheet.create({
+  base: {
+    alignSelf:         'flex-start',
+    borderWidth:       1,
+    paddingVertical:   2,
+    paddingHorizontal: 7,
+  },
+  label: {
+    fontSize:   11,
+    fontWeight: '500',
+  },
+});
