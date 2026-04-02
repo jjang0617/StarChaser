@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { CronModule } from './cron/cron.module';
 import { SpotsModule } from './spots/spots.module';
 import { StarIndexModule } from './star-index/star-index.module';
+import { SkyModule } from './sky/sky.module';
 
 @Module({
   imports: [
@@ -48,7 +49,8 @@ import { StarIndexModule } from './star-index/star-index.module';
     AuthModule,
     CronModule,
     SpotsModule,
-    StarIndexModule, // 추가
+    StarIndexModule,
+    SkyModule, // 추가
   ],
   controllers: [AppController],
   providers: [AppService],
