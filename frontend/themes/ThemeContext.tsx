@@ -1,6 +1,8 @@
 /**
  * StarChaser — ThemeContext
- * normal / night / red 3모드 전역 관리
+ *
+ * - night / red: 실제 앱에서 사용자가 쓰는 모드
+ * - normal: 개발 중 팔레트·레이아웃 확인용 (setMode('normal') 등)
  */
 
 import React, {
@@ -19,23 +21,23 @@ interface ThemeContextValue {
   isNightMode: boolean;
   isRedMode:   boolean;
   setMode:     (mode: ThemeMode) => void;
-  toggleNight: () => void;  // normal ↔ night
-  toggleRed:   () => void;  // red 진입/해제
+  toggleNight: () => void;  // 개발용: normal ↔ night
+  toggleRed:   () => void;  // 사용자: night ↔ red
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>('normal');
+  const [mode, setModeState] = useState<ThemeMode>('night');
 
   const setMode     = useCallback((m: ThemeMode) => setModeState(m), []);
   const toggleNight = useCallback(() => setModeState(p => p === 'normal' ? 'night' : 'normal'), []);
-  const toggleRed   = useCallback(() => setModeState(p => p === 'red' ? 'normal' : 'red'), []);
+  const toggleRed   = useCallback(() => setModeState(p => p === 'red' ? 'night' : 'red'), []);
 
   const value = useMemo<ThemeContextValue>(() => ({
     mode,
     theme:       themes[mode],
-    isNightMode: mode !== 'normal',
+    isNightMode: mode === 'night',
     isRedMode:   mode === 'red',
     setMode,
     toggleNight,

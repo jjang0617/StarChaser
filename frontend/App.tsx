@@ -5,9 +5,10 @@
  */
 
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
-import { ScrollView, Text, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { ThemeProvider, useTheme } from './themes/ThemeContext';
 import {
@@ -20,9 +21,10 @@ import {
   Input,
   Screen,
 } from './components/ui';
+import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 
 // ── 실제 앱 내용 — ThemeProvider 안에서 useTheme() 사용 가능 ──
-function AppContent() {
+function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const { theme, toggleRed, isRedMode } = useTheme();
   const [activeTab, setActiveTab] = useState<string>('home');
   const [location, setLocation]   = useState<string>('');
@@ -43,6 +45,15 @@ function AppContent() {
           <Text style={[styles.appSub, { color: theme.mutedForeground, fontFamily: 'SpaceMono-Regular' }]}>
             Anti-AI Component v2.0
           </Text>
+          {__DEV__ && (
+            <View style={styles.devRow}>
+              <Button
+                label="DEV: 온보딩 다시보기"
+                variant="outline"
+                onPress={onResetOnboarding}
+              />
+            </View>
+          )}
 
           {/* Badge 샘플 */}
           <View style={styles.row}>
@@ -113,12 +124,61 @@ function AppContent() {
   );
 }
 
+function AppLoading() {
+  const { theme } = useTheme();
+  return (
+    <Screen>
+      <View style={styles.loadingWrap}>
+        <ActivityIndicator color={theme.starGold} />
+        <Text style={[styles.loadingText, { color: theme.mutedForeground, fontFamily: 'SpaceMono-Regular' }]}>
+          로딩 중...
+        </Text>
+      </View>
+    </Screen>
+  );
+}
+
 // ── 루트: ThemeProvider로 전체 감싸기 ──
 export default function App() {
+  const [status, setStatus] = useState<'loading' | 'onboarding' | 'ready'>('loading');
+
+  const resetOnboarding = useCallback(async () => {
+    await Promise.all([
+      AsyncStorage.removeItem('starChaser:onboardingCompleted'),
+      AsyncStorage.removeItem('starChaser:onboardingRegion'),
+      AsyncStorage.removeItem('starChaser:notificationPrefs'),
+      AsyncStorage.removeItem('starChaser:onboardInterests'),
+    ]);
+    setStatus('onboarding');
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const completed = await AsyncStorage.getItem('starChaser:onboardingCompleted');
+        if (!mounted) return;
+        setStatus(completed === 'true' ? 'ready' : 'onboarding');
+      } catch {
+        if (!mounted) return;
+        setStatus('onboarding');
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppContent />
+        {status === 'loading' ? (
+          <AppLoading />
+        ) : status === 'onboarding' ? (
+          <OnboardingFlow onDone={() => setStatus('ready')} />
+        ) : (
+          <AppContent onResetOnboarding={resetOnboarding} />
+        )}
       </ThemeProvider>
     </SafeAreaProvider>
   );
@@ -148,5 +208,20 @@ const styles = StyleSheet.create({
   },
   tabWrap: {
     paddingTop: 4,
+  },
+  devRow: {
+    marginTop: 8,
+    alignItems: 'flex-start',
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingBottom: 40,
+  },
+  loadingText: {
+    fontSize: 12,
+    letterSpacing: 0.4,
   },
 });

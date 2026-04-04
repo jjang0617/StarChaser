@@ -1,9 +1,12 @@
 /**
  * StarChaser — 테마 토큰
+ *
+ * 사용자-facing: night, red / 개발 확인용: normal
+ *
  * Anti-AI 원칙: Shadow 없음 · Border 중심 · 절제된 Amber · 고밀도
  *
  * ⚠️ React Native는 OKLCH 미지원 → hex 값 사용
- * tailwind.config.js 색상값과 반드시 동일하게 유지
+ * StyleSheet에서는 이 파일의 토큰만 참조
  */
 
 export type ThemeMode = 'normal' | 'night' | 'red';
