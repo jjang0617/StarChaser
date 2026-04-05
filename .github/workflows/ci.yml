@@ -1,29 +1,69 @@
-# ──────────────────────────────────────────────────────────────
-# Phase 2 이후 활성화 예정 — 지금은 파일만 생성해둠
-# 활성화 시 이 주석 삭제 후 사용
-# ──────────────────────────────────────────────────────────────
+# Phase 1 — 지속적 통합(CI)만 담당
+# - 배포·Docker·보안 스캔·Railway 연동은 Phase 2 (Railway는 레포 연동으로 별도 자동 배포)
+# - PR/푸시 시 타입·Expo 설정·API 빌드·단위 테스트로 "머지 전 깨짐" 방지
+#
+name: CI
 
-# name: CI
-#
-# on:
-#   push:
-#     branches: [main, develop]
-#   pull_request:
-#     branches: [main, develop]
-#
-# jobs:
-#   lint-and-test:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v4
-#       - uses: actions/setup-node@v4
-#         with:
-#           node-version: '20'
-#           cache: 'npm'
-#           cache-dependency-path: backend/package-lock.json
-#       - name: Install dependencies
-#         run: cd backend && npm ci
-#       - name: Lint
-#         run: cd backend && npm run lint
-#       - name: Test
-#         run: cd backend && npm test
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Expo (React Native) — 타입 + app.json 유효성 ─────────────────
+  frontend-expo:
+    name: Frontend (Expo) — typecheck & config
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript (no emit)
+        run: npm run typecheck
+
+      - name: Validate Expo config (app.json / plugins)
+        run: npx expo config --type public --json > /dev/null
+
+  # ── Nest API — 컴파일 + 단위 테스트 (DB/Supabase 없이 동작하는 스펙 위주) ──
+  backend-api:
+    name: Backend (Nest) — build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test

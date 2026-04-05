@@ -226,7 +226,8 @@ async testApiConnections(lat = 37.5665, lng = 126.9780): Promise<void> {
     this.logger.log(`에어코리아 API 응답: ${JSON.stringify(airData).slice(0, 200)}`);
 
   } catch (e) {
-    this.logger.error(`API 호출 실패: ${e.message}`);
+    const msg = e instanceof Error ? e.message : String(e);
+    this.logger.error(`API 호출 실패: ${msg}`);
   }
 }
 }
