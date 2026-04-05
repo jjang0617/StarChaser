@@ -1,112 +1,52 @@
-StarChaser — Cursor Rules
-프로젝트 개요
-서비스: StarChaser — 별 관측 성공 확률(Star-Index) 특화 앱
-기술 스택: React Native + Expo (FE) / NestJS (BE) /
-PostgreSQL+PostGIS (Supabase) / NestJS 메모리 캐시 / Railway
-Phase 1: Docker·Redis·AWS·CI/CD 없이 로컬 직접 실행
 ---
-🎨 UI 스타일 규칙 (shadcn/ui 기반) — 코드 생성 시 매번 자동 실행
-⚡ 매 UI 컴포넌트 코드 생성 요청 시 반드시 아래를 수행하세요:
-shadcn/ui 공식 스타일 가이드를 웹에서 긁어오세요
-URL: https://ui.shadcn.com/docs/theming
-URL: https://ui.shadcn.com/themes
-OKLCH 다크 토큰 확인 후 `frontend/themes/themes.ts` 기준으로 적용합니다.
-반드시 `themes.ts`의 토큰 변수명을 그대로 사용합니다.
-(`theme.starGold`, `theme.border`, `theme.fontDisplay` 등)
-StyleSheet에서 반드시 themes.ts 토큰 변수명으로 참조합니다.
-(theme.primary, theme.mutedForeground, theme.border 등)
-className 방식 사용 금지
+description: 
+alwaysApply: true
 ---
-🚫 FE Design Principles — Anti-AI Style (절대 규칙)
-Drop Shadow & Glow 금지
-`elevation`, `shadowColor`, `shadowOpacity` 사용 절대 금지
-버튼·카드의 외부 `box-shadow` 금지
-호버·포커스 피드백은 border color 변화와 `scale(0.97)` 물리 반응만 허용
-딱 한 가지 예외: `starGold` 포커스 링 — `0 0 0 2px` 내부 링만 허용 (외부 glow 금지)
-Border 중심 디자인
-모든 컴포넌트 구분은 `1px border` + `borderSubtle`로 처리
-카드 안 섹션 구분: `0.5px borderSubtle` 수평선
-액티브 인디케이터: 상단 `2px` 라인 (BottomTab)
-Instrument Look — 계측 장비 느낌
-수치 데이터는 반드시 `theme.fontDisplay` (Space Mono)
-Star-Index 점수, Bortle 등급, 고도(m), 달 고도(°), PM2.5, 거리(km), 시간, 좌표
-라벨 텍스트: `fontSize: 8~10`, `letterSpacing: 1~2`, `textTransform: 'uppercase'`
-수치 외 UI 텍스트: `theme.fontBody` (Outfit)
-고밀도 레이아웃 (High Density)
-카드 padding: `12px` (큰 padding 지양 — `20px+` 금지)
-요소 간 gap: `4~8px` 이내로 촘촘하게
-한 화면에 더 많은 관측 데이터가 보여야 함
-컬러 팔레트 — 채도 낮게
-배경: `Deep Midnight Blue` (`oklch(0.09 0.012 265)`) — 순수 검정 금지
-강조: `Amber Gold` (`oklch(0.76 0.14 82)`) — 형광 금지, 핵심 데이터에만
-중간: `Steel Gray` (`oklch(0.38 0.04 258)`) — 구조 색상
-보라/파랑 네온 계열 금지 — `nebulaSteel`로 대체
-Border Radius — 단단하게
-기본값: `theme.radius` = `0.4rem` (≈ 6px) — 둥글둥글 금지
-뱃지: `radius * 0.6` — 더 각진 느낌
-풀 라운드(pill): 알림 닷, 인디케이터 라인만 허용
-Red Mode — 완전한 야간 시력 보호
-Blue/Green 계열 색상 완전 제거 → Dark Red/Grey로 치환
-이모지 아이콘 → ASCII 심볼로 교체 (`★ ◈ ◉ ≡ ○`)
-`theme.isRedMode === true`일 때 예외 없이 적용
-`data-night-vision="red"` 속성으로 전체 테마 전환 (웹 버전)
----
-색상 시스템 (themes.ts 토큰 레퍼런스)
-```
-// ── 핵심 토큰 ──
-theme.background      oklch(0.09 0.012 265)   // Deep Midnight Blue
-theme.foreground      oklch(0.88 0.015 240)   // 차가운 화이트
-theme.card            oklch(0.11 0.014 265)   // 카드 배경
-theme.border          oklch(0.20 0.022 268)   // 주 경계선 1px
-theme.borderSubtle    oklch(0.15 0.016 268)   // 미세 구분선 0.5px
-theme.muted           oklch(0.13 0.014 268)
-theme.mutedForeground oklch(0.48 0.03 258)    // Steel Gray 보조텍스트
 
-// ── StarChaser 전용 ──
-theme.starGold        oklch(0.76 0.14 82)     // Amber — 수치 강조, 핵심만
-theme.nebulaSteel     oklch(0.38 0.04 258)    // Steel — 구조 색상
-theme.moonlight       oklch(0.82 0.03 230)    // 달빛 텍스트
-theme.dimRed          oklch(0.52 0.18 25)     // Red Mode 전용
-```
 ---
-코드 스타일
-언어: TypeScript 엄격 모드 (strict: true)
-포매터: Prettier (탭 대신 스페이스 2칸)
-린터: ESLint (airbnb-typescript 기반)
-함수 네이밍: camelCase / 컴포넌트: PascalCase
-파일 네이밍: kebab-case (예: star-index.service.ts)
-절대 하면 안 되는 것
-API 키·비밀번호를 코드에 하드코딩 — 반드시 .env 사용
-앱에서 외부 API 직접 호출 — 반드시 서버 경유
-console.log를 프로덕션 코드에 남기기 — NestJS Logger 사용
-any 타입 사용 금지 (부득이한 경우 주석 필수)
-UI: elevation/shadowColor/shadowOpacity 사용 금지 — Anti-AI 원칙
-UI: Inter, Roboto, Arial, System 폰트 금지 — Space Mono + Outfit만
-UI: 보라/파랑 네온 계열 직접 사용 금지 — themes.ts 토큰만 사용
-BE 규칙 (NestJS)
-모든 외부 API는 Cron이 수집 → 캐시 → 앱이 읽는 구조
-DB 직접 접근은 Repository 패턴만 사용 (서비스에서 dataSource 직접 호출 금지)
-캐시 접근은 CacheService 인터페이스로만 (Phase 2 Redis 교체 대비)
-환경변수: ConfigService 통해 접근 (process.env 직접 사용 금지)
-에러 처리: HttpException 또는 커스텀 Exception Filter
-FE 규칙 (React Native)
-스타일: RN StyleSheet — useTheme()으로 themes.ts 토큰 직접 참조
-       (NativeWind/className 방식 사용 금지)
-상태 관리: useState/useContext — ThemeContext로 테마 전역 관리
-네비게이션: Expo Router
-이미지: expo-image 사용
-Night Vision 토글: `useTheme().toggleRed()` 호출
-DB 규칙 (PostgreSQL + PostGIS via Supabase)
-위경도: 반드시 GEOMETRY(Point, 4326) — SRID 4326 필수
-인덱스: GEOMETRY 컬럼은 반드시 GIST 인덱스
-ST_MakePoint(경도, 위도) — 순서 주의!
-elevation_m 컬럼: 명소 시딩 시 반드시 입력 (Star-Index GPS 고도 변수)
-Star-Index 알고리즘 (10개 변수)
-운량×0.28 + PM2.5×0.17 + 광공해×0.17 + 달영향×0.12 + 습도×0.10
-GPS고도×0.06 + 풍속×0.04 + 시정×0.03 + 기온×0.02 + 보정×0.01
-달 고도(moonAltitude)와 GPS 고도(elevation_m)는 절대 생략 불가
-코드 생성 요청 시 항상 포함할 것
-TypeScript 타입 명시
-에러 핸들링 (try/catch 또는 NestJS ExceptionFilter)
-주요 로직에 한국어 주석
-UI 생성 시: shadcn theming 페이지 참조 + Anti-AI 원칙 적용
+description: 
+alwaysApply: true
+---
+
+# StarChaser --- Cursor Rules
+## 프로젝트 개요
+- 서비스: StarChaser --- 별 관측 성공 확률(Star-Index) 특화 앱
+- 기술 스택: React Native + Expo (FE) / NestJS (BE) /
+ PostgreSQL+PostGIS (Supabase) / NestJS 메모리 캐시 / Railway
+- Phase 1: Docker·Redis·AWS·CI/CD 없이 로컬 직접 실행
+## 코드 스타일
+- 언어: TypeScript 엄격 모드 (strict: true)
+- 포매터: Prettier (탭 대신 스페이스 2칸)
+- 린터: ESLint (airbnb-typescript 기반)
+- 함수 네이밍: camelCase / 컴포넌트: PascalCase
+- 파일 네이밍: kebab-case (예: star-index.service.ts)
+## 절대 하면 안 되는 것
+- API 키·비밀번호를 코드에 하드코딩 --- 반드시 .env 사용
+- 앱에서 외부 API 직접 호출 --- 반드시 서버 경유
+- console.log를 프로덕션 코드에 남기기 --- NestJS Logger 사용
+- any 타입 사용 금지 (부득이한 경우 주석 필수)
+## BE 규칙 (NestJS)
+- 모든 외부 API는 Cron이 수집 → 캐시 → 앱이 읽는 구조
+- DB 직접 접근은 Repository 패턴만 사용 (서비스에서 dataSource 직접 호출 금지)
+- 캐시 접근은 CacheService 인터페이스로만 (Phase 2 Redis 교체 대비)
+- 환경변수: ConfigService 통해 접근 (process.env 직접 사용 금지)
+- 에러 처리: HttpException 또는 커스텀 Exception Filter
+## FE 규칙 (React Native)
+- 스타일: NativeWind
+- 상태 관리: useState/useContext (zustand는 Phase 2부터)
+- 네비게이션: Expo Router
+- 이미지: expo-image 사용
+- primary color : 샤드시엔에 있는 스타일 가이드(tailwind css)의 대표적인 레퍼런스 스타일 가져오기
+- 배경은 검은색, 글씨는 흰색으로 모던하게
+## DB 규칙 (PostgreSQL + PostGIS via Supabase)
+- 위경도: 반드시 GEOMETRY(Point, 4326) --- SRID 4326 필수
+- 인덱스: GEOMETRY 컬럼은 반드시 GIST 인덱스
+- ST_MakePoint(경도, 위도) --- 순서 주의!
+- elevation_m 컬럼: 명소 시딩 시 반드시 입력 (Star-Index GPS 고도 변수)
+## Star-Index 알고리즘 (10개 변수)- 운량×0.28 + PM2.5×0.17 + 광공해×0.17 + 달영향×0.12 + 습도×0.10
+ + GPS고도×0.06 + 풍속×0.04 + 시정×0.03 + 기온×0.02 + 보정×0.01
+- 달 고도(moonAltitude)와 GPS 고도(elevation_m)는 절대 생략 불가
+## 코드 생성 요청 시 항상 포함할 것
+- TypeScript 타입 명시
+- 에러 핸들링 (try/catch 또는 NestJS ExceptionFilter)
+- 주요 로직에 한국어 주석
