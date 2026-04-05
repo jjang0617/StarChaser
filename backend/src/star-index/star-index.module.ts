@@ -4,10 +4,12 @@
 // ──────────────────────────────────────────────────────────────
 
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { StarIndexController } from './star-index.controller';
 import { StarIndexService } from './star-index.service';
 
 @Module({
+  imports: [AuthModule],
   controllers: [StarIndexController],
   providers: [StarIndexService],
   exports: [StarIndexService],
