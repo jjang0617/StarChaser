@@ -4,11 +4,21 @@ import axios from 'axios';
 import { parseStringPromise } from 'xml2js';
 import { kasiToInternalMapper } from './kasi.mapper';
 
+type KasiApiEnvelope = {
+  response?: {
+    body?: {
+      items?: {
+        item?: Record<string, unknown> | Record<string, unknown>[];
+      };
+    };
+  };
+};
+
 @Injectable()
 export class SkyService {
   private readonly logger = new Logger(SkyService.name);
 
-  constructor(private configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {}
 
   private async toKasiItem(data: unknown): Promise<Record<string, unknown> | null> {
     let normalized: unknown = data;
@@ -21,7 +31,8 @@ export class SkyService {
       normalized = parsed;
     }
 
-    const item = (normalized as any)?.response?.body?.items?.item;
+    const envelope = normalized as KasiApiEnvelope;
+    const item = envelope.response?.body?.items?.item;
     if (!item) {
       return null;
     }
