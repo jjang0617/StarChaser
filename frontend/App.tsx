@@ -22,6 +22,7 @@ import {
   Screen,
 } from './components/ui';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
+import { KakaoMapWebView } from './components/map/KakaoMapWebView';
 
 // ── 실제 앱 내용 — ThemeProvider 안에서 useTheme() 사용 가능 ──
 function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
@@ -29,81 +30,95 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [location, setLocation]   = useState<string>('');
 
+  const kakaoJavascriptKey = process.env.EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY;
+
   return (
     <Screen>
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* 헤더 */}
-          <Text style={[styles.appTitle, { color: theme.foreground, fontFamily: 'SpaceMono-Regular' }]}>
-            StarChaser
-          </Text>
-          <Text style={[styles.appSub, { color: theme.mutedForeground, fontFamily: 'SpaceMono-Regular' }]}>
-            Anti-AI Component v2.0
-          </Text>
-          {__DEV__ && (
-            <View style={styles.devRow}>
-              <Button
-                label="DEV: 온보딩 다시보기"
-                variant="outline"
-                onPress={onResetOnboarding}
-              />
-            </View>
-          )}
-
-          {/* Badge 샘플 */}
-          <View style={styles.row}>
-            <Badge label="Bortle 3" variant="gold" mono />
-            <Badge label="▲ 757m" variant="steel" mono />
-            <Badge label="주차" variant="muted" />
-            <Badge label="Red Mode" variant="red" />
-          </View>
-
-          {/* Star-Index 카드 */}
-          <StarIndexCard
-            score={78}
-            cloudCover={15}
-            pm25Level="보통"
-            moonAltitude={12}
+        {activeTab === 'map' ? (
+          <KakaoMapWebView
+            kakaoJavascriptKey={kakaoJavascriptKey}
+            onMessage={(msg) => {
+              if (__DEV__) {
+                // eslint-disable-next-line no-console
+                console.log('[KakaoMap]', msg);
+              }
+            }}
           />
+        ) : (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* 헤더 */}
+            <Text style={[styles.appTitle, { color: theme.foreground, fontFamily: 'SpaceMono-Regular' }]}>
+              StarChaser
+            </Text>
+            <Text style={[styles.appSub, { color: theme.mutedForeground, fontFamily: 'SpaceMono-Regular' }]}>
+              Anti-AI Component v2.0
+            </Text>
+            {__DEV__ && (
+              <View style={styles.devRow}>
+                <Button
+                  label="DEV: 온보딩 다시보기"
+                  variant="outline"
+                  onPress={onResetOnboarding}
+                />
+              </View>
+            )}
 
-          {/* 명소 카드 */}
-          <SpotCard
-            name="화왕산 억새평원"
-            region="창녕군"
-            elevation={757}
-            bortleClass={3}
-            starIndex={78}
-            hasParking
-            hasToilet
-            distanceKm={23}
-          />
-
-          {/* 기본 Card */}
-          <Card title="오늘의 관측 조건" description="기상/달/광공해 데이터 기반 실시간 계산">
-            <View style={styles.cardInner}>
-              <Input
-                label="관측 위치"
-                placeholder="강원 영월 별마로천문대"
-                value={location}
-                onChangeText={setLocation}
-                monoLabel
-              />
-              <Button label="관측 시작하기" fullWidth />
-              <Button label="관측지 둘러보기" variant="outline" fullWidth />
-              <Button
-                label={isRedMode ? '야간 모드 해제' : '🔴 Night Vision ON'}
-                variant="red"
-                fullWidth
-                onPress={toggleRed}
-              />
+            {/* Badge 샘플 */}
+            <View style={styles.row}>
+              <Badge label="Bortle 3" variant="gold" mono />
+              <Badge label="▲ 757m" variant="steel" mono />
+              <Badge label="주차" variant="muted" />
+              <Badge label="Red Mode" variant="red" />
             </View>
-          </Card>
-        </ScrollView>
+
+            {/* Star-Index 카드 */}
+            <StarIndexCard
+              score={78}
+              cloudCover={15}
+              pm25Level="보통"
+              moonAltitude={12}
+            />
+
+            {/* 명소 카드 */}
+            <SpotCard
+              name="화왕산 억새평원"
+              region="창녕군"
+              elevation={757}
+              bortleClass={3}
+              starIndex={78}
+              hasParking
+              hasToilet
+              distanceKm={23}
+            />
+
+            {/* 기본 Card */}
+            <Card title="오늘의 관측 조건" description="기상/달/광공해 데이터 기반 실시간 계산">
+              <View style={styles.cardInner}>
+                <Input
+                  label="관측 위치"
+                  placeholder="강원 영월 별마로천문대"
+                  value={location}
+                  onChangeText={setLocation}
+                  monoLabel
+                />
+                <Button label="관측 시작하기" fullWidth />
+                <Button label="관측지 둘러보기" variant="outline" fullWidth />
+                <Button
+                  label={isRedMode ? '야간 모드 해제' : '🔴 Night Vision ON'}
+                  variant="red"
+                  fullWidth
+                  onPress={toggleRed}
+                />
+              </View>
+            </Card>
+          </ScrollView>
+        )}
 
         {/* BottomTab */}
         <View style={styles.tabWrap}>

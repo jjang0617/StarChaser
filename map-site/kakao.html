@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StarChaser Kakao Map</title>
+    <!--
+      StarChaser Kakao Map (Hosted)
+
+      이 파일은 "앱 안의 WebView"에서 로드되는 정적 페이지다.
+      - 목적: Kakao Map JavaScript SDK는 '허용 도메인' 등록이 필요하므로
+        WebView에서도 실제 https 도메인(예: https://map.starchaser.app)에서 실행되게 한다.
+
+      RN(WebView) ↔ Web 메시지 규격(최소)
+      - RN → Web (window.postMessage / WebView postMessage)
+        - { type: 'INIT', data?: { center?: {lat,lng}, level?: number } }
+        - { type: 'SET_CURRENT_LOCATION', data: { lat:number, lng:number } }
+        - { type: 'SET_SPOTS', data: Array<{ id:string, lat:number, lng:number, title?:string }> }
+      - Web → RN (window.ReactNativeWebView.postMessage)
+        - { type: 'MAP_READY' }
+        - { type: 'MARKER_CLICK', data: { spotId:string } }
+
+      주의(키 관리)
+      - %KAKAO_JS_KEY%는 GitHub Actions에서 sed로 치환되어 배포된다.
+      - 키를 레포에 하드코딩 커밋하지 않기 위한 장치다.
+    -->
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        height: 100%;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <!-- Kakao Maps JavaScript SDK -->
+    <!-- appkey는 배포 시점에 주입됨 (%KAKAO_JS_KEY% → 실제 키) -->
+    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=%KAKAO_JS_KEY%&autoload=false"></script>
+
+    <script>
+      (function () {
+        function post(msg) {
+          try {
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+          } catch (_) {}
+        }
+
+        var map;
+        var currentMarker = null;
+        var spotMarkers = new Map();
+
+        function initMap(opts) {
+          var container = document.getElementById('map');
+          // 기본 중심: 서울 시청 (임시). INIT 메시지로 center/level을 덮어쓸 수 있다.
+          var center = opts && opts.center ? new kakao.maps.LatLng(opts.center.lat, opts.center.lng) : new kakao.maps.LatLng(37.5665, 126.978);
+          var level = opts && opts.level ? opts.level : 7;
+          map = new kakao.maps.Map(container, { center: center, level: level });
+          post({ type: 'MAP_READY' });
+        }
+
+        function setCurrentLocation(loc) {
+          if (!map || !loc) return;
+          var pos = new kakao.maps.LatLng(loc.lat, loc.lng);
+          map.setCenter(pos);
+          if (currentMarker) currentMarker.setMap(null);
+          currentMarker = new kakao.maps.Marker({ position: pos });
+          currentMarker.setMap(map);
+        }
+
+        function clearSpots() {
+          spotMarkers.forEach(function (m) {
+            m.setMap(null);
+          });
+          spotMarkers.clear();
+        }
+
+        function setSpots(spots) {
+          if (!map || !Array.isArray(spots)) return;
+          clearSpots();
+          spots.forEach(function (s) {
+            if (!s || !s.id) return;
+            var pos = new kakao.maps.LatLng(s.lat, s.lng);
+            var marker = new kakao.maps.Marker({ position: pos });
+            marker.setMap(map);
+            spotMarkers.set(String(s.id), marker);
+            kakao.maps.event.addListener(marker, 'click', function () {
+              post({ type: 'MARKER_CLICK', data: { spotId: String(s.id) } });
+            });
+          });
+        }
+
+        function handleMessage(raw) {
+          var msg;
+          try {
+            msg = JSON.parse(raw);
+          } catch (_) {
+            return;
+          }
+          if (!msg || !msg.type) return;
+          switch (msg.type) {
+            case 'INIT':
+              initMap(msg.data || {});
+              break;
+            case 'SET_CURRENT_LOCATION':
+              setCurrentLocation(msg.data);
+              break;
+            case 'SET_SPOTS':
+              setSpots(msg.data);
+              break;
+          }
+        }
+
+        // React Native WebView에서는 플랫폼/버전에 따라
+        // - document 이벤트로 들어오거나
+        // - window 이벤트로 들어오는 경우가 있어 둘 다 처리한다.
+        document.addEventListener('message', function (e) {
+          handleMessage(e.data);
+        });
+        window.addEventListener('message', function (e) {
+          handleMessage(e.data);
+        });
+
+        kakao.maps.load(function () {
+          // 최초 로드시 기본 지도 생성
+          initMap({});
+        });
+      })();
+    </script>
+  </body>
+</html>
+
