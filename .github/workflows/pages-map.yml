@@ -2,9 +2,9 @@ name: Deploy map-site to GitHub Pages
 
 on:
   # develop 브랜치에 "map-site/"가 변경되면 자동 배포
-  # - 앱(WebView)에서 로드할 URL: https://map.starchaser.app/kakao.html
-  # - Kakao Map JavaScript SDK는 "도메인 등록"이 필요해서,
-  #   WebView 안에서 실행될 실제 https 도메인을 하나 마련하는 목적
+  # - 배포 후 URL 예: https://<owner>.github.io/<repo>/kakao.html (커스텀 도메인 없이 GitHub 기본 주소)
+  # - 앱에서는 EXPO_PUBLIC_KAKAO_MAP_PAGE_URL에 위 전체 URL을 넣는다.
+  # - Kakao 개발자 콘솔 "JavaScript SDK 도메인"에는 github.io 호스트를 등록 (예: https://owner.github.io)
   push:
     branches: [develop]
     paths:

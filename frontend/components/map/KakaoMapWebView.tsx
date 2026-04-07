@@ -23,17 +23,20 @@ function safeJsonParse<T>(raw: string): T | null {
 }
 
 export function KakaoMapWebView({
+  /** GitHub Pages 등에서 호스팅된 kakao.html 전체 URL (예: https://org.github.io/StarChaser/kakao.html) */
+  mapPageUrl,
   kakaoJavascriptKey,
   onMessage,
 }: {
+  mapPageUrl?: string;
   kakaoJavascriptKey: string | undefined;
   onMessage?: (msg: WebToRNMessage) => void;
 }) {
   const webViewRef = useRef<WebView>(null);
 
   const html = useMemo(() => {
-    // 도메인 제한 때문에 "HTML string" 방식은 카카오 JS SDK에서 막힐 수 있음.
-    // 실제 운영은 GitHub Pages(예: https://map.starchaser.app/kakao.html)로 호스팅한 정적 페이지를 로드하는 걸 권장.
+    // 도메인 제한 때문에 카카오 JS SDK는 실제 https URL에서 로드하는 편이 안전함.
+    // 운영: EXPO_PUBLIC_KAKAO_MAP_PAGE_URL (GitHub Pages 기본 주소 등)
 
     // NOTE: ReactNativeWebView bridge is available in WebView context.
     return `<!doctype html>
@@ -144,12 +147,15 @@ export function KakaoMapWebView({
 
   const androidLayer = Platform.OS === 'android' ? { opacity: 0.99 } : null;
 
+  const hasHostedPage = Boolean(mapPageUrl?.trim());
+  const canUseInlineFallback = Boolean(kakaoJavascriptKey);
+
   return (
     <View style={{ flex: 1 }}>
-      {!kakaoJavascriptKey && (
+      {!hasHostedPage && !canUseInlineFallback && (
         <View style={{ padding: 12 }}>
           <Text style={{ fontSize: 12, opacity: 0.8 }}>
-            EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY가 설정되지 않았습니다.
+            EXPO_PUBLIC_KAKAO_MAP_PAGE_URL(권장) 또는 EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY를 frontend/.env에 설정하세요.
           </Text>
         </View>
       )}
@@ -158,11 +164,11 @@ export function KakaoMapWebView({
           ref={webViewRef}
           originWhitelist={['*']}
           source={
-            // 키가 없으면 로컬 안내 HTML을 띄우고, 키가 있으면 호스팅된 kakao.html을 띄운다.
-            // (호스팅 페이지에서는 카카오 JS 키를 서버/CI에서 주입)
-            kakaoJavascriptKey
-              ? { uri: 'https://map.starchaser.app/kakao.html' }
-              : { html }
+            hasHostedPage
+              ? { uri: mapPageUrl!.trim() }
+              : canUseInlineFallback
+                ? { html }
+                : { html: '<html><body style="margin:0"></body></html>' }
           }
           javaScriptEnabled
           domStorageEnabled
