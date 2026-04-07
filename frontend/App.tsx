@@ -31,6 +31,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [location, setLocation]   = useState<string>('');
 
   const kakaoJavascriptKey = process.env.EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY;
+  const kakaoMapPageUrl = process.env.EXPO_PUBLIC_KAKAO_MAP_PAGE_URL;
 
   return (
     <Screen>
@@ -38,6 +39,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
       <View style={{ flex: 1 }}>
         {activeTab === 'map' ? (
           <KakaoMapWebView
+            mapPageUrl={kakaoMapPageUrl}
             kakaoJavascriptKey={kakaoJavascriptKey}
             onMessage={(msg) => {
               if (__DEV__) {
