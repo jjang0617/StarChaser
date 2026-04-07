@@ -20,6 +20,7 @@ export interface SpotRepository {
   findById(id: string): Promise<Spot | null>;
   findNearby(lat: number, lng: number, radiusM: number): Promise<Spot[]>;
   findAll(): Promise<Spot[]>;
+  search(keyword: string, limit?: number): Promise<Spot[]>;
 }
 
 // ── 주입 토큰 (NestJS DI용) ──────────────────────────────────

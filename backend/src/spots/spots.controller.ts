@@ -41,4 +41,15 @@ export class SpotsController {
       Number(radiusM) || 30000,
     );
   }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('search')
+  @ApiOperation({ summary: '명소 검색 (tsvector + pg_trgm + ILIKE 하이브리드)' })
+  search(
+    @Query('q') q: string,
+    @Query('limit') limit = '20',
+  ) {
+    return this.spots.search(q ?? '', Number(limit) || 20);
+  }
 }

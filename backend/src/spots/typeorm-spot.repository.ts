@@ -88,6 +88,43 @@ export class TypeOrmSpotRepository implements SpotRepository {
     return rows.map((r) => this.mapRow(r));
   }
 
+  async search(keyword: string, limit = 20): Promise<Spot[]> {
+    const normalizedKeyword = keyword.trim();
+    if (!normalizedKeyword) {
+      return [];
+    }
+
+    const rows = (await this.repo.query(
+      `
+      SELECT
+        id,
+        name,
+        ST_Y(location::geometry) AS lat,
+        ST_X(location::geometry) AS lng,
+        bortle_class,
+        elevation_m,
+        has_parking,
+        has_toilet,
+        location_radius_m
+      FROM spots
+      WHERE
+        search_vector @@ plainto_tsquery('simple', $1)
+        OR name % $1
+        OR name ILIKE '%' || $1 || '%'
+      ORDER BY
+        GREATEST(
+          ts_rank_cd(search_vector, plainto_tsquery('simple', $1)),
+          similarity(name, $1)
+        ) DESC,
+        name ASC
+      LIMIT $2
+      `,
+      [normalizedKeyword, Math.max(1, Math.min(limit, 50))],
+    )) as Record<string, unknown>[];
+
+    return rows.map((r) => this.mapRow(r));
+  }
+
   private mapRow(row: Record<string, unknown>): Spot {
     return {
       id: String(row.id),
