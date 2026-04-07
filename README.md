@@ -54,9 +54,17 @@ npm run start:dev
 ```bash
 cd frontend
 npm install
+cp .env.example .env
 npx expo start
 # 폰에 Expo Go 앱 설치 후 QR 스캔
 ```
+
+---
+
+## 지도 (Kakao Map in WebView)
+
+앱에서는 `WebView + Kakao Map JavaScript SDK` 방식으로 지도를 렌더링한다. Kakao JavaScript SDK는 도메인 등록이 필요하므로, `https://map.starchaser.app/kakao.html` 정적 페이지를 GitHub Pages로 배포해 WebView에서 로드한다.
+
 
 ---
 
