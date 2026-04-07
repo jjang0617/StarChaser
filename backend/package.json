@@ -19,7 +19,8 @@
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
     "migration:create": "npm run typeorm -- migration:create src/migrations/manual-migration",
-    "migration:generate": "npm run typeorm -- migration:generate src/migrations/auto-migration"
+    "migration:generate": "npm run typeorm -- migration:generate src/migrations/auto-migration",
+    "seed": "ts-node src/seeds/spots.seed.ts"
   },
   "dependencies": {
     "@nestjs/cache-manager": "^2.2.0",
