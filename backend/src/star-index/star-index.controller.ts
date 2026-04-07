@@ -50,7 +50,8 @@ export class StarIndexController {
     if (!spot) {
       throw new NotFoundException('해당 spotId의 명소가 없습니다.');
     }
-    // TODO: 캐시 기상·미세먼지·달 + StarIndexService.calcStarIndex() 연동
+    const { score, cacheKeys } =
+      await this.starIndexService.calculateForSpotFromCache(spot);
     return {
       spotId: spot.id,
       name: spot.name,
@@ -58,8 +59,9 @@ export class StarIndexController {
       lng: spot.lng,
       elevationM: spot.elevationM,
       bortleClass: spot.bortleClass,
-      score: 0,
-      message: 'Star-Index 계산은 캐시·Cron 연동 후',
+      score,
+      cacheKeys,
+      message: '캐시(weather/dust/moon) 기반 Star-Index 계산 완료',
       requestedBy: user.email,
     };
   }

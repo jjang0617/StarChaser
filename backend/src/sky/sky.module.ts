@@ -4,6 +4,7 @@ import { SkyController } from './sky.controller';
 
 @Module({
   providers: [SkyService],
-  controllers: [SkyController]
+  controllers: [SkyController],
+  exports: [SkyService],
 })
 export class SkyModule {}
