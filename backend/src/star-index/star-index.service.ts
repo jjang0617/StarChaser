@@ -1,6 +1,12 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
+import type { Spot } from '../common/interfaces/spot.repository';
 
 // ── 기상 데이터 타입 ─────────────────────────────────────────
 interface WeatherData {
@@ -34,6 +40,44 @@ export class StarIndexService {
   private readonly logger = new Logger(StarIndexService.name);
 
   constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
+
+  async calculateForSpotFromCache(spot: Spot): Promise<{
+    score: number;
+    cacheKeys: { weatherKey: string; dustKey: string; moonKey: string };
+  }> {
+    const { nx, ny } = this.latLngToGrid(spot.lat, spot.lng);
+    const weatherKey = `weather:${nx}:${ny}`;
+    const dustKey = 'dust:서울';
+    const moonKey = `moon:${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`;
+
+    const weather = await this.cache.get<WeatherData>(weatherKey);
+    const dust = await this.cache.get<DustData>(dustKey);
+    const moon = await this.cache.get<MoonData>(moonKey);
+
+    if (!weather || !dust || !moon) {
+      const missing = [
+        !weather ? weatherKey : null,
+        !dust ? dustKey : null,
+        !moon ? moonKey : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+
+      throw new ServiceUnavailableException(
+        `캐시 데이터가 부족합니다. 누락 키: ${missing}. Cron 수집기를 먼저 실행하세요.`,
+      );
+    }
+
+    const score = await this.getStarIndexBySpotId(spot.id, {
+      weather,
+      dust,
+      moon,
+      bortleClass: spot.bortleClass,
+      elevationM: spot.elevationM,
+    });
+
+    return { score, cacheKeys: { weatherKey, dustKey, moonKey } };
+  }
 
   // ── 캐시에서 Star-Index 조회 (없으면 계산 후 저장) ──────────
   async getStarIndexBySpotId(spotId: string, input: StarIndexInput): Promise<number> {

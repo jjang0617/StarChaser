@@ -47,8 +47,12 @@ export class SkyService {
     moonset: string | null;
     lunAge: number;
   }> {
-    const moonApiKey = this.configService.get<string>('KASI_MOON_API_KEY');
-    const riseSetApiKey = this.configService.get<string>('KASI_RISE_SET_API_KEY');
+    const moonApiKey =
+      this.configService.get<string>('KASI_MOON_API_KEY') ??
+      this.configService.get<string>('KASI_API_KEY');
+    const riseSetApiKey =
+      this.configService.get<string>('KASI_RISE_SET_API_KEY') ??
+      this.configService.get<string>('KASI_API_KEY');
 
     // 날짜 형식 변환 (20250324 → year=2025, month=03, day=24)
     const solYear = date.slice(0, 4);
@@ -95,7 +99,8 @@ export class SkyService {
       return result;
 
     } catch (error) {
-      this.logger.error('KASI API 호출 실패', error);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`KASI API 호출 실패: ${message}`);
       // 실패 시 기본값 반환 (달이 없는 것으로 처리)
       return {
         moonAltitude: -10,
