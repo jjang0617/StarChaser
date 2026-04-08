@@ -67,7 +67,9 @@ interface StarIndexCardProps {
   score:        number;
   cloudCover:   number;   // % 운량
   pm25Level:    string;   // '좋음' | '보통' | '나쁨'
-  moonAltitude: number;   // 달 고도 (도)
+  moonAltitude: number;   // 달 고도 (도) — unknown이면 표시만 생략
+  /** false면 KASI 고도 미수신 등 — MOON 칸에 미상 */
+  moonAltitudeKnown?: boolean;
   onPress?:     () => void;
 }
 
@@ -76,6 +78,7 @@ export function StarIndexCard({
   cloudCover,
   pm25Level,
   moonAltitude,
+  moonAltitudeKnown = true,
   onPress,
 }: StarIndexCardProps) {
   const { theme } = useTheme();
@@ -88,10 +91,13 @@ export function StarIndexCard({
     score >= 75 ? theme.starGold :
     score >= 50 ? theme.moonlight : theme.mutedForeground;
 
+  const moonLabel =
+    moonAltitudeKnown ? `${moonAltitude}°` : '미상';
+
   const dataItems = [
     { key: 'CLOUD', value: `${cloudCover}%` },
     { key: 'PM2.5', value: pm25Level },
-    { key: 'MOON',  value: `${moonAltitude}°` },
+    { key: 'MOON',  value: moonLabel },
   ];
 
   return (
