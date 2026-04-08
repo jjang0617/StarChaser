@@ -25,6 +25,11 @@ export interface WeatherSnapshot {
 
   /** C와 KASI 크로스체크용 — DB 필수 키 아님 */
   moon_altitude_deg?: number;
+  /**
+   * true면 KASI에서 고도 숫자를 읽음. false면 RiseSet에 고도 키 없음 등(값은 센티넬일 수 있음)
+   * — DB 필수 키 아님
+   */
+  moon_altitude_known?: boolean;
   /** 달 위상 0~1 — DB 필수 키 아님 */
   lun_phase?: number;
 }
@@ -108,6 +113,9 @@ export function normalizeWeatherSnapshotForStorage(
   }
   if (raw.moon_altitude_deg !== undefined) {
     base.moon_altitude_deg = raw.moon_altitude_deg;
+  }
+  if (raw.moon_altitude_known !== undefined) {
+    base.moon_altitude_known = raw.moon_altitude_known;
   }
   if (raw.lun_phase !== undefined) {
     base.lun_phase = raw.lun_phase;

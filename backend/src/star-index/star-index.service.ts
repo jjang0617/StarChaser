@@ -7,6 +7,7 @@ import {
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import type { Spot } from '../common/interfaces/spot.repository';
+import { MOON_ALTITUDE_MISSING_SENTINEL } from '../sky/kasi.mapper';
 import type { WeatherSnapshot } from '../common/interfaces/weather-snapshot';
 import { normalizeWeatherSnapshotForStorage } from '../common/interfaces/weather-snapshot';
 
@@ -26,7 +27,8 @@ interface DustData {
 
 interface MoonData {
   phase: number;       // 달 위상 (0~1, 0=삭, 1=보름)
-  altitude: number;    // 달 고도 (도, 음수=지평선 아래) — moonAltitude
+  altitude: number;    // 달 고도 (도) — RiseSet만 쓸 때 센티넬(-10)일 수 있음
+  moonAltitudeKnown?: boolean;
 }
 
 interface StarIndexInput {
@@ -150,7 +152,11 @@ export class StarIndexService {
       cloud_score: this.calcCloudScore(weather.cloud),
       pm25_score: this.calcPm25Score(dust.pm25),
       light_pollution_score: this.calcLightPollutionScore(bortleClass),
-      moon_effect_score: this.calcMoonScore(moon.phase, moon.altitude),
+      moon_effect_score: this.calcMoonScore(
+        moon.phase,
+        moon.altitude,
+        moon.moonAltitudeKnown,
+      ),
       humidity_score: this.calcHumidityScore(weather.humidity),
       elevation_score: this.calcElevationScore(elevationM),
       wind_score: this.calcWindScore(weather.windSpeed),
@@ -159,6 +165,7 @@ export class StarIndexService {
       correction_score: 100,
       precipitation_probability: weather.pop,
       moon_altitude_deg: moon.altitude,
+      moon_altitude_known: moon.moonAltitudeKnown,
       lun_phase: moon.phase,
     };
   }
@@ -203,7 +210,20 @@ export class StarIndexService {
     return Math.max(0, Math.round(((9 - bortleClass) / 8) * 100));
   }
 
-  private calcMoonScore(phase: number, altitudeDeg: number): number {
+  /**
+   * RiseSet만 쓸 때 고도 필드 부재 → 센티넬(-10) + known=false → 달 감점 없음(100)
+   * 음수 고도는 지평선 아래 → 달 감점 없음(100)
+   */
+  private calcMoonScore(
+    phase: number,
+    altitudeDeg: number,
+    altitudeKnown?: boolean,
+  ): number {
+    const altitudeMissing =
+      altitudeKnown === false ||
+      (altitudeKnown === undefined &&
+        altitudeDeg === MOON_ALTITUDE_MISSING_SENTINEL);
+    if (altitudeMissing) return 100;
     if (altitudeDeg < 0) return 100;
     const moonEffect = phase * (altitudeDeg / 90);
     return Math.round((1 - moonEffect) * 100);
