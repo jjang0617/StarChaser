@@ -2,12 +2,14 @@
 // ObservationRepository 인터페이스
 // ──────────────────────────────────────────────────────────────
 
+import type { WeatherSnapshot } from './weather-snapshot';
+
 export interface Observation {
   id: string;
   userId: string;
   spotId: string | null;
   starIndexVal: number;
-  weatherSnapshot: Record<string, unknown>; // 9개 변수 스냅샷
+  weatherSnapshot: WeatherSnapshot;
   result: 'success' | 'partial' | 'fail';
   observedAt: Date;
 }

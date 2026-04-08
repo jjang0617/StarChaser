@@ -11,6 +11,7 @@ import { CronModule } from './cron/cron.module';
 import { SpotsModule } from './spots/spots.module';
 import { StarIndexModule } from './star-index/star-index.module';
 import { SkyModule } from './sky/sky.module';
+import { ObservationsModule } from './observations/observations.module';
 
 @Module({
   imports: [
@@ -50,7 +51,8 @@ import { SkyModule } from './sky/sky.module';
     CronModule,
     SpotsModule,
     StarIndexModule,
-    SkyModule, // 추가
+    SkyModule,
+    ObservationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
