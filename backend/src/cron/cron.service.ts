@@ -208,6 +208,7 @@ export class CronService {
         {
           phase: moon.lunPhase,
           altitude: moon.moonAltitude,
+          moonAltitudeKnown: moon.moonAltitudeKnown,
           moonrise: moon.moonrise,
           moonset: moon.moonset,
           collectedAt: new Date().toISOString(),

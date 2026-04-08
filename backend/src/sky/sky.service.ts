@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { parseStringPromise } from 'xml2js';
-import { kasiToInternalMapper } from './kasi.mapper';
+import {
+  kasiToInternalMapper,
+  MOON_ALTITUDE_MISSING_SENTINEL,
+} from './kasi.mapper';
 
 type KasiApiEnvelope = {
   response?: {
@@ -42,6 +45,8 @@ export class SkyService {
 
   async getMoonData(date: string): Promise<{
     moonAltitude: number;
+    /** RiseSet 응답에 고도 필드가 없으면 false — moonAltitude는 센티넬(-10) */
+    moonAltitudeKnown: boolean;
     lunPhase: number;
     moonrise: string | null;
     moonset: string | null;
@@ -92,9 +97,16 @@ export class SkyService {
       // 매핑 함수로 변환
       const result = kasiToInternalMapper(moonData, phaseData);
 
-      this.logger.log(
-        `달 데이터 파싱 완료 — 날짜: ${date}, 고도: ${result.moonAltitude}, 위상: ${result.lunPhase}, 월령: ${result.lunAge}`
-      );
+      if (!result.moonAltitudeKnown) {
+        this.logger.warn(
+          `[KASI] RiseSet item에 고도 필드 없음 — moonAltitude=${result.moonAltitude}(센티넬). ` +
+            `실측 고도는 별도 API/필드 합의 후 kasi.mapper 확장 필요. date=${date}`,
+        );
+      } else {
+        this.logger.log(
+          `달 데이터 파싱 완료 — date=${date}, moonAltitude=${result.moonAltitude}(KASI), lunPhase=${result.lunPhase}, lunAge=${result.lunAge}`,
+        );
+      }
 
       return result;
 
@@ -103,7 +115,8 @@ export class SkyService {
       this.logger.error(`KASI API 호출 실패: ${message}`);
       // 실패 시 기본값 반환 (달이 없는 것으로 처리)
       return {
-        moonAltitude: -10,
+        moonAltitude: MOON_ALTITUDE_MISSING_SENTINEL,
+        moonAltitudeKnown: false,
         lunPhase: 0,
         moonrise: null,
         moonset: null,

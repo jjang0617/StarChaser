@@ -1,5 +1,10 @@
 import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CronService } from './cron.service';
 
@@ -20,7 +25,23 @@ export class CronController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('cache-status')
-  @ApiOperation({ summary: 'Star-Index용 캐시 키 존재 여부 확인' })
+  @ApiOperation({
+    summary: 'Star-Index용 캐시 키 존재 여부 확인',
+    description:
+      'weather 키는 lat/lng→격자(nx,ny)로 결정됨. 비우면 서울 시청 근처 기본값.',
+  })
+  @ApiQuery({
+    name: 'lat',
+    required: false,
+    example: 37.1833,
+    description: '명소 위도 (WGS84)',
+  })
+  @ApiQuery({
+    name: 'lng',
+    required: false,
+    example: 128.75,
+    description: '명소 경도 (WGS84)',
+  })
   cacheStatus(
     @Query('lat') lat = '37.5665',
     @Query('lng') lng = '126.978',
