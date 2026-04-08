@@ -47,17 +47,73 @@ cd backend
 npm install
 cp .env.example .env
 # .env 파일에 팀 공유 값 입력 (단톡 확인)
+```
+
+백엔드는 모바일(Expo Go)에서 접근 가능하게 실행해야 한다.
+
+- macOS/Linux
+```bash
+HOST=0.0.0.0 PORT=3333 npm run start:dev
+```
+
+- Windows cmd
+```bat
+set HOST=0.0.0.0
+set PORT=3333
 npm run start:dev
 ```
+
+정상 기준:
+- `http://localhost:3333/api-docs` 접속 가능
+- 같은 와이파이의 폰 브라우저에서 `http://<내PCIP>:3333/api-docs` 접속 가능
 
 ### 3. 프론트엔드 세팅
 ```bash
 cd frontend
 npm install
 cp .env.example .env
-npx expo start
-# 폰에 Expo Go 앱 설치 후 QR 스캔
 ```
+
+`frontend/.env` 예시:
+```env
+EXPO_PUBLIC_API_URL=http://<내PCIP>:3333
+EXPO_PUBLIC_DEFAULT_SPOT_ID=<spots.id UUID>
+```
+
+주의:
+- Expo Go(폰)에서 `127.0.0.1`은 폰 자기 자신을 의미하므로 사용 금지
+- 반드시 백엔드가 열려 있는 PC의 LAN IP 사용
+
+실행:
+- macOS/Linux
+```bash
+EXPO_PACKAGER_HOSTNAME=<내PCIP> npx expo start --host lan --clear
+```
+
+- Windows cmd
+```bat
+set EXPO_PACKAGER_HOSTNAME=<내PCIP>
+npm run start -- --host lan --clear
+```
+
+정상 기준:
+- 터미널에 `Metro waiting on exp://<내PCIP>:8081` 출력
+- 폰에서 QR 스캔 후 앱 하단 `API:` 문구가 `http://<내PCIP>:3333`로 표시
+
+### 4. 로그인/Star-Index 확인
+1. 앱에서 회원가입 또는 로그인
+2. Star-Index 카드에 캐시 부족 오류가 보이면 Swagger에서 `POST /cron/run-once` 1회 실행
+3. 앱에서 `다시 시도` 버튼으로 갱신
+
+---
+
+### 문제 해결 (자주 발생)
+- `ConfigError: .../starchaser/package.json does not exist`  
+  → `frontend` 또는 `backend` 폴더로 이동 후 실행
+- `listen EFAULT ... :::8081`  
+  → `--host lan --clear` + `EXPO_PACKAGER_HOSTNAME=<내PCIP>`로 재실행
+- 앱에서 `알 수 없는 오류` 또는 네트워크 오류  
+  → 앱 하단 `API:`가 `127.0.0.1`인지 먼저 확인 (PC IP로 교체 필요)
 
 ---
 
