@@ -15,7 +15,8 @@
       - RN → Web (window.postMessage / WebView postMessage)
         - { type: 'INIT', data?: { center?: {lat,lng}, level?: number } }
         - { type: 'SET_CURRENT_LOCATION', data: { lat:number, lng:number } }
-        - { type: 'SET_SPOTS', data: Array<{ id:string, lat:number, lng:number, title?:string }> }
+        - { type: 'CLEAR_CURRENT_LOCATION' }
+        - { type: 'SET_SPOTS', data: Array<{ id:string, lat:number, lng:number, title?:string }> } → CustomOverlay(⭐ + 이름 라벨)
       - Web → RN (window.ReactNativeWebView.postMessage)
         - { type: 'MAP_READY' }
         - { type: 'MARKER_CLICK', data: { spotId:string } }
@@ -54,7 +55,17 @@
 
         var map;
         var currentMarker = null;
+        /** 명소: CustomOverlay (⭐ + 이름). 현재 위치는 기본 Marker */
         var spotMarkers = new Map();
+
+        function escapeHtml(str) {
+          if (str == null || str === '') return '';
+          return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        }
 
         function initMap(opts) {
           var container = document.getElementById('map');
@@ -74,6 +85,13 @@
           currentMarker.setMap(map);
         }
 
+        function clearCurrentLocation() {
+          if (currentMarker) {
+            currentMarker.setMap(null);
+            currentMarker = null;
+          }
+        }
+
         function clearSpots() {
           spotMarkers.forEach(function (m) {
             m.setMap(null);
@@ -87,12 +105,26 @@
           spots.forEach(function (s) {
             if (!s || !s.id) return;
             var pos = new kakao.maps.LatLng(s.lat, s.lng);
-            var marker = new kakao.maps.Marker({ position: pos });
-            marker.setMap(map);
-            spotMarkers.set(String(s.id), marker);
-            kakao.maps.event.addListener(marker, 'click', function () {
+            var label = escapeHtml(s.title || '명소');
+            var el = document.createElement('div');
+            el.style.cssText =
+              'display:inline-flex;align-items:center;gap:4px;padding:6px 11px;' +
+              'background:rgba(18,22,42,0.92);color:#fffef5;border-radius:999px;' +
+              'font-size:13px;line-height:1.2;white-space:nowrap;cursor:pointer;' +
+              'box-shadow:0 2px 10px rgba(0,0,0,0.35);border:1px solid rgba(255,214,120,0.45);' +
+              'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+            el.innerHTML = '<span style="font-size:15px;line-height:1">⭐</span><span style="font-weight:600">' + label + '</span>';
+            el.addEventListener('click', function () {
               post({ type: 'MARKER_CLICK', data: { spotId: String(s.id) } });
             });
+            var overlay = new kakao.maps.CustomOverlay({
+              map: map,
+              position: pos,
+              content: el,
+              yAnchor: 1.18,
+              zIndex: 5,
+            });
+            spotMarkers.set(String(s.id), overlay);
           });
         }
 
@@ -110,6 +142,9 @@
               break;
             case 'SET_CURRENT_LOCATION':
               setCurrentLocation(msg.data);
+              break;
+            case 'CLEAR_CURRENT_LOCATION':
+              clearCurrentLocation();
               break;
             case 'SET_SPOTS':
               setSpots(msg.data);

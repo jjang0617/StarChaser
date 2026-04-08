@@ -1,18 +1,27 @@
-import React, { useMemo, useRef } from 'react';
+import * as Location from 'expo-location';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import WebView, { WebViewMessageEvent } from 'react-native-webview';
 
-type LatLng = { lat: number; lng: number };
-type Spot = { id: string; lat: number; lng: number; title?: string };
+export type LatLng = { lat: number; lng: number };
+export type MapSpot = { id: string; lat: number; lng: number; title?: string };
 
 type RNToWebMessage =
   | { type: 'INIT'; data?: { center?: LatLng; level?: number } }
   | { type: 'SET_CURRENT_LOCATION'; data: LatLng }
-  | { type: 'SET_SPOTS'; data: Spot[] };
+  | { type: 'CLEAR_CURRENT_LOCATION' }
+  | { type: 'SET_SPOTS'; data: MapSpot[] };
 
 type WebToRNMessage =
   | { type: 'MAP_READY' }
   | { type: 'MARKER_CLICK'; data: { spotId: string } };
+
+/** Step 3: API 없이 마커 검증용 — 별 관측 인기 명소(대략 좌표) */
+export const SAMPLE_MAP_SPOTS: MapSpot[] = [
+  { id: 'yeongwol-byeolmaro', title: '영월 별마로천문대', lat: 37.1865, lng: 128.471 },
+  { id: 'cheongsong-juwangsan', title: '청송 주왕산', lat: 36.4045, lng: 129.1592 },
+  { id: 'taebaeksan', title: '태백산 국립공원', lat: 37.0972, lng: 128.9231 },
+];
 
 function safeJsonParse<T>(raw: string): T | null {
   try {
@@ -22,23 +31,42 @@ function safeJsonParse<T>(raw: string): T | null {
   }
 }
 
+/** RN → 호스팅 kakao.html: MessageEvent로 handleMessage와 동일 경로 전달 */
+function injectWebMessage(webView: WebView | null, msg: RNToWebMessage) {
+  if (!webView) return;
+  const payload = JSON.stringify(msg);
+  const script = `
+    (function () {
+      try {
+        var data = ${JSON.stringify(payload)};
+        window.dispatchEvent(new MessageEvent('message', { data: data }));
+        document.dispatchEvent(new MessageEvent('message', { data: data }));
+      } catch (e) {}
+      true;
+    })();
+  `;
+  webView.injectJavaScript(script);
+}
+
 export function KakaoMapWebView({
-  /** GitHub Pages 등에서 호스팅된 kakao.html 전체 URL (예: https://org.github.io/StarChaser/kakao.html) */
   mapPageUrl,
   kakaoJavascriptKey,
   onMessage,
+  /** MAP_READY 이후 expo-location으로 내 위치 마커 (기본 true) */
+  showUserLocation = true,
+  /** 하드코딩 명소 마커 (기본 SAMPLE_MAP_SPOTS, 빈 배열이면 전송 안 함) */
+  spots = SAMPLE_MAP_SPOTS,
 }: {
   mapPageUrl?: string;
   kakaoJavascriptKey: string | undefined;
   onMessage?: (msg: WebToRNMessage) => void;
+  showUserLocation?: boolean;
+  spots?: MapSpot[];
 }) {
   const webViewRef = useRef<WebView>(null);
+  const [mapReady, setMapReady] = useState(false);
 
   const html = useMemo(() => {
-    // 도메인 제한 때문에 카카오 JS SDK는 실제 https URL에서 로드하는 편이 안전함.
-    // 운영: EXPO_PUBLIC_KAKAO_MAP_PAGE_URL (GitHub Pages 기본 주소 등)
-
-    // NOTE: ReactNativeWebView bridge is available in WebView context.
     return `<!doctype html>
 <html>
   <head>
@@ -57,6 +85,15 @@ export function KakaoMapWebView({
         var map;
         var currentMarker = null;
         var spotMarkers = new Map();
+
+        function escapeHtml(str) {
+          if (str == null || str === '') return '';
+          return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        }
 
         function post(msg) {
           try {
@@ -86,6 +123,13 @@ export function KakaoMapWebView({
           currentMarker.setMap(map);
         }
 
+        function clearCurrentLocation() {
+          if (currentMarker) {
+            currentMarker.setMap(null);
+            currentMarker = null;
+          }
+        }
+
         function clearSpots() {
           spotMarkers.forEach(function (m) { m.setMap(null); });
           spotMarkers.clear();
@@ -97,12 +141,26 @@ export function KakaoMapWebView({
           spots.forEach(function (s) {
             if (!s || !s.id) return;
             var pos = new kakao.maps.LatLng(s.lat, s.lng);
-            var marker = new kakao.maps.Marker({ position: pos });
-            marker.setMap(map);
-            spotMarkers.set(String(s.id), marker);
-            kakao.maps.event.addListener(marker, 'click', function () {
+            var label = escapeHtml(s.title || '명소');
+            var el = document.createElement('div');
+            el.style.cssText =
+              'display:inline-flex;align-items:center;gap:4px;padding:6px 11px;' +
+              'background:rgba(18,22,42,0.92);color:#fffef5;border-radius:999px;' +
+              'font-size:13px;line-height:1.2;white-space:nowrap;cursor:pointer;' +
+              'box-shadow:0 2px 10px rgba(0,0,0,0.35);border:1px solid rgba(255,214,120,0.45);' +
+              'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+            el.innerHTML = '<span style="font-size:15px;line-height:1">⭐</span><span style="font-weight:600">' + label + '</span>';
+            el.addEventListener('click', function () {
               post({ type: 'MARKER_CLICK', data: { spotId: String(s.id) } });
             });
+            var overlay = new kakao.maps.CustomOverlay({
+              map: map,
+              position: pos,
+              content: el,
+              yAnchor: 1.18,
+              zIndex: 5,
+            });
+            spotMarkers.set(String(s.id), overlay);
           });
         }
 
@@ -116,6 +174,9 @@ export function KakaoMapWebView({
               break;
             case 'SET_CURRENT_LOCATION':
               setCurrentLocation(msg.data);
+              break;
+            case 'CLEAR_CURRENT_LOCATION':
+              clearCurrentLocation();
               break;
             case 'SET_SPOTS':
               setSpots(msg.data);
@@ -140,22 +201,104 @@ export function KakaoMapWebView({
 </html>`;
   }, [kakaoJavascriptKey]);
 
+  const sendToWeb = useCallback((msg: RNToWebMessage) => {
+    injectWebMessage(webViewRef.current, msg);
+  }, []);
+
   const handleMessage = (e: WebViewMessageEvent) => {
     const parsed = safeJsonParse<WebToRNMessage>(e.nativeEvent.data);
-    if (parsed) onMessage?.(parsed);
+    if (!parsed) return;
+    if (parsed.type === 'MAP_READY') {
+      setMapReady(true);
+    }
+    onMessage?.(parsed);
   };
-
-  const androidLayer = Platform.OS === 'android' ? { opacity: 0.99 } : null;
 
   const hasHostedPage = Boolean(mapPageUrl?.trim());
   const canUseInlineFallback = Boolean(kakaoJavascriptKey);
+
+  // Step 2: MAP_READY 후 위치 권한 → SET_CURRENT_LOCATION (갱신은 watch)
+  useEffect(() => {
+    if (!mapReady || !showUserLocation) return;
+
+    let cancelled = false;
+    let sub: Location.LocationSubscription | null = null;
+
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled) return;
+      if (status !== 'granted') {
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.warn('[KakaoMap] 위치 권한 거부');
+        }
+        return;
+      }
+
+      const pushLocation = (coords: { latitude: number; longitude: number }) => {
+        if (cancelled) return;
+        sendToWeb({
+          type: 'SET_CURRENT_LOCATION',
+          data: { lat: coords.latitude, lng: coords.longitude },
+        });
+      };
+
+      try {
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (cancelled) return;
+        pushLocation(current.coords);
+      } catch {
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.warn('[KakaoMap] 현재 위치 1회 조회 실패');
+        }
+      }
+
+      try {
+        sub = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            distanceInterval: 25,
+            timeInterval: 10000,
+          },
+          (loc) => pushLocation(loc.coords),
+        );
+        if (cancelled) {
+          sub.remove();
+          sub = null;
+        }
+      } catch {
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.warn('[KakaoMap] 위치 watch 실패');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      sub?.remove();
+      sendToWeb({ type: 'CLEAR_CURRENT_LOCATION' });
+    };
+  }, [mapReady, showUserLocation, sendToWeb]);
+
+  // Step 3: MAP_READY 직후 샘플 명소 (호스팅/인라인 공통)
+  useEffect(() => {
+    if (!mapReady) return;
+    if (!spots.length) return;
+    sendToWeb({ type: 'SET_SPOTS', data: spots });
+  }, [mapReady, spots, sendToWeb]);
+
+  const androidLayer = Platform.OS === 'android' ? { opacity: 0.99 } : null;
 
   return (
     <View style={{ flex: 1 }}>
       {!hasHostedPage && !canUseInlineFallback && (
         <View style={{ padding: 12 }}>
           <Text style={{ fontSize: 12, opacity: 0.8 }}>
-            EXPO_PUBLIC_KAKAO_MAP_PAGE_URL(권장) 또는 EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY를 frontend/.env에 설정하세요.
+            EXPO_PUBLIC_KAKAO_MAP_PAGE_URL을 frontend/.env에 설정하세요.
           </Text>
         </View>
       )}
@@ -178,4 +321,3 @@ export function KakaoMapWebView({
     </View>
   );
 }
-
