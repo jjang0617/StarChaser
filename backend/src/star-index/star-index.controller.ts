@@ -50,7 +50,7 @@ export class StarIndexController {
     if (!spot) {
       throw new NotFoundException('해당 spotId의 명소가 없습니다.');
     }
-    const { score, cacheKeys } =
+    const { score, weatherSnapshot, cacheKeys } =
       await this.starIndexService.calculateForSpotFromCache(spot);
     return {
       spotId: spot.id,
@@ -60,8 +60,10 @@ export class StarIndexController {
       elevationM: spot.elevationM,
       bortleClass: spot.bortleClass,
       score,
+      weatherSnapshot,
       cacheKeys,
-      message: '캐시(weather/dust/moon) 기반 Star-Index 계산 완료',
+      message:
+        '캐시(weather/dust/moon) 기반 Star-Index 계산 완료 — weather_snapshot 10키 합의 스키마',
       requestedBy: user.email,
     };
   }
