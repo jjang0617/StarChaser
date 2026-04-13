@@ -174,9 +174,20 @@ export class CronService {
         )}&ver=1.0`;
 
       const response = await fetch(url);
-      const data = (await response.json()) as {
+      const rawText = await response.text();
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} — ${rawText.slice(0, 200)}`);
+      }
+      let data: {
         response?: { body?: { items?: Array<{ pm25Value?: string }> } };
       };
+      try {
+        data = JSON.parse(rawText) as typeof data;
+      } catch {
+        throw new Error(
+          `JSON 파싱 실패(에어코리아 응답이 HTML/에러 페이지일 수 있음): ${rawText.slice(0, 120)}`,
+        );
+      }
 
       const items = data.response?.body?.items ?? [];
       const pm25 =
@@ -230,10 +241,19 @@ export class CronService {
     // cache.set(`top5:weekly:${week}`, data, 86400)
   }
 
+  /**
+   * 수동 실행 — 각 수집기 내부에서 실패해도 해당 키만 스킵하고 기존 캐시는 덮어쓰지 않음
+   */
   async runCollectionOnce(): Promise<void> {
+    this.logger.log(
+      '[Cron] run-once 시작 — weather → dust → moon 순서 (개별 실패 시 기존 TTL 캐시 유지)',
+    );
     await this.collectWeatherData();
     await this.collectDustData();
     await this.collectMoonData();
+    this.logger.log(
+      '[Cron] run-once 루프 종료 — 일부 키 수집 실패 시에도 성공한 키만 갱신되며, 실패 키는 이전 캐시가 남을 수 있음',
+    );
   }
 
   async getCacheStatus(lat = 37.5665, lng = 126.978): Promise<{

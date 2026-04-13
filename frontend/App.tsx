@@ -39,6 +39,32 @@ import {
 import { starIndexResponseToCardModel } from './lib/star-index-display';
 import type { StarIndexResponseDto } from './lib/types/api';
 
+/** Star-Index 카드에 표시할 오류(503 캐시 부족 vs 일반) */
+type StarIndexUiError = {
+  cardDescription: string;
+  lines: string[];
+  /** true면 안내 톤(빨간 에러색 대신 muted) */
+  isTransient: boolean;
+};
+
+function starIndexErrorFromApi(e: ApiRequestError): StarIndexUiError {
+  if (e.status === 503) {
+    return {
+      cardDescription: '캐시 준비 중',
+      isTransient: true,
+      lines: [
+        '이 명소에 맞는 기상·미세먼지·달 캐시가 아직 없거나 갱신 중일 수 있어요. 서버는 실패해도 기존 캐시를 유지하니, 잠시 뒤 다시 시도해 주세요.',
+        '개발 환경: Swagger → cron → POST /cron/run-once 로 수집을 한 번 돌린 뒤 새로고침해 보세요.',
+      ],
+    };
+  }
+  return {
+    cardDescription: '오류',
+    isTransient: false,
+    lines: [e.message],
+  };
+}
+
 function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const { theme, toggleRed, isRedMode } = useTheme();
   const { user, logout, onSessionInvalidated } = useAuth();
@@ -47,7 +73,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
 
   const defaultSpotId = getDefaultSpotId();
   const [siLoading, setSiLoading] = useState(false);
-  const [siError, setSiError] = useState<string | null>(null);
+  const [siError, setSiError] = useState<StarIndexUiError | null>(null);
   const [siData, setSiData] = useState<StarIndexResponseDto | null>(null);
   const [siRefreshKey, setSiRefreshKey] = useState(0);
 
@@ -70,9 +96,13 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
           return;
         }
         if (e instanceof ApiRequestError) {
-          if (!cancelled) setSiError(e.message);
+          if (!cancelled) setSiError(starIndexErrorFromApi(e));
         } else if (!cancelled) {
-          setSiError('Star-Index를 불러오지 못했습니다.');
+          setSiError({
+            cardDescription: '오류',
+            isTransient: false,
+            lines: ['Star-Index를 불러오지 못했습니다.'],
+          });
         }
         if (!cancelled) setSiData(null);
       } finally {
@@ -172,8 +202,21 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                 <ActivityIndicator color={theme.starGold} />
               </Card>
             ) : siError ? (
-              <Card title="Star-Index" description="오류">
-                <Text style={{ color: theme.dimRedFg, fontSize: 12 }}>{siError}</Text>
+              <Card title="Star-Index" description={siError.cardDescription}>
+                {siError.lines.map((line, i) => (
+                  <Text
+                    key={i}
+                    style={{
+                      color: siError.isTransient
+                        ? theme.mutedForeground
+                        : theme.dimRedFg,
+                      fontSize: 12,
+                      marginBottom: i < siError.lines.length - 1 ? 8 : 0,
+                    }}
+                  >
+                    {line}
+                  </Text>
+                ))}
                 <Button
                   label="다시 시도"
                   variant="outline"
