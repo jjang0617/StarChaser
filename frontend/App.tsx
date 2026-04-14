@@ -24,8 +24,10 @@ import {
   Card,
   StarIndexCard,
   SpotCard,
+  StatefulCard,
   Input,
   Screen,
+  type StatefulCardError,
 } from './components/ui';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { KakaoMapWebView } from './components/map/KakaoMapWebView';
@@ -39,15 +41,7 @@ import {
 import { starIndexResponseToCardModel } from './lib/star-index-display';
 import type { StarIndexResponseDto } from './lib/types/api';
 
-/** Star-Index 카드에 표시할 오류(503 캐시 부족 vs 일반) */
-type StarIndexUiError = {
-  cardDescription: string;
-  lines: string[];
-  /** true면 안내 톤(빨간 에러색 대신 muted) */
-  isTransient: boolean;
-};
-
-function starIndexErrorFromApi(e: ApiRequestError): StarIndexUiError {
+function starIndexErrorFromApi(e: ApiRequestError): StatefulCardError {
   if (e.status === 503) {
     return {
       cardDescription: '캐시 준비 중',
@@ -74,12 +68,12 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   // Map: 마커 클릭 → 해당 spotId의 Star-Index 오버레이
   const [mapSpotId, setMapSpotId] = useState<string | null>(null);
   const [mapSiLoading, setMapSiLoading] = useState(false);
-  const [mapSiError, setMapSiError] = useState<StarIndexUiError | null>(null);
+  const [mapSiError, setMapSiError] = useState<StatefulCardError | null>(null);
   const [mapSiData, setMapSiData] = useState<StarIndexResponseDto | null>(null);
 
   const defaultSpotId = getDefaultSpotId();
   const [siLoading, setSiLoading] = useState(false);
-  const [siError, setSiError] = useState<StarIndexUiError | null>(null);
+  const [siError, setSiError] = useState<StatefulCardError | null>(null);
   const [siData, setSiData] = useState<StarIndexResponseDto | null>(null);
   const [siRefreshKey, setSiRefreshKey] = useState(0);
 
@@ -176,54 +170,52 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
 
             {(mapSiLoading || mapSiError || mapStarProps) && (
               <View style={styles.mapOverlay}>
-                <Card
+                <StatefulCard
                   title="Star-Index"
-                  description={
-                    mapSiLoading
-                      ? '불러오는 중…'
-                      : mapSiError
-                        ? mapSiError.cardDescription
-                        : mapSiData?.name
-                          ? mapSiData.name
-                          : '명소'
+                  description={mapSiData?.name}
+                  loading={mapSiLoading}
+                  error={mapSiError}
+                  onRetry={
+                    mapSpotId
+                      ? () => {
+                          setMapSiLoading(true);
+                          setMapSiError(null);
+                          setMapSiData(null);
+                          void (async () => {
+                            try {
+                              const data = await fetchStarIndex(mapSpotId);
+                              setMapSiData(data);
+                            } catch (e) {
+                              if (e instanceof SessionExpiredError) {
+                                await onSessionInvalidated();
+                                return;
+                              }
+                              if (e instanceof ApiRequestError) {
+                                setMapSiError(starIndexErrorFromApi(e));
+                              } else {
+                                setMapSiError({
+                                  cardDescription: '오류',
+                                  isTransient: false,
+                                  lines: ['Star-Index를 불러오지 못했습니다.'],
+                                });
+                              }
+                            } finally {
+                              setMapSiLoading(false);
+                            }
+                          })();
+                        }
+                      : undefined
                   }
-                >
-                  <View style={{ gap: 10 }}>
-                    {mapSiLoading ? (
-                      <ActivityIndicator color={theme.starGold} />
-                    ) : mapSiError ? (
-                      mapSiError.lines.map((line, i) => (
-                        <Text
-                          key={i}
-                          style={{
-                            color: mapSiError.isTransient
-                              ? theme.mutedForeground
-                              : theme.dimRedFg,
-                            fontSize: 12,
-                            marginBottom: i < mapSiError.lines.length - 1 ? 8 : 0,
-                          }}
-                        >
-                          {line}
-                        </Text>
-                      ))
-                    ) : mapStarProps ? (
-                      <StarIndexCard
-                        score={mapStarProps.score}
-                        cloudCover={mapStarProps.cloudCover}
-                        pm25Level={mapStarProps.pm25Level}
-                        moonAltitude={mapStarProps.moonAltitude}
-                        moonAltitudeKnown={mapStarProps.moonAltitudeKnown}
-                      />
-                    ) : null}
-
+                  retryLabel="새로고침"
+                  footer={
                     <View style={{ flexDirection: 'row', gap: 8 }}>
-                      {mapSpotId && !mapSiLoading && (
+                      {mapSpotId && (
                         <Button
                           label="새로고침"
                           variant="outline"
                           size="sm"
+                          disabled={mapSiLoading}
                           onPress={() => {
-                            // 동일 spotId로 다시 fetch
                             setMapSiLoading(true);
                             setMapSiError(null);
                             setMapSiData(null);
@@ -264,8 +256,19 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                         }}
                       />
                     </View>
-                  </View>
-                </Card>
+                  }
+                >
+                  {mapStarProps ? (
+                    <StarIndexCard
+                      bare
+                      score={mapStarProps.score}
+                      cloudCover={mapStarProps.cloudCover}
+                      pm25Level={mapStarProps.pm25Level}
+                      moonAltitude={mapStarProps.moonAltitude}
+                      moonAltitudeKnown={mapStarProps.moonAltitudeKnown}
+                    />
+                  ) : null}
+                </StatefulCard>
               </View>
             )}
           </View>
@@ -326,62 +329,56 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                   예: 시드 영월 별마로 천문대 UUID를 .env에 설정하세요.
                 </Text>
               </Card>
-            ) : siLoading ? (
-              <Card title="Star-Index" description="불러오는 중…">
-                <ActivityIndicator color={theme.starGold} />
-              </Card>
-            ) : siError ? (
-              <Card title="Star-Index" description={siError.cardDescription}>
-                {siError.lines.map((line, i) => (
-                  <Text
-                    key={i}
-                    style={{
-                      color: siError.isTransient
-                        ? theme.mutedForeground
-                        : theme.dimRedFg,
-                      fontSize: 12,
-                      marginBottom: i < siError.lines.length - 1 ? 8 : 0,
-                    }}
-                  >
-                    {line}
-                  </Text>
-                ))}
-                <Button
-                  label="다시 시도"
-                  variant="outline"
-                  size="sm"
-                  style={{ marginTop: 10 }}
-                  onPress={() => setSiRefreshKey((k) => k + 1)}
-                />
-              </Card>
-            ) : starProps ? (
-              <View style={{ gap: 8 }}>
-                <StarIndexCard
-                  score={starProps.score}
-                  cloudCover={starProps.cloudCover}
-                  pm25Level={starProps.pm25Level}
-                  moonAltitude={starProps.moonAltitude}
-                  moonAltitudeKnown={starProps.moonAltitudeKnown}
-                />
-                <Button
-                  label="Star-Index 새로고침"
-                  variant="outline"
-                  size="sm"
-                  onPress={() => setSiRefreshKey((k) => k + 1)}
-                />
-              </View>
-            ) : null}
+            ) : (
+              <StatefulCard
+                title="Star-Index"
+                loading={siLoading}
+                error={siError}
+                onRetry={() => setSiRefreshKey((k) => k + 1)}
+                footer={
+                  starProps && !siLoading && !siError ? (
+                    <Button
+                      label="Star-Index 새로고침"
+                      variant="outline"
+                      size="sm"
+                      onPress={() => setSiRefreshKey((k) => k + 1)}
+                    />
+                  ) : null
+                }
+              >
+                {starProps ? (
+                  <StarIndexCard
+                    bare
+                    score={starProps.score}
+                    cloudCover={starProps.cloudCover}
+                    pm25Level={starProps.pm25Level}
+                    moonAltitude={starProps.moonAltitude}
+                    moonAltitudeKnown={starProps.moonAltitudeKnown}
+                  />
+                ) : null}
+              </StatefulCard>
+            )}
 
-            {siData ? (
-              <SpotCard
-                name={siData.name}
-                region={`${siData.lat.toFixed(4)} · ${siData.lng.toFixed(4)}`}
-                elevation={siData.elevationM}
-                bortleClass={siData.bortleClass}
-                starIndex={siData.score}
-                hasParking={false}
-                hasToilet={false}
-              />
+            {defaultSpotId ? (
+              <StatefulCard
+                title="명소"
+                loading={siLoading}
+                error={siError}
+                onRetry={() => setSiRefreshKey((k) => k + 1)}
+              >
+                {siData ? (
+                  <SpotCard
+                    bare
+                    name={siData.name}
+                    region={`${siData.lat.toFixed(4)} · ${siData.lng.toFixed(4)}`}
+                    elevation={siData.elevationM}
+                    bortleClass={siData.bortleClass}
+                    starIndex={siData.score}
+                    hasParking={false}
+                    hasToilet={false}
+                  />
+                ) : null}
+              </StatefulCard>
             ) : (
               <SpotCard
                 name="화왕산 억새평원"
