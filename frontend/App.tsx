@@ -127,6 +127,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
           <KakaoMapWebView
             mapPageUrl={kakaoMapPageUrl}
             kakaoJavascriptKey={kakaoJavascriptKey}
+            onSessionExpired={onSessionInvalidated}
             onMessage={(msg) => {
               if (__DEV__) {
                 // eslint-disable-next-line no-console

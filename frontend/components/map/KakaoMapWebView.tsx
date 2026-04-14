@@ -3,8 +3,17 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Platform, Text, View } from 'react-native';
 import WebView, { WebViewMessageEvent } from 'react-native-webview';
 
-export type LatLng = { lat: number; lng: number };
-export type MapSpot = { id: string; lat: number; lng: number; title?: string };
+import {
+  fetchSpotsAll,
+  fetchSpotsNearby,
+  SessionExpiredError,
+  spotDtoToMapSpot,
+} from '../../lib/spots-api';
+import type { LatLng, MapSpot } from '../../lib/types/map-spot';
+
+export type { LatLng, MapSpot } from '../../lib/types/map-spot';
+
+export type SpotListMode = 'sample' | 'nearby' | 'all';
 
 type RNToWebMessage =
   | { type: 'INIT'; data?: { center?: LatLng; level?: number } }
@@ -54,17 +63,28 @@ export function KakaoMapWebView({
   onMessage,
   /** MAP_READY 이후 expo-location으로 내 위치 마커 (기본 true) */
   showUserLocation = true,
-  /** 하드코딩 명소 마커 (기본 SAMPLE_MAP_SPOTS, 빈 배열이면 전송 안 함) */
+  /** `sample`: spots prop만 사용 · `nearby`: GET /spots/nearby(위치 확보 후) · `all`: GET /spots */
+  spotListMode = 'nearby' as SpotListMode,
+  /** nearby 반경(미터) */
+  spotsNearbyRadiusM = 50000,
+  /** spotListMode === `sample` 일 때만 사용 (기본 샘플 3곳) */
   spots = SAMPLE_MAP_SPOTS,
+  /** spots API에서 401/세션 만료 시 */
+  onSessionExpired,
 }: {
   mapPageUrl?: string;
   kakaoJavascriptKey: string | undefined;
   onMessage?: (msg: WebToRNMessage) => void;
   showUserLocation?: boolean;
+  spotListMode?: SpotListMode;
+  spotsNearbyRadiusM?: number;
   spots?: MapSpot[];
+  onSessionExpired?: () => void | Promise<void>;
 }) {
   const webViewRef = useRef<WebView>(null);
   const [mapReady, setMapReady] = useState(false);
+  /** nearby: 첫 GPS 좌표(주변 spots API 트리거) */
+  const [coordsForSpots, setCoordsForSpots] = useState<LatLng | null>(null);
 
   const html = useMemo(() => {
     return `<!doctype html>
@@ -241,6 +261,9 @@ export function KakaoMapWebView({
           type: 'SET_CURRENT_LOCATION',
           data: { lat: coords.latitude, lng: coords.longitude },
         });
+        if (spotListMode === 'nearby') {
+          setCoordsForSpots((prev) => prev ?? { lat: coords.latitude, lng: coords.longitude });
+        }
       };
 
       try {
@@ -282,14 +305,127 @@ export function KakaoMapWebView({
       sub?.remove();
       sendToWeb({ type: 'CLEAR_CURRENT_LOCATION' });
     };
-  }, [mapReady, showUserLocation, sendToWeb]);
+  }, [mapReady, showUserLocation, spotListMode, sendToWeb]);
 
-  // Step 3: MAP_READY 직후 샘플 명소 (호스팅/인라인 공통)
+  // nearby + 내 위치 끔: 좌표만 한 번 받아 spots API에 사용
   useEffect(() => {
-    if (!mapReady) return;
+    if (!mapReady || spotListMode !== 'nearby' || showUserLocation) return;
+
+    let cancelled = false;
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled || status !== 'granted') return;
+      try {
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (cancelled) return;
+        setCoordsForSpots((prev) => prev ?? { lat: pos.coords.latitude, lng: pos.coords.longitude });
+      } catch {
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.warn('[KakaoMap] spots용 현재 위치 조회 실패');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapReady, spotListMode, showUserLocation]);
+
+  // sample: prop만 지도에 반영
+  useEffect(() => {
+    if (!mapReady || spotListMode !== 'sample') return;
     if (!spots.length) return;
     sendToWeb({ type: 'SET_SPOTS', data: spots });
-  }, [mapReady, spots, sendToWeb]);
+  }, [mapReady, spotListMode, spots, sendToWeb]);
+
+  // all: GET /spots
+  useEffect(() => {
+    if (!mapReady || spotListMode !== 'all') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const dtos = await fetchSpotsAll();
+        if (cancelled) return;
+        sendToWeb({ type: 'SET_SPOTS', data: dtos.map(spotDtoToMapSpot) });
+      } catch (e) {
+        if (cancelled) return;
+        if (e instanceof SessionExpiredError) {
+          await onSessionExpired?.();
+          return;
+        }
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.warn('[KakaoMap] fetchSpotsAll', e);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapReady, spotListMode, sendToWeb, onSessionExpired]);
+
+  // nearby: 좌표 있으면 GET /spots/nearby
+  useEffect(() => {
+    if (!mapReady || spotListMode !== 'nearby') return;
+    if (!coordsForSpots) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const dtos = await fetchSpotsNearby(
+          coordsForSpots.lat,
+          coordsForSpots.lng,
+          spotsNearbyRadiusM,
+        );
+        if (cancelled) return;
+        sendToWeb({ type: 'SET_SPOTS', data: dtos.map(spotDtoToMapSpot) });
+      } catch (e) {
+        if (cancelled) return;
+        if (e instanceof SessionExpiredError) {
+          await onSessionExpired?.();
+          return;
+        }
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.warn('[KakaoMap] fetchSpotsNearby', e);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapReady, spotListMode, coordsForSpots, spotsNearbyRadiusM, sendToWeb, onSessionExpired]);
+
+  // nearby: 좌표가 오래 없으면 GET /spots 로 폴백
+  useEffect(() => {
+    if (!mapReady || spotListMode !== 'nearby') return;
+    if (coordsForSpots) return;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          const dtos = await fetchSpotsAll();
+          if (cancelled) return;
+          sendToWeb({ type: 'SET_SPOTS', data: dtos.map(spotDtoToMapSpot) });
+        } catch (e) {
+          if (cancelled) return;
+          if (e instanceof SessionExpiredError) {
+            await onSessionExpired?.();
+            return;
+          }
+          if (__DEV__) {
+            // eslint-disable-next-line no-console
+            console.warn('[KakaoMap] fetchSpotsAll (nearby fallback)', e);
+          }
+        }
+      })();
+    }, 10_000);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [mapReady, spotListMode, coordsForSpots, sendToWeb, onSessionExpired]);
 
   const androidLayer = Platform.OS === 'android' ? { opacity: 0.99 } : null;
 

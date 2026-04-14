@@ -39,3 +39,16 @@ export interface AuthTokensResponseDto {
 export interface RefreshAccessResponseDto {
   accessToken: string;
 }
+
+/** GET /spots · /spots/nearby 응답 한 줄 (Nest SpotRepository → JSON) */
+export interface SpotDto {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  bortleClass: number;
+  elevationM: number;
+  hasParking: boolean;
+  hasToilet: boolean;
+  locationRadiusM: number;
+}
