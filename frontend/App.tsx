@@ -71,6 +71,12 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [location, setLocation] = useState<string>('');
 
+  // Map: 마커 클릭 → 해당 spotId의 Star-Index 오버레이
+  const [mapSpotId, setMapSpotId] = useState<string | null>(null);
+  const [mapSiLoading, setMapSiLoading] = useState(false);
+  const [mapSiError, setMapSiError] = useState<StarIndexUiError | null>(null);
+  const [mapSiData, setMapSiData] = useState<StarIndexResponseDto | null>(null);
+
   const defaultSpotId = getDefaultSpotId();
   const [siLoading, setSiLoading] = useState(false);
   const [siError, setSiError] = useState<StarIndexUiError | null>(null);
@@ -118,24 +124,151 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const kakaoMapPageUrl = process.env.EXPO_PUBLIC_KAKAO_MAP_PAGE_URL;
 
   const starProps = siData ? starIndexResponseToCardModel(siData) : null;
+  const mapStarProps = mapSiData ? starIndexResponseToCardModel(mapSiData) : null;
 
   return (
     <Screen>
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
         {activeTab === 'map' ? (
-          <KakaoMapWebView
-            mapPageUrl={kakaoMapPageUrl}
-            kakaoJavascriptKey={kakaoJavascriptKey}
-            spotListMode="all"
-            onSessionExpired={onSessionInvalidated}
-            onMessage={(msg) => {
-              if (__DEV__) {
-                // eslint-disable-next-line no-console
-                console.log('[KakaoMap]', msg);
-              }
-            }}
-          />
+          <View style={{ flex: 1 }}>
+            <KakaoMapWebView
+              mapPageUrl={kakaoMapPageUrl}
+              kakaoJavascriptKey={kakaoJavascriptKey}
+              spotListMode="all"
+              onSessionExpired={onSessionInvalidated}
+              onMessage={(msg) => {
+                if (__DEV__) {
+                  // eslint-disable-next-line no-console
+                  console.log('[KakaoMap]', msg);
+                }
+                if (msg.type === 'MARKER_CLICK') {
+                  const spotId = msg.data.spotId;
+                  setMapSpotId(spotId);
+                  setMapSiLoading(true);
+                  setMapSiError(null);
+                  setMapSiData(null);
+                  void (async () => {
+                    try {
+                      const data = await fetchStarIndex(spotId);
+                      setMapSiData(data);
+                    } catch (e) {
+                      if (e instanceof SessionExpiredError) {
+                        await onSessionInvalidated();
+                        return;
+                      }
+                      if (e instanceof ApiRequestError) {
+                        setMapSiError(starIndexErrorFromApi(e));
+                      } else {
+                        setMapSiError({
+                          cardDescription: '오류',
+                          isTransient: false,
+                          lines: ['Star-Index를 불러오지 못했습니다.'],
+                        });
+                      }
+                    } finally {
+                      setMapSiLoading(false);
+                    }
+                  })();
+                }
+              }}
+            />
+
+            {(mapSiLoading || mapSiError || mapStarProps) && (
+              <View style={styles.mapOverlay}>
+                <Card
+                  title="Star-Index"
+                  description={
+                    mapSiLoading
+                      ? '불러오는 중…'
+                      : mapSiError
+                        ? mapSiError.cardDescription
+                        : mapSiData?.name
+                          ? mapSiData.name
+                          : '명소'
+                  }
+                >
+                  <View style={{ gap: 10 }}>
+                    {mapSiLoading ? (
+                      <ActivityIndicator color={theme.starGold} />
+                    ) : mapSiError ? (
+                      mapSiError.lines.map((line, i) => (
+                        <Text
+                          key={i}
+                          style={{
+                            color: mapSiError.isTransient
+                              ? theme.mutedForeground
+                              : theme.dimRedFg,
+                            fontSize: 12,
+                            marginBottom: i < mapSiError.lines.length - 1 ? 8 : 0,
+                          }}
+                        >
+                          {line}
+                        </Text>
+                      ))
+                    ) : mapStarProps ? (
+                      <StarIndexCard
+                        score={mapStarProps.score}
+                        cloudCover={mapStarProps.cloudCover}
+                        pm25Level={mapStarProps.pm25Level}
+                        moonAltitude={mapStarProps.moonAltitude}
+                        moonAltitudeKnown={mapStarProps.moonAltitudeKnown}
+                      />
+                    ) : null}
+
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {mapSpotId && !mapSiLoading && (
+                        <Button
+                          label="새로고침"
+                          variant="outline"
+                          size="sm"
+                          onPress={() => {
+                            // 동일 spotId로 다시 fetch
+                            setMapSiLoading(true);
+                            setMapSiError(null);
+                            setMapSiData(null);
+                            void (async () => {
+                              try {
+                                const data = await fetchStarIndex(mapSpotId);
+                                setMapSiData(data);
+                              } catch (e) {
+                                if (e instanceof SessionExpiredError) {
+                                  await onSessionInvalidated();
+                                  return;
+                                }
+                                if (e instanceof ApiRequestError) {
+                                  setMapSiError(starIndexErrorFromApi(e));
+                                } else {
+                                  setMapSiError({
+                                    cardDescription: '오류',
+                                    isTransient: false,
+                                    lines: ['Star-Index를 불러오지 못했습니다.'],
+                                  });
+                                }
+                              } finally {
+                                setMapSiLoading(false);
+                              }
+                            })();
+                          }}
+                        />
+                      )}
+                      <Button
+                        label="닫기"
+                        variant="ghost"
+                        size="sm"
+                        onPress={() => {
+                          setMapSpotId(null);
+                          setMapSiLoading(false);
+                          setMapSiError(null);
+                          setMapSiData(null);
+                        }}
+                      />
+                    </View>
+                  </View>
+                </Card>
+              </View>
+            )}
+          </View>
         ) : (
           <ScrollView
             style={{ flex: 1 }}
@@ -425,6 +558,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: 12,
     paddingBottom: 20,
+  },
+  mapOverlay: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    top: 12,
   },
   appTitle: {
     fontSize: 22,
