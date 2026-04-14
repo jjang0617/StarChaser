@@ -71,6 +71,12 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [location, setLocation] = useState<string>('');
 
+  // Map: 마커 클릭 → 해당 spotId의 Star-Index 오버레이
+  const [mapSpotId, setMapSpotId] = useState<string | null>(null);
+  const [mapSiLoading, setMapSiLoading] = useState(false);
+  const [mapSiError, setMapSiError] = useState<StarIndexUiError | null>(null);
+  const [mapSiData, setMapSiData] = useState<StarIndexResponseDto | null>(null);
+
   const defaultSpotId = getDefaultSpotId();
   const [siLoading, setSiLoading] = useState(false);
   const [siError, setSiError] = useState<StarIndexUiError | null>(null);
@@ -118,22 +124,151 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const kakaoMapPageUrl = process.env.EXPO_PUBLIC_KAKAO_MAP_PAGE_URL;
 
   const starProps = siData ? starIndexResponseToCardModel(siData) : null;
+  const mapStarProps = mapSiData ? starIndexResponseToCardModel(mapSiData) : null;
 
   return (
     <Screen>
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
         {activeTab === 'map' ? (
-          <KakaoMapWebView
-            mapPageUrl={kakaoMapPageUrl}
-            kakaoJavascriptKey={kakaoJavascriptKey}
-            onMessage={(msg) => {
-              if (__DEV__) {
-                // eslint-disable-next-line no-console
-                console.log('[KakaoMap]', msg);
-              }
-            }}
-          />
+          <View style={{ flex: 1 }}>
+            <KakaoMapWebView
+              mapPageUrl={kakaoMapPageUrl}
+              kakaoJavascriptKey={kakaoJavascriptKey}
+              spotListMode="all"
+              onSessionExpired={onSessionInvalidated}
+              onMessage={(msg) => {
+                if (__DEV__) {
+                  // eslint-disable-next-line no-console
+                  console.log('[KakaoMap]', msg);
+                }
+                if (msg.type === 'MARKER_CLICK') {
+                  const spotId = msg.data.spotId;
+                  setMapSpotId(spotId);
+                  setMapSiLoading(true);
+                  setMapSiError(null);
+                  setMapSiData(null);
+                  void (async () => {
+                    try {
+                      const data = await fetchStarIndex(spotId);
+                      setMapSiData(data);
+                    } catch (e) {
+                      if (e instanceof SessionExpiredError) {
+                        await onSessionInvalidated();
+                        return;
+                      }
+                      if (e instanceof ApiRequestError) {
+                        setMapSiError(starIndexErrorFromApi(e));
+                      } else {
+                        setMapSiError({
+                          cardDescription: '오류',
+                          isTransient: false,
+                          lines: ['Star-Index를 불러오지 못했습니다.'],
+                        });
+                      }
+                    } finally {
+                      setMapSiLoading(false);
+                    }
+                  })();
+                }
+              }}
+            />
+
+            {(mapSiLoading || mapSiError || mapStarProps) && (
+              <View style={styles.mapOverlay}>
+                <Card
+                  title="Star-Index"
+                  description={
+                    mapSiLoading
+                      ? '불러오는 중…'
+                      : mapSiError
+                        ? mapSiError.cardDescription
+                        : mapSiData?.name
+                          ? mapSiData.name
+                          : '명소'
+                  }
+                >
+                  <View style={{ gap: 10 }}>
+                    {mapSiLoading ? (
+                      <ActivityIndicator color={theme.starGold} />
+                    ) : mapSiError ? (
+                      mapSiError.lines.map((line, i) => (
+                        <Text
+                          key={i}
+                          style={{
+                            color: mapSiError.isTransient
+                              ? theme.mutedForeground
+                              : theme.dimRedFg,
+                            fontSize: 12,
+                            marginBottom: i < mapSiError.lines.length - 1 ? 8 : 0,
+                          }}
+                        >
+                          {line}
+                        </Text>
+                      ))
+                    ) : mapStarProps ? (
+                      <StarIndexCard
+                        score={mapStarProps.score}
+                        cloudCover={mapStarProps.cloudCover}
+                        pm25Level={mapStarProps.pm25Level}
+                        moonAltitude={mapStarProps.moonAltitude}
+                        moonAltitudeKnown={mapStarProps.moonAltitudeKnown}
+                      />
+                    ) : null}
+
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {mapSpotId && !mapSiLoading && (
+                        <Button
+                          label="새로고침"
+                          variant="outline"
+                          size="sm"
+                          onPress={() => {
+                            // 동일 spotId로 다시 fetch
+                            setMapSiLoading(true);
+                            setMapSiError(null);
+                            setMapSiData(null);
+                            void (async () => {
+                              try {
+                                const data = await fetchStarIndex(mapSpotId);
+                                setMapSiData(data);
+                              } catch (e) {
+                                if (e instanceof SessionExpiredError) {
+                                  await onSessionInvalidated();
+                                  return;
+                                }
+                                if (e instanceof ApiRequestError) {
+                                  setMapSiError(starIndexErrorFromApi(e));
+                                } else {
+                                  setMapSiError({
+                                    cardDescription: '오류',
+                                    isTransient: false,
+                                    lines: ['Star-Index를 불러오지 못했습니다.'],
+                                  });
+                                }
+                              } finally {
+                                setMapSiLoading(false);
+                              }
+                            })();
+                          }}
+                        />
+                      )}
+                      <Button
+                        label="닫기"
+                        variant="ghost"
+                        size="sm"
+                        onPress={() => {
+                          setMapSpotId(null);
+                          setMapSiLoading(false);
+                          setMapSiError(null);
+                          setMapSiData(null);
+                        }}
+                      />
+                    </View>
+                  </View>
+                </Card>
+              </View>
+            )}
+          </View>
         ) : (
           <ScrollView
             style={{ flex: 1 }}
@@ -170,12 +305,6 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                   label="DEV: 온보딩 다시보기"
                   variant="outline"
                   onPress={onResetOnboarding}
-                />
-                <Button
-                  label="DEV: 로그아웃"
-                  variant="ghost"
-                  size="sm"
-                  onPress={() => void logout()}
                 />
               </View>
             )}
@@ -329,27 +458,69 @@ function AppLoading() {
  * 인증 후 온보딩 여부만 분기 — 로그아웃 시 AuthScreen
  */
 function AppGate() {
-  const { isHydrated, isAuthenticated } = useAuth();
+  const { isHydrated, isAuthenticated, user } = useAuth();
   const [route, setRoute] = useState<'boot' | 'onboarding' | 'ready'>('boot');
 
   const resetOnboarding = useCallback(async () => {
-    await Promise.all([
-      AsyncStorage.removeItem('starChaser:onboardingCompleted'),
-      AsyncStorage.removeItem('starChaser:onboardingRegion'),
-      AsyncStorage.removeItem('starChaser:notificationPrefs'),
-      AsyncStorage.removeItem('starChaser:onboardInterests'),
-    ]);
+    const userId = user?.id;
+    const keys: string[] = [
+      // legacy (앱 전체 1회)
+      'starChaser:onboardingCompleted',
+      'starChaser:onboardingRegion',
+      'starChaser:notificationPrefs',
+      'starChaser:onboardInterests',
+    ];
+    if (userId) {
+      // user-scoped (user별 1회)
+      keys.push(
+        `starChaser:onboardingCompleted:${userId}`,
+        `starChaser:onboardingRegion:${userId}`,
+        `starChaser:notificationPrefs:${userId}`,
+        `starChaser:onboardInterests:${userId}`,
+      );
+    }
+    await AsyncStorage.multiRemove(keys);
     setRoute('onboarding');
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!isHydrated || !isAuthenticated) return;
+    // 인증 직후 user가 아직 세팅 전이면 잠깐 대기
+    if (!user?.id) return;
     let mounted = true;
     (async () => {
       try {
-        const completed = await AsyncStorage.getItem('starChaser:onboardingCompleted');
+        const completedKey = `starChaser:onboardingCompleted:${user.id}`;
+        const regionKey = `starChaser:onboardingRegion:${user.id}`;
+        const notifKey = `starChaser:notificationPrefs:${user.id}`;
+        const interestsKey = `starChaser:onboardInterests:${user.id}`;
+        const legacyKeys = [
+          'starChaser:onboardingCompleted',
+          'starChaser:onboardingRegion',
+          'starChaser:notificationPrefs',
+          'starChaser:onboardInterests',
+        ];
+
+        // 유저별 키만 신뢰 (legacy는 새 계정에 잘못 적용될 수 있어 정리만 수행)
+        const [completed, region, notif, interests] = await AsyncStorage.multiGet([
+          completedKey,
+          regionKey,
+          notifKey,
+          interestsKey,
+        ]).then((rows) => rows.map(([, v]) => v));
         if (!mounted) return;
-        setRoute(completed === 'true' ? 'ready' : 'onboarding');
+
+        // 안전장치: 과거 마이그레이션/테스트로 completedKey만 잘못 남은 경우 → 온보딩으로 복구
+        if (completed === 'true' && (region || notif || interests)) {
+          setRoute('ready');
+          return;
+        }
+        if (completed === 'true' && !region && !notif && !interests) {
+          void AsyncStorage.removeItem(completedKey);
+        }
+        // legacy 키가 남아있으면 1회 정리
+        void AsyncStorage.multiRemove(legacyKeys);
+        setRoute('onboarding');
       } catch {
         if (!mounted) return;
         setRoute('onboarding');
@@ -358,13 +529,15 @@ function AppGate() {
     return () => {
       mounted = false;
     };
-  }, [isHydrated, isAuthenticated]);
+  }, [isHydrated, isAuthenticated, user?.id]);
 
   if (!isHydrated) return <AppLoading />;
   if (!isAuthenticated) return <AuthScreen />;
   if (route === 'boot') return <AppLoading />;
   if (route === 'onboarding') {
-    return <OnboardingFlow onDone={() => setRoute('ready')} />;
+    // userId가 없으면 (드물게) 로딩 유지
+    if (!user?.id) return <AppLoading />;
+    return <OnboardingFlow userId={user.id} onDone={() => setRoute('ready')} />;
   }
   return <AppContent onResetOnboarding={resetOnboarding} />;
 }
@@ -385,6 +558,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: 12,
     paddingBottom: 20,
+  },
+  mapOverlay: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    top: 12,
   },
   appTitle: {
     fontSize: 22,
