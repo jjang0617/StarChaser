@@ -32,11 +32,15 @@ type NotificationPrefs = {
   weeklyTop5: boolean;
 };
 
-// AsyncStorage 키 (App.tsx reset과 동일하게 유지)
-const KEY_COMPLETED = 'starChaser:onboardingCompleted';
-const KEY_REGION = 'starChaser:onboardingRegion';
-const KEY_NOTIF_PREFS = 'starChaser:notificationPrefs';
-const KEY_INTERESTS = 'starChaser:onboardInterests';
+// AsyncStorage 키 베이스 (userId suffix로 스코프)
+const KEY_COMPLETED_BASE = 'starChaser:onboardingCompleted';
+const KEY_REGION_BASE = 'starChaser:onboardingRegion';
+const KEY_NOTIF_PREFS_BASE = 'starChaser:notificationPrefs';
+const KEY_INTERESTS_BASE = 'starChaser:onboardInterests';
+
+function onboardingKey(base: string, userId: string) {
+  return `${base}:${userId}`;
+}
 
 // Step3 칩 목록 (표시 순서 고정)
 const STAR_CONSTELLATIONS = [
@@ -91,7 +95,13 @@ function districtFromGeocode(addr: Record<string, unknown> | undefined): string 
   );
 }
 
-export function OnboardingFlow({ onDone }: { onDone: () => void }) {
+export function OnboardingFlow({
+  onDone,
+  userId,
+}: {
+  onDone: () => void;
+  userId: string;
+}) {
   const { theme } = useTheme();
   const [step, setStep] = useState<Step>(1);
   /** 저장/완료·위치 요청 중 버튼 비활성 등 */
@@ -194,10 +204,16 @@ export function OnboardingFlow({ onDone }: { onDone: () => void }) {
         };
 
         await Promise.all([
-          AsyncStorage.setItem(KEY_COMPLETED, 'true'),
-          AsyncStorage.setItem(KEY_REGION, JSON.stringify(region)),
-          AsyncStorage.setItem(KEY_NOTIF_PREFS, JSON.stringify(notifPrefs)),
-          AsyncStorage.setItem(KEY_INTERESTS, JSON.stringify(interests)),
+          AsyncStorage.setItem(onboardingKey(KEY_COMPLETED_BASE, userId), 'true'),
+          AsyncStorage.setItem(onboardingKey(KEY_REGION_BASE, userId), JSON.stringify(region)),
+          AsyncStorage.setItem(
+            onboardingKey(KEY_NOTIF_PREFS_BASE, userId),
+            JSON.stringify(notifPrefs),
+          ),
+          AsyncStorage.setItem(
+            onboardingKey(KEY_INTERESTS_BASE, userId),
+            JSON.stringify(interests),
+          ),
         ]);
 
         onDone();
@@ -205,7 +221,7 @@ export function OnboardingFlow({ onDone }: { onDone: () => void }) {
         setBusy(false);
       }
     },
-    [notifPrefs, onDone, regionDo, regionName, selectedInterests],
+    [notifPrefs, onDone, regionDo, regionName, selectedInterests, userId],
   );
 
   return (
