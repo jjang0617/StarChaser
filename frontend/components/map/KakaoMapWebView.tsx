@@ -158,9 +158,13 @@ export function KakaoMapWebView({
         function setSpots(spots) {
           if (!map || !Array.isArray(spots)) return;
           clearSpots();
+          var bounds = new kakao.maps.LatLngBounds();
+          var hasAny = false;
           spots.forEach(function (s) {
             if (!s || !s.id) return;
             var pos = new kakao.maps.LatLng(s.lat, s.lng);
+            bounds.extend(pos);
+            hasAny = true;
             var label = escapeHtml(s.title || '명소');
             var el = document.createElement('div');
             el.style.cssText =
@@ -182,6 +186,13 @@ export function KakaoMapWebView({
             });
             spotMarkers.set(String(s.id), overlay);
           });
+
+          // 마커가 여러 개면 화면에 모두 보이게 이동/줌 (1개면 과도한 줌 변화 방지)
+          if (hasAny && spots.length >= 2) {
+            try {
+              map.setBounds(bounds, 60, 60, 60, 60);
+            } catch (e) {}
+          }
         }
 
         function handleMessage(raw) {
