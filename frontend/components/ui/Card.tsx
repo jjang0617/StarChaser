@@ -6,6 +6,7 @@
 
 import React, { type ReactNode } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -14,6 +15,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../themes/ThemeContext';
 import { Badge } from './Badge';
+import { Button } from './Button';
 
 // ── 기본 Card 래퍼 ──
 interface CardProps {
@@ -62,6 +64,98 @@ export function Card({ children, onPress, style, title, description }: CardProps
   );
 }
 
+/** 로딩/에러/정상 UI를 Card 안에서 일관되게 보여줄 때 사용 */
+export type StatefulCardError = {
+  cardDescription: string;
+  lines: string[];
+  /** true면 안내 톤(빨간 에러색 대신 muted) */
+  isTransient?: boolean;
+};
+
+interface StatefulCardProps {
+  title: string;
+  /** 로딩/에러 시 카드 상단 설명(선택). 없으면 기본 문구 사용 */
+  description?: string;
+  loading: boolean;
+  error?: StatefulCardError | null;
+  onRetry?: () => void;
+  retryLabel?: string;
+  /** 성공 상태 본문 */
+  children?: ReactNode;
+  /** 성공/에러 하단 액션(닫기 등) */
+  footer?: ReactNode;
+  style?: ViewStyle;
+}
+
+export function StatefulCard({
+  title,
+  description,
+  loading,
+  error,
+  onRetry,
+  retryLabel = '다시 시도',
+  children,
+  footer,
+  style,
+}: StatefulCardProps) {
+  const { theme } = useTheme();
+
+  const desc =
+    description ??
+    (loading ? '불러오는 중…' : error ? error.cardDescription : undefined);
+
+  return (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.card,
+          borderColor: theme.border,
+          borderRadius: theme.radius,
+        },
+        style,
+      ]}
+    >
+      {title ? <Text style={[styles.title, { color: theme.foreground }]}>{title}</Text> : null}
+      {desc ? <Text style={[styles.desc, { color: theme.mutedForeground }]}>{desc}</Text> : null}
+
+      <View style={[styles.stateBody, (title || desc) && styles.stateBodyAfterHeader]}>
+        {loading ? (
+          <ActivityIndicator color={theme.starGold} />
+        ) : error ? (
+          <>
+            {error.lines.map((line, i) => (
+              <Text
+                key={i}
+                style={{
+                  color: error.isTransient ? theme.mutedForeground : theme.dimRedFg,
+                  fontSize: 12,
+                  lineHeight: 16,
+                  marginBottom: i < error.lines.length - 1 ? 8 : 0,
+                }}
+              >
+                {line}
+              </Text>
+            ))}
+            {onRetry ? (
+              <Button
+                label={retryLabel}
+                variant="outline"
+                size="sm"
+                style={{ marginTop: 6, alignSelf: 'flex-start' }}
+                onPress={onRetry}
+              />
+            ) : null}
+          </>
+        ) : (
+          children
+        )}
+        {footer ? <View style={styles.stateFooter}>{footer}</View> : null}
+      </View>
+    </View>
+  );
+}
+
 // ── Star-Index 숫자 카드 ──
 interface StarIndexCardProps {
   score:        number;
@@ -71,6 +165,8 @@ interface StarIndexCardProps {
   /** false면 KASI 고도 미수신 등 — MOON 칸에 미상 */
   moonAltitudeKnown?: boolean;
   onPress?:     () => void;
+  /** true면 바깥 Card 래퍼 없이 내용만 렌더(StatefulCard 등 중첩 방지) */
+  bare?: boolean;
 }
 
 export function StarIndexCard({
@@ -80,6 +176,7 @@ export function StarIndexCard({
   moonAltitude,
   moonAltitudeKnown = true,
   onPress,
+  bare = false,
 }: StarIndexCardProps) {
   const { theme } = useTheme();
 
@@ -100,8 +197,8 @@ export function StarIndexCard({
     { key: 'MOON',  value: moonLabel },
   ];
 
-  return (
-    <Card onPress={onPress}>
+  const inner = (
+    <>
       {/* 헤더 행 */}
       <View style={styles.siTop}>
         <View>
@@ -145,8 +242,19 @@ export function StarIndexCard({
           </View>
         ))}
       </View>
-    </Card>
+    </>
   );
+
+  if (bare) {
+    if (!onPress) return inner;
+    return (
+      <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}>
+        {inner}
+      </Pressable>
+    );
+  }
+
+  return <Card onPress={onPress}>{inner}</Card>;
 }
 
 // ── 명소 카드 ──
@@ -160,11 +268,14 @@ interface SpotCardProps {
   hasToilet:   boolean;
   distanceKm?: number;
   onPress?:    () => void;
+  /** true면 바깥 Card 래퍼 없이 내용만 렌더(StatefulCard 등 중첩 방지) */
+  bare?: boolean;
 }
 
 export function SpotCard({
   name, region, elevation, bortleClass,
   starIndex, hasParking, hasToilet, distanceKm, onPress,
+  bare = false,
 }: SpotCardProps) {
   const { theme } = useTheme();
 
@@ -172,8 +283,8 @@ export function SpotCard({
     bortleClass <= 3 ? 'gold' :
     bortleClass <= 5 ? 'steel' : 'muted';
 
-  return (
-    <Card onPress={onPress}>
+  const inner = (
+    <>
       <View style={styles.spotTop}>
         <View style={{ flex: 1, marginRight: 8 }}>
           <Text style={[styles.spotName, { color: theme.foreground }]}>{name}</Text>
@@ -199,8 +310,19 @@ export function SpotCard({
         {hasParking && <Badge label="주차" variant="muted" />}
         {hasToilet  && <Badge label="화장실" variant="muted" />}
       </View>
-    </Card>
+    </>
   );
+
+  if (bare) {
+    if (!onPress) return inner;
+    return (
+      <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}>
+        {inner}
+      </Pressable>
+    );
+  }
+
+  return <Card onPress={onPress}>{inner}</Card>;
 }
 
 const styles = StyleSheet.create({
@@ -220,6 +342,16 @@ const styles = StyleSheet.create({
   },
   childrenWrap: {
     marginTop: 10,
+  },
+
+  stateBody: {
+    gap: 10,
+  },
+  stateBodyAfterHeader: {
+    marginTop: 10,
+  },
+  stateFooter: {
+    marginTop: 4,
   },
 
   // Star-Index Card
