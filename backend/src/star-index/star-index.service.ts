@@ -10,6 +10,7 @@ import type { Spot } from '../common/interfaces/spot.repository';
 import { MOON_ALTITUDE_MISSING_SENTINEL } from '../sky/kasi.mapper';
 import type { WeatherSnapshot } from '../common/interfaces/weather-snapshot';
 import { normalizeWeatherSnapshotForStorage } from '../common/interfaces/weather-snapshot';
+import { CorrectionsService } from '../corrections/corrections.service';
 
 // ── 기상 데이터 타입 ─────────────────────────────────────────
 interface WeatherData {
@@ -36,7 +37,9 @@ interface StarIndexInput {
   dust: DustData;
   moon: MoonData;
   bortleClass: number; // 광공해 Bortle 등급 (1~9)
-  elevationM: number;  // 해발고도 (m) — GPS 고도 변수
+  elevationM: number; // 해발고도 (m) — GPS 고도 변수
+  /** 제보 집계값; 없으면 100(중립) */
+  correctionScore?: number;
 }
 
 /** star_index:{spotId} 캐시 페이로드 — 레거시 number 캐시는 재계산 시 교체 */
@@ -46,7 +49,10 @@ type StarIndexCachePayload = { score: number; weatherSnapshot: WeatherSnapshot }
 export class StarIndexService {
   private readonly logger = new Logger(StarIndexService.name);
 
-  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
+  constructor(
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    private readonly correctionsService: CorrectionsService,
+  ) {}
 
   async calculateForSpotFromCache(spot: Spot): Promise<{
     score: number;
@@ -76,12 +82,16 @@ export class StarIndexService {
       );
     }
 
+    const correctionScore =
+      await this.correctionsService.getAggregatedCorrectionScoreForSpot(spot.id);
+
     const { score, weatherSnapshot } = await this.getStarIndexBySpotId(spot.id, {
       weather,
       dust,
       moon,
       bortleClass: spot.bortleClass,
       elevationM: spot.elevationM,
+      correctionScore,
     });
 
     return {
@@ -162,7 +172,7 @@ export class StarIndexService {
       wind_score: this.calcWindScore(weather.windSpeed),
       visibility_score: this.calcVisibilityScore(weather.visibility),
       temperature_score: this.calcTempScore(weather.temperature),
-      correction_score: 100,
+      correction_score: input.correctionScore ?? 100,
       precipitation_probability: weather.pop,
       moon_altitude_deg: moon.altitude,
       moon_altitude_known: moon.moonAltitudeKnown,

@@ -13,6 +13,7 @@ describe('SkyController', () => {
           provide: SkyService,
           useValue: {
             getMoonData: jest.fn(),
+            getStaticStarsMvp: jest.fn().mockReturnValue({ stars: [] }),
           },
         },
       ],

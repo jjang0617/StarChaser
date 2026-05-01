@@ -13,6 +13,7 @@ import { StarIndexModule } from './star-index/star-index.module';
 import { SkyModule } from './sky/sky.module';
 import { ObservationsModule } from './observations/observations.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { CorrectionsModule } from './corrections/corrections.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     SkyModule,
     ObservationsModule,
     NotificationsModule,
+    CorrectionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

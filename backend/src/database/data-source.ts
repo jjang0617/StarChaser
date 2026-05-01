@@ -1,5 +1,6 @@
 import { DataSource } from 'typeorm';
 import { ObservationEntity } from '../observations/observation.entity';
+import { StarIndexCorrectionSubmissionEntity } from '../corrections/star-index-correction-submission.entity';
 import { NotificationPreferenceEntity } from '../notifications/notification-preference.entity';
 import { NotificationTokenEntity } from '../notifications/notification-token.entity';
 import { PhotoEntity } from '../photos/photo.entity';
@@ -27,6 +28,7 @@ export default new DataSource({
     PhotoEntity,
     NotificationTokenEntity,
     NotificationPreferenceEntity,
+    StarIndexCorrectionSubmissionEntity,
   ],
   migrations: ['src/migrations/*.ts'],
   synchronize: false,
