@@ -13,6 +13,7 @@ import {
   View,
   type ViewStyle,
 } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { useTheme } from '../../themes/ThemeContext';
 import { Badge } from './Badge';
 import { Button } from './Button';
@@ -167,6 +168,8 @@ interface StarIndexCardProps {
   onPress?:     () => void;
   /** true면 바깥 Card 래퍼 없이 내용만 렌더(StatefulCard 등 중첩 방지) */
   bare?: boolean;
+  /** 원형 게이지(Phase 1 홈 Star-Index) */
+  showCircularGauge?: boolean;
 }
 
 export function StarIndexCard({
@@ -177,6 +180,7 @@ export function StarIndexCard({
   moonAltitudeKnown = true,
   onPress,
   bare = false,
+  showCircularGauge = true,
 }: StarIndexCardProps) {
   const { theme } = useTheme();
 
@@ -197,17 +201,48 @@ export function StarIndexCard({
     { key: 'MOON',  value: moonLabel },
   ];
 
+  const gaugeR = 36;
+  const gaugeC = 2 * Math.PI * gaugeR;
+  const gaugeDash = (score / 100) * gaugeC;
+
   const inner = (
     <>
-      {/* 헤더 행 */}
+      {/* 헤더 행 — 원형 게이지 + 점수(기획서 홈 게이지 MVP) */}
       <View style={styles.siTop}>
-        <View>
-          <Text style={[styles.siLabel, { color: theme.mutedForeground }]}>
-            STAR · INDEX
-          </Text>
-          <Text style={[styles.siScore, { color: scoreColor, fontFamily: 'SpaceMono-Regular' }]}>
-            {score}
-          </Text>
+        <View style={styles.siLeftRow}>
+          {showCircularGauge ? (
+            <Svg width={88} height={88} viewBox="0 0 88 88">
+              <Circle
+                cx="44"
+                cy="44"
+                r={gaugeR}
+                stroke={theme.borderSubtle}
+                strokeWidth={7}
+                fill="none"
+              />
+              <Circle
+                cx="44"
+                cy="44"
+                r={gaugeR}
+                stroke={scoreColor}
+                strokeWidth={7}
+                fill="none"
+                strokeDasharray={`${gaugeDash} ${gaugeC}`}
+                strokeLinecap="round"
+                transform="rotate(-90 44 44)"
+              />
+            </Svg>
+          ) : null}
+          <View>
+            <Text style={[styles.siLabel, { color: theme.mutedForeground }]}>
+              STAR · INDEX
+            </Text>
+            <Text
+              style={[styles.siScore, { color: scoreColor, fontFamily: 'SpaceMono-Regular' }]}
+            >
+              {score}
+            </Text>
+          </View>
         </View>
         <View style={styles.siRight}>
           <Badge
@@ -360,6 +395,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems:     'flex-start',
     marginBottom:   10,
+  },
+  siLeftRow: {
+    flexDirection: 'row',
+    alignItems:     'center',
+    gap:            10,
+    flexShrink:     1,
   },
   siLabel: {
     fontFamily:    'SpaceMono-Regular',

@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
@@ -6,6 +8,21 @@ import {
   kasiToInternalMapper,
   MOON_ALTITUDE_MISSING_SENTINEL,
 } from './kasi.mapper';
+import {
+  isAboveHorizon,
+  julianDateUT,
+  localSiderealDegrees,
+  raDecToAltAz,
+} from './sky-astronomy.util';
+
+type CatalogRow = {
+  hip: number;
+  raDeg: number;
+  decDeg: number;
+  mag: number;
+  con: string;
+  name?: string;
+};
 
 type KasiApiEnvelope = {
   response?: {
@@ -20,6 +37,9 @@ type KasiApiEnvelope = {
 @Injectable()
 export class SkyService {
   private readonly logger = new Logger(SkyService.name);
+
+  /** hip-bright-subset.json 로드 결과 캐시 */
+  private catalogCache: CatalogRow[] | null = null;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -123,5 +143,146 @@ export class SkyService {
         lunAge: 0,
       };
     }
+  }
+
+  /**
+   * Hipparcos 번호 기반 밝은 별 부분집합(JSON) — 적경·적위·IAU 별자리 약어
+   */
+  private loadBrightCatalog(): CatalogRow[] {
+    if (this.catalogCache) return this.catalogCache;
+    try {
+      const p = path.join(__dirname, 'data', 'hip-bright-subset.json');
+      const raw = fs.readFileSync(p, 'utf8');
+      const rows = JSON.parse(raw) as CatalogRow[];
+      this.catalogCache = rows;
+      this.logger.log(`천체 카탈로그 로드 — ${rows.length}행 (${p})`);
+      return rows;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.warn(
+        `hip-bright-subset.json 로드 실패(${msg}) — 내장 최소 목록으로 대체`,
+      );
+      this.catalogCache = [
+        { hip: 49669, raDeg: 101.2872, decDeg: -16.7161, mag: -1.46, con: 'CMa', name: 'Sirius' },
+        { hip: 91262, raDeg: 279.2347, decDeg: 38.7837, mag: 0.03, con: 'Lyr', name: 'Vega' },
+        { hip: 32349, raDeg: 78.6344, decDeg: -8.2016, mag: 0.13, con: 'Ori', name: 'Rigel' },
+      ];
+      return this.catalogCache;
+    }
+  }
+
+  /**
+   * MVP 정적 별 목록 — Hipparcos 부분집합과 동일 소스(시각·위치 미반영)
+   */
+  getStaticStarsMvp(): {
+    stars: { id: string; raDeg: number; decDeg: number; mag: number }[];
+  } {
+    const rows = this.loadBrightCatalog();
+    return {
+      stars: rows.map((r) => ({
+        id: String(r.hip),
+        raDeg: r.raDeg,
+        decDeg: r.decDeg,
+        mag: r.mag,
+      })),
+    };
+  }
+
+  /**
+   * 관측자 위도·경도·시각(UT) 기준 지평선 상 별 위치 + 별자리 라벨(가시 별 2개+ 별군만)
+   */
+  buildSkyView(
+    latDeg: number,
+    lngDeg: number,
+    atUtc: Date,
+  ): {
+    at: string;
+    lat: number;
+    lng: number;
+    jd: number;
+    lstDeg: number;
+    stars: Array<{
+      hip: number;
+      name: string | null;
+      con: string;
+      raDeg: number;
+      decDeg: number;
+      mag: number;
+      altDeg: number;
+      azDeg: number;
+      visible: boolean;
+    }>;
+    constellationLabels: Array<{
+      con: string;
+      altDeg: number;
+      azDeg: number;
+    }>;
+  } {
+    const jd = julianDateUT(atUtc);
+    const lstDeg = localSiderealDegrees(jd, lngDeg);
+    const rows = this.loadBrightCatalog();
+
+    const stars = rows.map((s) => {
+      const { altDeg, azDeg } = raDecToAltAz(s.raDeg, s.decDeg, latDeg, lstDeg);
+      const visible = isAboveHorizon(altDeg);
+      return {
+        hip: s.hip,
+        name: s.name ?? null,
+        con: s.con,
+        raDeg: Math.round(s.raDeg * 1e6) / 1e6,
+        decDeg: Math.round(s.decDeg * 1e6) / 1e6,
+        mag: s.mag,
+        altDeg: Math.round(altDeg * 100) / 100,
+        azDeg: Math.round(azDeg * 100) / 100,
+        visible,
+      };
+    });
+
+    const groups = new Map<
+      string,
+      { sumAzW: number; sumAltW: number; sumW: number; count: number }
+    >();
+    for (const st of stars) {
+      if (!st.visible) continue;
+      const w = Math.pow(10, -0.4 * st.mag);
+      const g = groups.get(st.con) ?? {
+        sumAzW: 0,
+        sumAltW: 0,
+        sumW: 0,
+        count: 0,
+      };
+      g.sumAzW += st.azDeg * w;
+      g.sumAltW += st.altDeg * w;
+      g.sumW += w;
+      g.count += 1;
+      groups.set(st.con, g);
+    }
+
+    const constellationLabels: Array<{
+      con: string;
+      altDeg: number;
+      azDeg: number;
+    }> = [];
+    for (const [con, g] of groups) {
+      if (g.count < 2 || g.sumW <= 0) continue;
+      constellationLabels.push({
+        con,
+        azDeg: Math.round((g.sumAzW / g.sumW) * 100) / 100,
+        altDeg: Math.round((g.sumAltW / g.sumW) * 100) / 100,
+      });
+    }
+    constellationLabels.sort((a, b) => a.con.localeCompare(b.con));
+    const maxLabels = 14;
+    const labelsTop = constellationLabels.slice(0, maxLabels);
+
+    return {
+      at: atUtc.toISOString(),
+      lat: latDeg,
+      lng: lngDeg,
+      jd: Math.round(jd * 1e6) / 1e6,
+      lstDeg: Math.round(lstDeg * 1000) / 1000,
+      stars,
+      constellationLabels: labelsTop,
+    };
   }
 }

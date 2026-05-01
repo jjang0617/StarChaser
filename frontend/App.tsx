@@ -31,12 +31,18 @@ import {
 } from './components/ui';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { KakaoMapWebView } from './components/map/KakaoMapWebView';
+import { ProfileTabScreen } from './components/profile/ProfileTabScreen';
+import { RecordsTabScreen } from './components/records/RecordsTabScreen';
+import { SkyTabScreen } from './components/sky/SkyTabScreen';
 import { AuthScreen } from './components/auth/auth-screen';
 import { getDefaultSpotId } from './lib/config';
 import {
   ApiRequestError,
+  type CorrectionAggregateDto,
+  fetchCorrectionAggregate,
   fetchStarIndex,
   SessionExpiredError,
+  submitStarIndexCorrection,
 } from './lib/api-client';
 import { starIndexResponseToCardModel } from './lib/star-index-display';
 import type { StarIndexResponseDto } from './lib/types/api';
@@ -72,13 +78,42 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [mapSiData, setMapSiData] = useState<StarIndexResponseDto | null>(null);
 
   const defaultSpotId = getDefaultSpotId();
+  /** 지도 마커 또는 .env 기본 명소 — 홈·보정·관측 Log가 같은 UUID를 사용 */
+  const [focusSpotId, setFocusSpotId] = useState<string | null>(() => getDefaultSpotId() ?? null);
+
+  useEffect(() => {
+    setFocusSpotId((prev) => (prev == null && defaultSpotId ? defaultSpotId : prev));
+  }, [defaultSpotId]);
+
   const [siLoading, setSiLoading] = useState(false);
   const [siError, setSiError] = useState<StatefulCardError | null>(null);
   const [siData, setSiData] = useState<StarIndexResponseDto | null>(null);
   const [siRefreshKey, setSiRefreshKey] = useState(0);
 
+  const [corrAgg, setCorrAgg] = useState<CorrectionAggregateDto | null>(null);
+  const [perceivedQuality, setPerceivedQuality] = useState(75);
+  const [corrBusy, setCorrBusy] = useState(false);
+  const [corrMsg, setCorrMsg] = useState<string | null>(null);
+
+  /** 가상 밤하늘 — 관측 시각(UTC) 스크럽용 */
+  const [skyObserveAtIso, setSkyObserveAtIso] = useState(() =>
+    new Date().toISOString(),
+  );
+
+  const shiftSkyObserveHours = useCallback((deltaHours: number) => {
+    setSkyObserveAtIso((prev) => {
+      const d = new Date(prev);
+      d.setUTCHours(d.getUTCHours() + deltaHours);
+      return d.toISOString();
+    });
+  }, []);
+
+  const resetSkyObserveNowUtc = useCallback(() => {
+    setSkyObserveAtIso(new Date().toISOString());
+  }, []);
+
   useEffect(() => {
-    if (!defaultSpotId) {
+    if (!focusSpotId) {
       setSiData(null);
       setSiError(null);
       return;
@@ -88,7 +123,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
       setSiLoading(true);
       setSiError(null);
       try {
-        const data = await fetchStarIndex(defaultSpotId);
+        const data = await fetchStarIndex(focusSpotId);
         if (!cancelled) setSiData(data);
       } catch (e) {
         if (e instanceof SessionExpiredError) {
@@ -112,7 +147,23 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, [defaultSpotId, siRefreshKey, onSessionInvalidated]);
+  }, [focusSpotId, siRefreshKey, onSessionInvalidated]);
+
+  useEffect(() => {
+    if (activeTab !== 'home' || !focusSpotId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const a = await fetchCorrectionAggregate(focusSpotId);
+        if (!cancelled) setCorrAgg(a);
+      } catch {
+        if (!cancelled) setCorrAgg(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, focusSpotId, siRefreshKey]);
 
   const kakaoJavascriptKey = process.env.EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY;
   const kakaoMapPageUrl = process.env.EXPO_PUBLIC_KAKAO_MAP_PAGE_URL;
@@ -138,6 +189,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                 }
                 if (msg.type === 'MARKER_CLICK') {
                   const spotId = msg.data.spotId;
+                  setFocusSpotId(spotId);
                   setMapSpotId(spotId);
                   setMapSiLoading(true);
                   setMapSiError(null);
@@ -208,7 +260,18 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                   }
                   retryLabel="새로고침"
                   footer={
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {mapSpotId ? (
+                        <Button
+                          label="홈·보정 기준"
+                          variant="secondary"
+                          size="sm"
+                          onPress={() => {
+                            setFocusSpotId(mapSpotId);
+                            setActiveTab('home');
+                          }}
+                        />
+                      ) : null}
                       {mapSpotId && (
                         <Button
                           label="새로고침"
@@ -272,6 +335,25 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               </View>
             )}
           </View>
+        ) : activeTab === 'sky' ? (
+          <SkyTabScreen
+            observerLat={siData?.lat ?? null}
+            observerLng={siData?.lng ?? null}
+            observeAtIso={skyObserveAtIso}
+            onShiftHours={shiftSkyObserveHours}
+            onNowUtc={resetSkyObserveNowUtc}
+            onSessionInvalidated={onSessionInvalidated}
+          />
+        ) : activeTab === 'records' ? (
+          <RecordsTabScreen
+            activeSpotId={focusSpotId}
+            onSessionInvalidated={onSessionInvalidated}
+          />
+        ) : activeTab === 'profile' ? (
+          <ProfileTabScreen
+            email={user?.email ?? null}
+            onLogout={() => void logout()}
+          />
         ) : (
           <ScrollView
             style={{ flex: 1 }}
@@ -319,14 +401,43 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               <Badge label="Red Mode" variant="red" />
             </View>
 
+            {focusSpotId ? (
+              <Text
+                style={{
+                  color: theme.mutedForeground,
+                  fontSize: 11,
+                  marginBottom: 8,
+                  fontFamily: 'SpaceMono-Regular',
+                }}
+                numberOfLines={2}
+              >
+                기준 명소 ID: {focusSpotId}
+                {defaultSpotId && focusSpotId !== defaultSpotId
+                  ? ' (지도에서 선택)'
+                  : ''}
+              </Text>
+            ) : null}
+
+            {defaultSpotId && focusSpotId && focusSpotId !== defaultSpotId ? (
+              <View style={{ marginBottom: 10 }}>
+                <Button
+                  label="기본 명소로 되돌리기"
+                  variant="outline"
+                  size="sm"
+                  onPress={() => setFocusSpotId(defaultSpotId)}
+                />
+              </View>
+            ) : null}
+
             {/* Star-Index — GET /star-index?spotId= */}
-            {!defaultSpotId ? (
+            {!focusSpotId ? (
               <Card
                 title="Star-Index"
-                description="EXPO_PUBLIC_DEFAULT_SPOT_ID에 spots.id(UUID)를 넣으면 서버에서 점수를 불러옵니다."
+                description="명소를 선택해야 점수를 불러옵니다."
               >
                 <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>
-                  예: 시드 영월 별마로 천문대 UUID를 .env에 설정하세요.
+                  지도에서 마커를 누르거나, EXPO_PUBLIC_DEFAULT_SPOT_ID에 spots.id(UUID)를
+                  설정하세요.
                 </Text>
               </Card>
             ) : (
@@ -359,7 +470,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               </StatefulCard>
             )}
 
-            {defaultSpotId ? (
+            {focusSpotId ? (
               <StatefulCard
                 title="명소"
                 loading={siLoading}
@@ -392,6 +503,105 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               />
             )}
 
+            {focusSpotId ? (
+              <Card
+                title="Star-Index 보정 제보"
+                description="현장 가시도(0~100) 제보가 집계되어 correction_score에 반영됩니다."
+              >
+                {corrAgg ? (
+                  <Text
+                    style={{
+                      color: theme.mutedForeground,
+                      fontSize: 12,
+                      marginBottom: 8,
+                    }}
+                  >
+                    제보 {corrAgg.submissionCount}건 · 집계 correction_score 약{' '}
+                    {corrAgg.aggregatedCorrectionScore}
+                  </Text>
+                ) : null}
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                    marginVertical: 8,
+                  }}
+                >
+                  <Button
+                    label="−"
+                    variant="outline"
+                    size="sm"
+                    onPress={() =>
+                      setPerceivedQuality((v) => Math.max(0, v - 5))
+                    }
+                  />
+                  <Text
+                    style={{
+                      color: theme.foreground,
+                      minWidth: 40,
+                      textAlign: 'center',
+                      fontFamily: 'SpaceMono-Regular',
+                    }}
+                  >
+                    {perceivedQuality}
+                  </Text>
+                  <Button
+                    label="+"
+                    variant="outline"
+                    size="sm"
+                    onPress={() =>
+                      setPerceivedQuality((v) => Math.min(100, v + 5))
+                    }
+                  />
+                </View>
+                <Button
+                  label="제보 보내기"
+                  fullWidth
+                  loading={corrBusy}
+                  disabled={corrBusy}
+                  onPress={() => {
+                    if (!focusSpotId) return;
+                    void (async () => {
+                      setCorrBusy(true);
+                      setCorrMsg(null);
+                      try {
+                        await submitStarIndexCorrection({
+                          spotId: focusSpotId,
+                          perceivedQuality,
+                        });
+                        setCorrMsg('반영되었습니다. Star-Index를 갱신합니다.');
+                        setSiRefreshKey((k) => k + 1);
+                      } catch (e) {
+                        if (e instanceof SessionExpiredError) {
+                          await onSessionInvalidated();
+                          return;
+                        }
+                        if (e instanceof ApiRequestError) {
+                          setCorrMsg(e.message);
+                        } else {
+                          setCorrMsg('제보에 실패했습니다.');
+                        }
+                      } finally {
+                        setCorrBusy(false);
+                      }
+                    })();
+                  }}
+                />
+                {corrMsg ? (
+                  <Text
+                    style={{
+                      color: theme.mutedForeground,
+                      fontSize: 12,
+                      marginTop: 8,
+                    }}
+                  >
+                    {corrMsg}
+                  </Text>
+                ) : null}
+              </Card>
+            ) : null}
+
             <Card title="오늘의 관측 조건" description="기상/달/광공해 데이터 기반 실시간 계산">
               <View style={styles.cardInner}>
                 <Input
@@ -401,7 +611,11 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                   onChangeText={setLocation}
                   monoLabel
                 />
-                <Button label="관측 시작하기" fullWidth />
+                <Button
+                  label="관측 시작하기"
+                  fullWidth
+                  onPress={() => setActiveTab('records')}
+                />
                 <Button label="관측지 둘러보기" variant="outline" fullWidth />
                 <Button
                   label={isRedMode ? '야간 모드 해제' : '🔴 Night Vision ON'}
