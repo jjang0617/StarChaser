@@ -14,6 +14,7 @@ import { SkyModule } from './sky/sky.module';
 import { ObservationsModule } from './observations/observations.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CorrectionsModule } from './corrections/corrections.module';
+import { ViirsModule } from './viirs/viirs.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { CorrectionsModule } from './corrections/corrections.module';
     ObservationsModule,
     NotificationsModule,
     CorrectionsModule,
+    ViirsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

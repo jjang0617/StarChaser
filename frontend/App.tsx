@@ -11,6 +11,7 @@ import {
   Text,
   StyleSheet,
   View,
+  Pressable,
 } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -73,6 +74,8 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
 
   // Map: 마커 클릭 → 해당 spotId의 Star-Index 오버레이
   const [mapSpotId, setMapSpotId] = useState<string | null>(null);
+  /** MAP 탭 — NASA VIIRS 타일 오버레이 ON/OFF */
+  const [mapViirsEnabled, setMapViirsEnabled] = useState(false);
   const [mapSiLoading, setMapSiLoading] = useState(false);
   const [mapSiError, setMapSiError] = useState<StatefulCardError | null>(null);
   const [mapSiData, setMapSiData] = useState<StarIndexResponseDto | null>(null);
@@ -181,9 +184,14 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               mapPageUrl={kakaoMapPageUrl}
               kakaoJavascriptKey={kakaoJavascriptKey}
               spotListMode="all"
+              viirsLayerEnabled={mapViirsEnabled}
               onSessionExpired={onSessionInvalidated}
               onMessage={(msg) => {
                 if (__DEV__) {
+                  if (msg.type === 'VIIRS_LAYER_READY' || msg.type === 'VIIRS_LAYER_ERROR') {
+                    // eslint-disable-next-line no-console
+                    console.log('[VIIRS_LAYER]', msg);
+                  }
                   // eslint-disable-next-line no-console
                   console.log('[KakaoMap]', msg);
                 }
@@ -219,6 +227,42 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                 }
               }}
             />
+
+            <View style={styles.mapViirsChip} pointerEvents="box-none">
+              {mapViirsEnabled ? (
+                <Button
+                  label="광공해 끄기"
+                  variant="primary"
+                  size="sm"
+                  onPress={() => setMapViirsEnabled(false)}
+                />
+              ) : (
+                <Pressable
+                  onPress={() => setMapViirsEnabled(true)}
+                  style={({ pressed }) => ({
+                    backgroundColor: theme.card,
+                    borderColor: theme.border,
+                    borderWidth: 1,
+                    borderRadius: theme.radius,
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    opacity: pressed ? 0.82 : 1,
+                    alignSelf: 'flex-start',
+                  })}
+                >
+                  <Text
+                    style={{
+                      color: theme.foreground,
+                      fontSize: 12,
+                      fontWeight: '500',
+                      letterSpacing: 0.1,
+                    }}
+                  >
+                    광공해 켜기
+                  </Text>
+                </Pressable>
+              )}
+            </View>
 
             {(mapSiLoading || mapSiError || mapStarProps) && (
               <View style={styles.mapOverlay}>
@@ -775,6 +819,11 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
     top: 12,
+  },
+  mapViirsChip: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
   },
   appTitle: {
     fontSize: 22,

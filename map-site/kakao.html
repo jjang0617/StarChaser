@@ -64,11 +64,17 @@
         /** 명소: CustomOverlay (⭐ + 이름). 현재 위치는 기본 Marker */
         var spotMarkers = new Map();
 
-        /** GIBS WMTS REST 등 타일 오버레이 — Kakao Tileset */
-        var STAR_VIIRS_OVERLAY_ID = 'STAR_VIIRS_OVERLAY';
-        var viirsOverlayActive = false;
-        var viirsTilesetRegistered = false;
-        var viirsLastTemplate = '';
+        /** VIIRS WMS 오버레이 (bounds 기반 이미지 1장 덮기) */
+        var viirsWmsEnabled = false;
+        var viirsWmsImg = null;
+        var viirsWmsLastUrl = '';
+        var viirsWmsUpdateTimer = null;
+        var viirsWmsConfig = {
+          backendBaseUrl: '',
+          opacity: 0.75,
+          time: '',
+          layer: 'VIIRS_Black_Marble',
+        };
 
         function escapeHtml(str) {
           if (str == null || str === '') return '';
@@ -85,15 +91,97 @@
           var level = opts && opts.level ? opts.level : 7;
           map = new kakao.maps.Map(container, { center: center, level: level });
           post({ type: 'MAP_READY' });
+
+          // 지도 이동/줌 끝날 때마다 bounds 기반 WMS 이미지 갱신
+          try {
+            kakao.maps.event.addListener(map, 'idle', function () {
+              scheduleViirsWmsUpdate();
+            });
+          } catch (_) {}
         }
 
-        function removeViirsOverlay() {
+        function ensureViirsWmsImg() {
+          var container = document.getElementById('map');
+          if (!container) return null;
+          if (viirsWmsImg) return viirsWmsImg;
+
+          var img = document.createElement('img');
+          img.alt = 'VIIRS overlay';
+          img.style.cssText =
+            'position:absolute;left:0;top:0;width:100%;height:100%;' +
+            'pointer-events:none;z-index:2;opacity:' + String(viirsWmsConfig.opacity) + ';';
+
+          // map div 위에 올리기 위해 부모를 relative로
+          var parent = container.parentElement;
+          if (parent) {
+            var cs = window.getComputedStyle(parent);
+            if (cs.position === 'static') parent.style.position = 'relative';
+            parent.appendChild(img);
+          } else {
+            document.body.appendChild(img);
+          }
+          viirsWmsImg = img;
+          return img;
+        }
+
+        function scheduleViirsWmsUpdate() {
+          if (!viirsWmsEnabled) return;
+          if (!viirsWmsConfig.backendBaseUrl) return;
           if (!map) return;
-          if (!viirsOverlayActive) return;
-          try {
-            map.removeOverlayMapTypeId(kakao.maps.MapTypeId[STAR_VIIRS_OVERLAY_ID]);
-          } catch (_) {}
-          viirsOverlayActive = false;
+          if (viirsWmsUpdateTimer) clearTimeout(viirsWmsUpdateTimer);
+          viirsWmsUpdateTimer = setTimeout(function () {
+            viirsWmsUpdateTimer = null;
+            updateViirsWmsImage();
+          }, 150);
+        }
+
+        function updateViirsWmsImage() {
+          if (!viirsWmsEnabled) return;
+          if (!viirsWmsConfig.backendBaseUrl) return;
+          if (!map) return;
+
+          var bounds = map.getBounds && map.getBounds();
+          if (!bounds) return;
+          var sw = bounds.getSouthWest();
+          var ne = bounds.getNorthEast();
+          if (!sw || !ne) return;
+
+          var container = document.getElementById('map');
+          var w = container ? container.clientWidth : 512;
+          var h = container ? container.clientHeight : 512;
+          w = Math.max(64, Math.min(2048, w || 512));
+          h = Math.max(64, Math.min(2048, h || 512));
+
+          var url =
+            viirsWmsConfig.backendBaseUrl.replace(/\/+$/, '') +
+            '/viirs/wms' +
+            '?west=' + encodeURIComponent(sw.getLng()) +
+            '&south=' + encodeURIComponent(sw.getLat()) +
+            '&east=' + encodeURIComponent(ne.getLng()) +
+            '&north=' + encodeURIComponent(ne.getLat()) +
+            '&w=' + encodeURIComponent(w) +
+            '&h=' + encodeURIComponent(h) +
+            (viirsWmsConfig.time ? ('&time=' + encodeURIComponent(viirsWmsConfig.time)) : '') +
+            '&layer=' + encodeURIComponent(viirsWmsConfig.layer || 'VIIRS_Black_Marble') +
+            '&format=' + encodeURIComponent('image/png');
+
+          if (url === viirsWmsLastUrl) return;
+          viirsWmsLastUrl = url;
+
+          var img = ensureViirsWmsImg();
+          if (!img) return;
+          img.style.display = viirsWmsEnabled ? 'block' : 'none';
+          img.style.opacity = String(viirsWmsConfig.opacity);
+          img.src = url;
+        }
+
+        function setViirsWmsEnabled(enabled) {
+          viirsWmsEnabled = !!enabled;
+          var img = ensureViirsWmsImg();
+          if (img) {
+            img.style.display = viirsWmsEnabled ? 'block' : 'none';
+          }
+          if (viirsWmsEnabled) scheduleViirsWmsUpdate();
         }
 
         function applyViirsLayer(data) {
@@ -104,88 +192,24 @@
 
           var enabled = !!(data && data.enabled);
           if (!enabled) {
-            removeViirsOverlay();
-            post({ type: 'VIIRS_LAYER_READY', data: { mapTypeId: STAR_VIIRS_OVERLAY_ID, enabled: false } });
+            setViirsWmsEnabled(false);
+            post({ type: 'VIIRS_LAYER_READY', data: { mapTypeId: 'VIIRS_WMS', enabled: false } });
             return;
           }
 
-          var tpl = data && data.tileUrlTemplate ? String(data.tileUrlTemplate) : '';
-          if (!tpl) {
-            post({ type: 'VIIRS_LAYER_ERROR', data: { message: 'MISSING_TILE_URL_TEMPLATE' } });
+          viirsWmsConfig.backendBaseUrl = data && data.backendBaseUrl ? String(data.backendBaseUrl) : viirsWmsConfig.backendBaseUrl;
+          viirsWmsConfig.opacity =
+            data && typeof data.opacity === 'number' ? Math.max(0, Math.min(1, data.opacity)) : (viirsWmsConfig.opacity || 0.75);
+          viirsWmsConfig.time = (data && data.time ? String(data.time) : viirsWmsConfig.time) || '';
+          viirsWmsConfig.layer = (data && data.layer ? String(data.layer) : viirsWmsConfig.layer) || 'VIIRS_Black_Marble';
+
+          if (!viirsWmsConfig.backendBaseUrl) {
+            post({ type: 'VIIRS_LAYER_ERROR', data: { message: 'MISSING_BACKEND_BASE_URL' } });
             return;
           }
 
-          var minZ = data && typeof data.minZoom === 'number' ? data.minZoom : 1;
-          var maxZ = data && typeof data.maxZoom === 'number' ? data.maxZoom : null;
-          var opacity = data && typeof data.opacity === 'number' ? data.opacity : 0.75;
-          if (!(opacity >= 0 && opacity <= 1)) opacity = 0.75;
-
-          if (maxZ == null) {
-            try {
-              var m = tpl.match(/GoogleMapsCompatible_Level(\d+)/i);
-              if (m && m[1]) maxZ = Number(m[1]);
-            } catch (_) {}
-          }
-          if (maxZ == null || isNaN(maxZ)) maxZ = 14;
-          if (minZ > maxZ) {
-            var t0 = minZ;
-            minZ = maxZ;
-            maxZ = t0;
-          }
-
-          var dark = !!(data && data.darkTiles);
-          var copyrightArr = [];
-          try {
-            var cMsg = data && data.copyrightMsg ? String(data.copyrightMsg) : 'NASA GIBS / VIIRS';
-            var cShort = data && data.copyrightShortMsg ? String(data.copyrightShortMsg) : 'VIIRS';
-            copyrightArr = [new kakao.maps.TilesetCopyright(cMsg, cShort, minZ)];
-          } catch (_) {
-            copyrightArr = [];
-          }
-
-          try {
-            var needReregister = !viirsTilesetRegistered || tpl !== viirsLastTemplate;
-            if (needReregister) {
-              removeViirsOverlay();
-
-              var tileset = new kakao.maps.Tileset({
-                width: 256,
-                height: 256,
-                getTile: function (x, y, z) {
-                  var url = tpl.replace(/\{z\}/g, String(z)).replace(/\{y\}/g, String(y)).replace(/\{x\}/g, String(x));
-                  var wrap = document.createElement('div');
-                  wrap.style.cssText = 'width:256px;height:256px;overflow:hidden;';
-                  var img = document.createElement('img');
-                  img.src = url;
-                  img.width = 256;
-                  img.height = 256;
-                  img.style.cssText = 'width:256px;height:256px;display:block;opacity:' + opacity + ';';
-                  wrap.appendChild(img);
-                  return wrap;
-                },
-                copyrights: copyrightArr,
-                dark: dark,
-                minZoom: minZ,
-                maxZoom: maxZ,
-              });
-
-              kakao.maps.Tileset.add(STAR_VIIRS_OVERLAY_ID, tileset);
-              viirsTilesetRegistered = true;
-              viirsLastTemplate = tpl;
-            }
-
-            if (!viirsOverlayActive) {
-              map.addOverlayMapTypeId(kakao.maps.MapTypeId[STAR_VIIRS_OVERLAY_ID]);
-              viirsOverlayActive = true;
-            }
-
-            post({ type: 'VIIRS_LAYER_READY', data: { mapTypeId: STAR_VIIRS_OVERLAY_ID, enabled: true } });
-          } catch (e) {
-            post({
-              type: 'VIIRS_LAYER_ERROR',
-              data: { message: e && e.message ? String(e.message) : 'VIIRS_LAYER_APPLY_FAILED' },
-            });
-          }
+          setViirsWmsEnabled(true);
+          post({ type: 'VIIRS_LAYER_READY', data: { mapTypeId: 'VIIRS_WMS', enabled: true } });
         }
 
         function setCurrentLocation(loc) {
