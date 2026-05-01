@@ -16,10 +16,16 @@
         - { type: 'INIT', data?: { center?: {lat,lng}, level?: number } }
         - { type: 'SET_CURRENT_LOCATION', data: { lat:number, lng:number } }
         - { type: 'CLEAR_CURRENT_LOCATION' }
-        - { type: 'SET_SPOTS', data: Array<{ id:string, lat:number, lng:number, title?:string }> } → CustomOverlay(⭐ + 이름 라벨)
+        - { type: 'SET_SPOTS', data: Array<{ id:string, lat:number, lng:number, title?:string }> }
+        - { type: 'SET_VIIRS_LAYER', data: { enabled:boolean, tileUrlTemplate?:string,
+            minZoom?:number, maxZoom?:number, opacity?:number,
+            darkTiles?:boolean, copyrightMsg?:string, copyrightShortMsg?:string } }
+          → NASA GIBS WMTS 등 EPSG:3857 타일: Kakao `Tileset.add` + `addOverlayMapTypeId`
       - Web → RN (window.ReactNativeWebView.postMessage)
         - { type: 'MAP_READY' }
         - { type: 'MARKER_CLICK', data: { spotId:string } }
+        - { type: 'VIIRS_LAYER_READY', data?: { mapTypeId:string, enabled?:boolean } }
+        - { type: 'VIIRS_LAYER_ERROR', data?: { message:string } }
 
       주의(키 관리)
       - %KAKAO_JS_KEY%는 GitHub Actions에서 sed로 치환되어 배포된다.
@@ -58,6 +64,18 @@
         /** 명소: CustomOverlay (⭐ + 이름). 현재 위치는 기본 Marker */
         var spotMarkers = new Map();
 
+        /** VIIRS WMS 오버레이 (bounds 기반 이미지 1장 덮기) */
+        var viirsWmsEnabled = false;
+        var viirsWmsImg = null;
+        var viirsWmsLastUrl = '';
+        var viirsWmsUpdateTimer = null;
+        var viirsWmsConfig = {
+          backendBaseUrl: '',
+          opacity: 0.75,
+          time: '',
+          layer: 'VIIRS_Black_Marble',
+        };
+
         function escapeHtml(str) {
           if (str == null || str === '') return '';
           return String(str)
@@ -69,11 +87,129 @@
 
         function initMap(opts) {
           var container = document.getElementById('map');
-          // 기본 중심: 서울 시청 (임시). INIT 메시지로 center/level을 덮어쓸 수 있다.
           var center = opts && opts.center ? new kakao.maps.LatLng(opts.center.lat, opts.center.lng) : new kakao.maps.LatLng(37.5665, 126.978);
           var level = opts && opts.level ? opts.level : 7;
           map = new kakao.maps.Map(container, { center: center, level: level });
           post({ type: 'MAP_READY' });
+
+          // 지도 이동/줌 끝날 때마다 bounds 기반 WMS 이미지 갱신
+          try {
+            kakao.maps.event.addListener(map, 'idle', function () {
+              scheduleViirsWmsUpdate();
+            });
+          } catch (_) {}
+        }
+
+        function ensureViirsWmsImg() {
+          var container = document.getElementById('map');
+          if (!container) return null;
+          if (viirsWmsImg) return viirsWmsImg;
+
+          var img = document.createElement('img');
+          img.alt = 'VIIRS overlay';
+          img.style.cssText =
+            'position:absolute;left:0;top:0;width:100%;height:100%;' +
+            'pointer-events:none;z-index:2;opacity:' + String(viirsWmsConfig.opacity) + ';';
+
+          // map div 위에 올리기 위해 부모를 relative로
+          var parent = container.parentElement;
+          if (parent) {
+            var cs = window.getComputedStyle(parent);
+            if (cs.position === 'static') parent.style.position = 'relative';
+            parent.appendChild(img);
+          } else {
+            document.body.appendChild(img);
+          }
+          viirsWmsImg = img;
+          return img;
+        }
+
+        function scheduleViirsWmsUpdate() {
+          if (!viirsWmsEnabled) return;
+          if (!viirsWmsConfig.backendBaseUrl) return;
+          if (!map) return;
+          if (viirsWmsUpdateTimer) clearTimeout(viirsWmsUpdateTimer);
+          viirsWmsUpdateTimer = setTimeout(function () {
+            viirsWmsUpdateTimer = null;
+            updateViirsWmsImage();
+          }, 150);
+        }
+
+        function updateViirsWmsImage() {
+          if (!viirsWmsEnabled) return;
+          if (!viirsWmsConfig.backendBaseUrl) return;
+          if (!map) return;
+
+          var bounds = map.getBounds && map.getBounds();
+          if (!bounds) return;
+          var sw = bounds.getSouthWest();
+          var ne = bounds.getNorthEast();
+          if (!sw || !ne) return;
+
+          var container = document.getElementById('map');
+          var w = container ? container.clientWidth : 512;
+          var h = container ? container.clientHeight : 512;
+          w = Math.max(64, Math.min(2048, w || 512));
+          h = Math.max(64, Math.min(2048, h || 512));
+
+          var url =
+            viirsWmsConfig.backendBaseUrl.replace(/\/+$/, '') +
+            '/viirs/wms' +
+            '?west=' + encodeURIComponent(sw.getLng()) +
+            '&south=' + encodeURIComponent(sw.getLat()) +
+            '&east=' + encodeURIComponent(ne.getLng()) +
+            '&north=' + encodeURIComponent(ne.getLat()) +
+            '&w=' + encodeURIComponent(w) +
+            '&h=' + encodeURIComponent(h) +
+            (viirsWmsConfig.time ? ('&time=' + encodeURIComponent(viirsWmsConfig.time)) : '') +
+            '&layer=' + encodeURIComponent(viirsWmsConfig.layer || 'VIIRS_Black_Marble') +
+            '&format=' + encodeURIComponent('image/png');
+
+          if (url === viirsWmsLastUrl) return;
+          viirsWmsLastUrl = url;
+
+          var img = ensureViirsWmsImg();
+          if (!img) return;
+          img.style.display = viirsWmsEnabled ? 'block' : 'none';
+          img.style.opacity = String(viirsWmsConfig.opacity);
+          img.src = url;
+        }
+
+        function setViirsWmsEnabled(enabled) {
+          viirsWmsEnabled = !!enabled;
+          var img = ensureViirsWmsImg();
+          if (img) {
+            img.style.display = viirsWmsEnabled ? 'block' : 'none';
+          }
+          if (viirsWmsEnabled) scheduleViirsWmsUpdate();
+        }
+
+        function applyViirsLayer(data) {
+          if (!map) {
+            post({ type: 'VIIRS_LAYER_ERROR', data: { message: 'MAP_NOT_READY' } });
+            return;
+          }
+
+          var enabled = !!(data && data.enabled);
+          if (!enabled) {
+            setViirsWmsEnabled(false);
+            post({ type: 'VIIRS_LAYER_READY', data: { mapTypeId: 'VIIRS_WMS', enabled: false } });
+            return;
+          }
+
+          viirsWmsConfig.backendBaseUrl = data && data.backendBaseUrl ? String(data.backendBaseUrl) : viirsWmsConfig.backendBaseUrl;
+          viirsWmsConfig.opacity =
+            data && typeof data.opacity === 'number' ? Math.max(0, Math.min(1, data.opacity)) : (viirsWmsConfig.opacity || 0.75);
+          viirsWmsConfig.time = (data && data.time ? String(data.time) : viirsWmsConfig.time) || '';
+          viirsWmsConfig.layer = (data && data.layer ? String(data.layer) : viirsWmsConfig.layer) || 'VIIRS_Black_Marble';
+
+          if (!viirsWmsConfig.backendBaseUrl) {
+            post({ type: 'VIIRS_LAYER_ERROR', data: { message: 'MISSING_BACKEND_BASE_URL' } });
+            return;
+          }
+
+          setViirsWmsEnabled(true);
+          post({ type: 'VIIRS_LAYER_READY', data: { mapTypeId: 'VIIRS_WMS', enabled: true } });
         }
 
         function setCurrentLocation(loc) {
@@ -149,12 +285,15 @@
             case 'SET_SPOTS':
               setSpots(msg.data);
               break;
+            case 'SET_VIIRS_LAYER':
+              applyViirsLayer(msg.data || {});
+              break;
           }
         }
 
-        // React Native WebView에서는 플랫폼/버전에 따라
-        // - document 이벤트로 들어오거나
-        // - window 이벤트로 들어오는 경우가 있어 둘 다 처리한다.
+        window.__STAR_CHASER_RN_BRIDGE = function (raw) {
+          handleMessage(raw);
+        };
         document.addEventListener('message', function (e) {
           handleMessage(e.data);
         });
@@ -163,11 +302,9 @@
         });
 
         kakao.maps.load(function () {
-          // 최초 로드시 기본 지도 생성
           initMap({});
         });
       })();
     </script>
   </body>
 </html>
-
