@@ -15,6 +15,7 @@ import { ObservationsModule } from './observations/observations.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CorrectionsModule } from './corrections/corrections.module';
 import { ViirsModule } from './viirs/viirs.module';
+import { KakaoPageController } from './kakao-page.controller';
 
 @Module({
   imports: [
@@ -60,7 +61,7 @@ import { ViirsModule } from './viirs/viirs.module';
     CorrectionsModule,
     ViirsModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, KakaoPageController],
   providers: [AppService],
 })
 export class AppModule {}
