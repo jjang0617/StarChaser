@@ -15,6 +15,7 @@ import { ObservationsModule } from './observations/observations.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CorrectionsModule } from './corrections/corrections.module';
 import { ViirsModule } from './viirs/viirs.module';
+import { WeeklyTop5Module } from './weekly-top5/weekly-top5.module';
 import { KakaoPageController } from './kakao-page.controller';
 
 @Module({
@@ -60,6 +61,7 @@ import { KakaoPageController } from './kakao-page.controller';
     NotificationsModule,
     CorrectionsModule,
     ViirsModule,
+    WeeklyTop5Module,
   ],
   controllers: [AppController, KakaoPageController],
   providers: [AppService],
