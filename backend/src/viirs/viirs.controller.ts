@@ -16,13 +16,18 @@ type WmsQuery = {
   format?: string;
 };
 
+const GIBS_WMS_BASE =
+  'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi';
+
+/** 메모리 캐시 TTL · Cache-Control max-age (초) — 동일 bbox 재요청 완화 */
+const VIIRS_CACHE_TTL_SEC = 120;
+
 function clampInt(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, Math.trunc(n)));
 }
 
 function isSafeLayerId(layer: string): boolean {
-  // allowlist-ish: capabilities Identifier는 보통 이 문자셋에 들어옴
   return /^[A-Za-z0-9_]+$/.test(layer);
 }
 
@@ -33,6 +38,47 @@ function requireFinite(n: number, name: string): number {
   return n;
 }
 
+function buildGibsGetMapUrl(opts: {
+  layer: string;
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+  width: number;
+  height: number;
+  format: string;
+  time?: string;
+}): string {
+  const params = new URLSearchParams({
+    SERVICE: 'WMS',
+    REQUEST: 'GetMap',
+    VERSION: '1.3.0',
+    LAYERS: opts.layer,
+    STYLES: '',
+    CRS: 'EPSG:4326',
+    BBOX: `${opts.south},${opts.west},${opts.north},${opts.east}`,
+    WIDTH: String(opts.width),
+    HEIGHT: String(opts.height),
+    FORMAT: opts.format,
+    TRANSPARENT: 'TRUE',
+  });
+  if (opts.time) {
+    params.set('TIME', opts.time);
+  }
+  return `${GIBS_WMS_BASE}?${params.toString()}`;
+}
+
+function sendRasterOk(
+  res: Response,
+  format: string,
+  buf: Buffer,
+): void {
+  res.status(200);
+  res.setHeader('Content-Type', format);
+  res.setHeader('Cache-Control', `public, max-age=${VIIRS_CACHE_TTL_SEC}`);
+  res.end(buf);
+}
+
 @Controller('viirs')
 export class ViirsController {
   constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
@@ -41,8 +87,6 @@ export class ViirsController {
    * Kakao 지도 bounds 위에 덮는 WMS 이미지 프록시 (정합 우선).
    * - bbox는 WGS84 경위도 (west,south,east,north)
    * - width/height는 map div 크기 (px)
-   *
-   * NOTE: 인증/레이트리밋/더 긴 캐시는 운영 단계에서 추가.
    */
   @Get('wms')
   async wms(
@@ -71,33 +115,21 @@ export class ViirsController {
       const cacheKey = `viirs:wms:${layer}:${time || 'no-time'}:${west}:${south}:${east}:${north}:${w}:${h}:${format}`;
       const cached = (await this.cache.get<Buffer>(cacheKey)) ?? null;
       if (cached) {
-        res.status(200);
-        res.setHeader('Content-Type', format);
-        res.setHeader('Cache-Control', 'public, max-age=120');
-        return res.end(cached);
+        return sendRasterOk(res, format, cached);
       }
 
-      // GIBS WMS endpoint (EPSG:4326)
-      const base = 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi';
-      const params = new URLSearchParams({
-        SERVICE: 'WMS',
-        REQUEST: 'GetMap',
-        VERSION: '1.3.0',
-        LAYERS: layer,
-        STYLES: '',
-        CRS: 'EPSG:4326',
-        // WMS 1.3.0 + EPSG:4326는 lat,lon 순서
-        BBOX: `${south},${west},${north},${east}`,
-        WIDTH: String(w),
-        HEIGHT: String(h),
-        FORMAT: format,
-        TRANSPARENT: 'TRUE',
+      const url = buildGibsGetMapUrl({
+        layer,
+        south,
+        west,
+        north,
+        east,
+        width: w,
+        height: h,
+        format,
+        time: time || undefined,
       });
-      if (time) {
-        params.set('TIME', time);
-      }
 
-      const url = `${base}?${params.toString()}`;
       const upstream = await axios.get(url, {
         responseType: 'arraybuffer',
         timeout: 25_000,
@@ -113,11 +145,8 @@ export class ViirsController {
       }
 
       const buf = Buffer.from(upstream.data);
-      await this.cache.set(cacheKey, buf, 120);
-      res.status(200);
-      res.setHeader('Content-Type', format);
-      res.setHeader('Cache-Control', 'public, max-age=120');
-      return res.end(buf);
+      await this.cache.set(cacheKey, buf, VIIRS_CACHE_TTL_SEC);
+      return sendRasterOk(res, format, buf);
     } catch (e) {
       return res.status(400).json({
         message: e instanceof Error ? e.message : 'bad_request',
@@ -125,4 +154,3 @@ export class ViirsController {
     }
   }
 }
-

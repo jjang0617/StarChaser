@@ -1,69 +1,25 @@
-<!doctype html>
-<html lang="ko">
+/**
+ * Expo Go 등에서 hosted `kakao.html` 없이 쓸 때의 WebView용 인라인 문서.
+ * `map-site/kakao.html` 과 동작을 맞출 것 — VIIRS·마커 스크립트 변경 시 양쪽 수정.
+ */
+export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
+  return `<!doctype html>
+<html>
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>StarChaser Kakao Map</title>
-    <!--
-      StarChaser Kakao Map (Hosted)
-
-      이 파일은 "앱 안의 WebView"에서 로드되는 정적 페이지다.
-      - 목적: Kakao Map JavaScript SDK는 '허용 도메인' 등록이 필요하므로
-        WebView에서도 실제 https URL(예: GitHub Pages https://owner.github.io/repo/kakao.html)에서 실행되게 한다.
-
-      RN(WebView) ↔ Web 메시지 규격(최소)
-      - RN → Web (window.postMessage / WebView postMessage)
-        - { type: 'INIT', data?: { center?: {lat,lng}, level?: number } }
-        - { type: 'SET_CURRENT_LOCATION', data: { lat:number, lng:number } }
-        - { type: 'CLEAR_CURRENT_LOCATION' }
-        - { type: 'SET_SPOTS', data: Array<{ id:string, lat:number, lng:number, title?:string }> }
-        - { type: 'SET_VIIRS_LAYER', data: { enabled:boolean, tileUrlTemplate?:string,
-            minZoom?:number, maxZoom?:number, opacity?:number,
-            darkTiles?:boolean, copyrightMsg?:string, copyrightShortMsg?:string } }
-          → NASA GIBS WMTS 등 EPSG:3857 타일: Kakao `Tileset.add` + `addOverlayMapTypeId`
-      - Web → RN (window.ReactNativeWebView.postMessage)
-        - { type: 'MAP_READY' }
-        - { type: 'MARKER_CLICK', data: { spotId:string } }
-        - { type: 'VIIRS_LAYER_READY', data?: { mapTypeId:string, enabled?:boolean } }
-        - { type: 'VIIRS_LAYER_ERROR', data?: { message:string } }
-
-      주의(키 관리)
-      - %KAKAO_JS_KEY%는 GitHub Actions에서 sed로 치환되어 배포된다.
-      - 키를 레포에 하드코딩 커밋하지 않기 위한 장치다.
-
-      VIIRS·마커 스크립트는 frontend/components/map/kakao-map-inline-html.ts 와 동작을 맞출 것.
-    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <style>
-      html,
-      body {
-        height: 100%;
-        margin: 0;
-        padding: 0;
-      }
-      #map {
-        height: 100%;
-        width: 100%;
-      }
+      html, body { height: 100%; margin: 0; padding: 0; }
+      #map { height: 100%; width: 100%; }
+      #fallback { padding: 12px; font-family: -apple-system, system-ui, Segoe UI, Roboto; }
     </style>
+    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoJavascriptKey}&autoload=false"></script>
   </head>
   <body>
     <div id="map"></div>
-
-    <!-- Kakao Maps JavaScript SDK -->
-    <!-- appkey는 배포 시점에 주입됨 (%KAKAO_JS_KEY% → 실제 키) -->
-    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=%KAKAO_JS_KEY%&autoload=false"></script>
-
     <script>
       (function () {
-        function post(msg) {
-          try {
-            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(msg));
-          } catch (_) {}
-        }
-
         var map;
         var currentMarker = null;
-        /** 명소: CustomOverlay (⭐ + 이름). 현재 위치는 기본 Marker */
         var spotMarkers = new Map();
 
         /** VIIRS WMS 오버레이 (bounds 기반 이미지 1장 덮기) */
@@ -87,19 +43,29 @@
             .replace(/"/g, '&quot;');
         }
 
+        function post(msg) {
+          try {
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+          } catch (e) {}
+        }
+
+        function ensureKakao() {
+          return typeof window.kakao !== 'undefined' && window.kakao.maps;
+        }
+
         function initMap(opts) {
+          if (!ensureKakao()) return;
           var container = document.getElementById('map');
-          var center = opts && opts.center ? new kakao.maps.LatLng(opts.center.lat, opts.center.lng) : new kakao.maps.LatLng(37.5665, 126.978);
-          var level = opts && opts.level ? opts.level : 7;
+          var center = opts && opts.center ? new kakao.maps.LatLng(opts.center.lat, opts.center.lng) : new kakao.maps.LatLng(37.5665, 126.9780);
+          var level = (opts && opts.level) ? opts.level : 7;
           map = new kakao.maps.Map(container, { center: center, level: level });
           post({ type: 'MAP_READY' });
 
-          // 지도 이동/줌 끝날 때마다 bounds 기반 WMS 이미지 갱신
           try {
             kakao.maps.event.addListener(map, 'idle', function () {
               scheduleViirsWmsUpdate();
             });
-          } catch (_) {}
+          } catch (e) {}
         }
 
         function ensureViirsWmsImg() {
@@ -113,7 +79,6 @@
             'position:absolute;left:0;top:0;width:100%;height:100%;' +
             'pointer-events:none;z-index:2;opacity:' + String(viirsWmsConfig.opacity) + ';';
 
-          // map div 위에 올리기 위해 부모를 relative로
           var parent = container.parentElement;
           if (parent) {
             var cs = window.getComputedStyle(parent);
@@ -199,7 +164,7 @@
             return;
           }
 
-          viirsWmsConfig.backendBaseUrl = data && data.backendBaseUrl ? String(data.backendBaseUrl) : viirsWmsConfig.backendBaseUrl;
+          viirsWmsConfig.backendBaseUrl = data && data.backendBaseUrl ? String(data.backendBaseUrl) : '';
           viirsWmsConfig.opacity =
             data && typeof data.opacity === 'number' ? Math.max(0, Math.min(1, data.opacity)) : (viirsWmsConfig.opacity || 0.75);
           viirsWmsConfig.time = (data && data.time ? String(data.time) : viirsWmsConfig.time) || '';
@@ -231,18 +196,20 @@
         }
 
         function clearSpots() {
-          spotMarkers.forEach(function (m) {
-            m.setMap(null);
-          });
+          spotMarkers.forEach(function (m) { m.setMap(null); });
           spotMarkers.clear();
         }
 
         function setSpots(spots) {
           if (!map || !Array.isArray(spots)) return;
           clearSpots();
+          var bounds = new kakao.maps.LatLngBounds();
+          var hasAny = false;
           spots.forEach(function (s) {
             if (!s || !s.id) return;
             var pos = new kakao.maps.LatLng(s.lat, s.lng);
+            bounds.extend(pos);
+            hasAny = true;
             var label = escapeHtml(s.title || '명소');
             var el = document.createElement('div');
             el.style.cssText =
@@ -264,15 +231,17 @@
             });
             spotMarkers.set(String(s.id), overlay);
           });
+
+          if (hasAny && spots.length >= 2) {
+            try {
+              map.setBounds(bounds, 60, 60, 60, 60);
+            } catch (e) {}
+          }
         }
 
         function handleMessage(raw) {
           var msg;
-          try {
-            msg = JSON.parse(raw);
-          } catch (_) {
-            return;
-          }
+          try { msg = JSON.parse(raw); } catch (e) { return; }
           if (!msg || !msg.type) return;
           switch (msg.type) {
             case 'INIT':
@@ -296,17 +265,19 @@
         window.__STAR_CHASER_RN_BRIDGE = function (raw) {
           handleMessage(raw);
         };
-        document.addEventListener('message', function (e) {
-          handleMessage(e.data);
-        });
-        window.addEventListener('message', function (e) {
-          handleMessage(e.data);
-        });
+        document.addEventListener('message', function (e) { handleMessage(e.data); });
+        window.addEventListener('message', function (e) { handleMessage(e.data); });
 
+        if (!ensureKakao()) {
+          var el = document.getElementById('map');
+          el.innerHTML = '<div id="fallback">Kakao Maps SDK 로딩 실패</div>';
+          return;
+        }
         kakao.maps.load(function () {
           initMap({});
         });
       })();
     </script>
   </body>
-</html>
+</html>`;
+}
