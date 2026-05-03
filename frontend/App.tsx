@@ -70,6 +70,8 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const { theme, toggleRed, isRedMode } = useTheme();
   const { user, logout, onSessionInvalidated } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('home');
+  /** MAP 탭을 한 번 연 뒤에는 WebView를 유지해 줌/센터·마커 상태가 탭 전환 후에도 유지되게 함 */
+  const [mapLayerMounted, setMapLayerMounted] = useState(false);
   const [location, setLocation] = useState<string>('');
 
   // Map: 마커 클릭 → 해당 spotId의 Star-Index 오버레이
@@ -87,6 +89,10 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   useEffect(() => {
     setFocusSpotId((prev) => (prev == null && defaultSpotId ? defaultSpotId : prev));
   }, [defaultSpotId]);
+
+  useEffect(() => {
+    if (activeTab === 'map') setMapLayerMounted(true);
+  }, [activeTab]);
 
   const [siLoading, setSiLoading] = useState(false);
   const [siError, setSiError] = useState<StatefulCardError | null>(null);
@@ -178,8 +184,18 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     <Screen>
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
-        {activeTab === 'map' ? (
-          <View style={{ flex: 1 }}>
+        {/* 지도는 이 영역 안에서만 absoluteFill → 하단 탭과 레이아웃 겹침 없음 */}
+        <View style={styles.mainTabContent}>
+        {mapLayerMounted ? (
+          <View
+            style={[
+              StyleSheet.absoluteFillObject,
+              activeTab === 'map' ? styles.mapTabLayerVisible : styles.mapTabLayerHidden,
+            ]}
+            pointerEvents={activeTab === 'map' ? 'auto' : 'none'}
+            collapsable={false}
+          >
+            <View style={{ flex: 1 }}>
             <KakaoMapWebView
               mapPageUrl={kakaoMapPageUrl}
               kakaoJavascriptKey={kakaoJavascriptKey}
@@ -378,8 +394,11 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                 </StatefulCard>
               </View>
             )}
+            </View>
           </View>
-        ) : activeTab === 'sky' ? (
+        ) : null}
+        {activeTab !== 'map' ? (
+          activeTab === 'sky' ? (
           <SkyTabScreen
             observerLat={siData?.lat ?? null}
             observerLng={siData?.lng ?? null}
@@ -670,7 +689,9 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               </View>
             </Card>
           </ScrollView>
-        )}
+        )
+        ) : null}
+        </View>
 
         <View style={styles.tabWrap}>
           <BottomTab
@@ -813,6 +834,15 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: 12,
     paddingBottom: 20,
+  },
+  mainTabContent: {
+    flex: 1,
+  },
+  mapTabLayerVisible: {
+    opacity: 1,
+  },
+  mapTabLayerHidden: {
+    opacity: 0,
   },
   mapOverlay: {
     position: 'absolute',
