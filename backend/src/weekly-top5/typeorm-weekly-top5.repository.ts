@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -29,6 +30,26 @@ export class TypeOrmWeeklyTop5Repository implements WeeklyTop5Repository {
       .getRawOne<{ max: string | Date | null }>();
     if (row?.max == null) return null;
     return normalizeDateOnly(row.max);
+  }
+
+  async replaceWeek(
+    weekStart: string,
+    rows: Array<{ rank: number; spotId: string; avgStarIndex: number }>,
+  ): Promise<void> {
+    await this.repo.manager.transaction(async (em) => {
+      await em.delete(WeeklyTop5Entity, { weekStart });
+      if (!rows.length) return;
+      await em.insert(
+        WeeklyTop5Entity,
+        rows.map((r) => ({
+          id: randomUUID(),
+          weekStart,
+          rank: r.rank,
+          spotId: r.spotId,
+          avgStarIndex: r.avgStarIndex.toFixed(2),
+        })),
+      );
+    });
   }
 
   private toEntry(e: WeeklyTop5Entity): WeeklyTop5Entry {
