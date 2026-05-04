@@ -28,7 +28,7 @@ export class WeeklyTop5Controller {
     name: 'weekStart',
     required: false,
     description: '조회할 week_start (YYYY-MM-DD, 집계 구간의 월요일)',
-    example: '2026-04-28',
+    example: '2026-05-04',
   })
   @ApiOkResponse({ type: WeeklyTop5ItemDto, isArray: true })
   async getWeekly(

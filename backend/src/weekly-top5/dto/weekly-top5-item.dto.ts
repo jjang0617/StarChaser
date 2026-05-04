@@ -8,7 +8,7 @@ export class WeeklyTop5ItemDto {
   @ApiProperty({
     description:
       '집계 구간이 시작된 월요일 (지난주 월~일 TOP5의 week_start, YYYY-MM-DD)',
-    example: '2026-04-28',
+    example: '2026-05-04',
   })
   weekStart: string;
 
