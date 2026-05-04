@@ -22,6 +22,15 @@ export class TypeOrmWeeklyTop5Repository implements WeeklyTop5Repository {
     return rows.map((e) => this.toEntry(e));
   }
 
+  async findLatestWeekStart(): Promise<string | null> {
+    const row = await this.repo
+      .createQueryBuilder('w')
+      .select('MAX(w.week_start)', 'max')
+      .getRawOne<{ max: string | Date | null }>();
+    if (row?.max == null) return null;
+    return normalizeDateOnly(row.max);
+  }
+
   private toEntry(e: WeeklyTop5Entity): WeeklyTop5Entry {
     return {
       id: e.id,
