@@ -9,6 +9,8 @@ import {
   SPOT_REPOSITORY,
   type SpotRepository,
 } from '../common/interfaces/spot.repository';
+import { WeeklyTop5AggregationService } from '../weekly-top5/weekly-top5-aggregation.service';
+import { getKstYmd } from '../common/kst-date';
 
 // ──────────────────────────────────────────────────────────────
 // Cron 수집기 — 장성재(A) 담당
@@ -24,6 +26,7 @@ export class CronService {
     private readonly config: ConfigService,
     private readonly skyService: SkyService,
     @Inject(SPOT_REPOSITORY) private readonly spots: SpotRepository,
+    private readonly weeklyTop5Aggregation: WeeklyTop5AggregationService,
   ) {}
 
   private latLngToGrid(lat: number, lng: number): { nx: number; ny: number } {
@@ -233,12 +236,28 @@ export class CronService {
     }
   }
 
-  // ── 주간 TOP5 — 매주 월요일 오전 7시 갱신 ────────────────────
-  @Cron('0 7 * * 1')
+  // ── 주간 TOP5 일별 입력 — 매일 00:10 KST (moon·weather 캐시가 KST 날짜와 맞춘 뒤) ──
+  @Cron('10 0 * * *', { timeZone: 'Asia/Seoul' })
+  async snapshotDailyStarIndexScoresJob() {
+    this.logger.log('[Cron] 일별 Star-Index 스냅샷(명소 전체) 시작...');
+    try {
+      await this.weeklyTop5Aggregation.snapshotTodayStarIndexScores();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(`[Cron] 일별 스냅샷 실패: ${msg}`);
+    }
+  }
+
+  // ── 주간 TOP5 — 매주 월요일 07:00 KST (직전 월~일 평균) ────────────────────
+  @Cron('0 7 * * 1', { timeZone: 'Asia/Seoul' })
   async calcWeeklyTop5() {
-    this.logger.log('주간 TOP5 산출 시작...');
-    // TODO: 김세희(B) — 5주차 구현
-    // cache.set(`top5:weekly:${week}`, data, 86400)
+    this.logger.log('[Cron] 주간 TOP5 집계 시작...');
+    try {
+      await this.weeklyTop5Aggregation.aggregateWeekTop5FromDaily();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(`[Cron] 주간 TOP5 집계 실패: ${msg}`);
+    }
   }
 
   /**
@@ -267,7 +286,7 @@ export class CronService {
     const { nx, ny } = this.latLngToGrid(lat, lng);
     const weatherKey = `weather:${nx}:${ny}`;
     const dustKey = 'dust:서울';
-    const moonKey = `moon:${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`;
+    const moonKey = `moon:${getKstYmd().replace(/-/g, '')}`;
 
     const [weather, dust, moon] = await Promise.all([
       this.cache.get(weatherKey),

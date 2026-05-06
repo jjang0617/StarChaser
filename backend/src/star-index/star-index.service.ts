@@ -11,6 +11,7 @@ import { MOON_ALTITUDE_MISSING_SENTINEL } from '../sky/kasi.mapper';
 import type { WeatherSnapshot } from '../common/interfaces/weather-snapshot';
 import { normalizeWeatherSnapshotForStorage } from '../common/interfaces/weather-snapshot';
 import { CorrectionsService } from '../corrections/corrections.service';
+import { getKstYmd } from '../common/kst-date';
 
 // ── 기상 데이터 타입 ─────────────────────────────────────────
 interface WeatherData {
@@ -62,7 +63,7 @@ export class StarIndexService {
     const { nx, ny } = this.latLngToGrid(spot.lat, spot.lng);
     const weatherKey = `weather:${nx}:${ny}`;
     const dustKey = 'dust:서울';
-    const moonKey = `moon:${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`;
+    const moonKey = `moon:${getKstYmd().replace(/-/g, '')}`;
 
     const weather = await this.cache.get<WeatherData>(weatherKey);
     const dust = await this.cache.get<DustData>(dustKey);
@@ -99,6 +100,47 @@ export class StarIndexService {
       weatherSnapshot,
       cacheKeys: { weatherKey, dustKey, moonKey },
     };
+  }
+
+  /**
+   * `star_index:{spotId}` 캐시를 보지 않고, 현재 weather/dust/moon 캐시만으로 점수 계산.
+   * 일별 스냅샷·주간 TOP5 집계 등 배치용.
+   */
+  async computeFreshScoreFromCache(spot: Spot): Promise<number> {
+    const { nx, ny } = this.latLngToGrid(spot.lat, spot.lng);
+    const weatherKey = `weather:${nx}:${ny}`;
+    const dustKey = 'dust:서울';
+    const moonKey = `moon:${getKstYmd().replace(/-/g, '')}`;
+
+    const weather = await this.cache.get<WeatherData>(weatherKey);
+    const dust = await this.cache.get<DustData>(dustKey);
+    const moon = await this.cache.get<MoonData>(moonKey);
+
+    if (!weather || !dust || !moon) {
+      const missing = [
+        !weather ? weatherKey : null,
+        !dust ? dustKey : null,
+        !moon ? moonKey : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+      throw new ServiceUnavailableException(
+        `캐시 데이터가 부족합니다. 누락 키: ${missing}. Cron 수집기를 먼저 실행하세요.`,
+      );
+    }
+
+    const correctionScore =
+      await this.correctionsService.getAggregatedCorrectionScoreForSpot(spot.id);
+
+    const { score } = this.calcStarIndexWithSnapshot({
+      weather,
+      dust,
+      moon,
+      bortleClass: spot.bortleClass,
+      elevationM: spot.elevationM,
+      correctionScore,
+    });
+    return score;
   }
 
   /**

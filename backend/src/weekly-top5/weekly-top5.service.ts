@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Inject,
-} from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import {
   WEEKLY_TOP5_REPOSITORY,
   type WeeklyTop5Entry,
@@ -12,9 +8,8 @@ import {
   SPOT_REPOSITORY,
   type SpotRepository,
 } from '../common/interfaces/spot.repository';
+import { requireQueryYmd } from '../common/kst-week-start';
 import { WeeklyTop5ItemDto } from './dto/weekly-top5-item.dto';
-
-const WEEK_START_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 @Injectable()
 export class WeeklyTop5Service {
@@ -25,13 +20,11 @@ export class WeeklyTop5Service {
     private readonly spots: SpotRepository,
   ) {}
 
-  /**
-   * @param weekStart YYYY-MM-DD 생략 시 DB의 MAX(week_start)
-   */
+  /** `weekStart` 생략 시 `MAX(week_start)` 주차. */
   async getWeekly(weekStart?: string): Promise<WeeklyTop5ItemDto[]> {
     const resolved =
       weekStart != null && weekStart.trim() !== ''
-        ? parseWeekStartQuery(weekStart.trim())
+        ? requireQueryYmd(weekStart)
         : await this.weeklyTop5Repo.findLatestWeekStart();
 
     if (resolved == null) {
@@ -39,7 +32,7 @@ export class WeeklyTop5Service {
     }
 
     const rows = await this.weeklyTop5Repo.findByWeekStart(resolved);
-    if (rows.length === 0) {
+    if (!rows.length) {
       return [];
     }
 
@@ -57,15 +50,4 @@ export class WeeklyTop5Service {
       avgStarIndex: row.avgStarIndex,
     };
   }
-}
-
-function parseWeekStartQuery(raw: string): string {
-  if (!WEEK_START_RE.test(raw)) {
-    throw new BadRequestException('weekStart는 YYYY-MM-DD 형식이어야 합니다.');
-  }
-  const d = new Date(`${raw}T12:00:00Z`);
-  if (Number.isNaN(d.getTime())) {
-    throw new BadRequestException('weekStart가 유효한 날짜가 아닙니다.');
-  }
-  return raw.slice(0, 10);
 }

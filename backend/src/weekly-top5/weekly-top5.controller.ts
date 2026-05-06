@@ -19,16 +19,15 @@ export class WeeklyTop5Controller {
   @ApiBearerAuth()
   @Get('weekly')
   @ApiOperation({
-    summary: '주간 TOP5 조회 (지난주 월~일 집계, week_start = 그 주의 월요일)',
+    summary: '주간 TOP5 조회',
     description:
-      '`weekStart` 생략 시 DB에 존재하는 가장 최근 `week_start`로 조회합니다. ' +
-      '해당 주 데이터가 없으면 빈 배열 `[]`을 반환합니다.',
+      '저장된 `weekly_top5`만 조회. `weekStart` 생략 시 최근 `week_start`, 없으면 `[]`.',
   })
   @ApiQuery({
     name: 'weekStart',
     required: false,
-    description: '조회할 week_start (YYYY-MM-DD, 집계 구간의 월요일)',
-    example: '2026-05-04',
+    description: '그 주 월요일 YYYY-MM-DD. 생략 시 최근 집계 주.',
+    example: '2026-04-28',
   })
   @ApiOkResponse({ type: WeeklyTop5ItemDto, isArray: true })
   async getWeekly(
