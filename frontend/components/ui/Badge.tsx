@@ -8,7 +8,7 @@ import React from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useTheme } from '../../themes/ThemeContext';
 
-export type BadgeVariant = 'gold' | 'steel' | 'muted' | 'red' | 'outline';
+export type BadgeVariant = 'gold' | 'bronze' | 'steel' | 'muted' | 'red' | 'outline';
 
 interface BadgeProps {
   label:    string;
@@ -26,6 +26,12 @@ export function Badge({ label, variant = 'muted', mono = false, style }: BadgePr
       bg:     theme.starGold + '1A',  // 10% alpha
       text:   theme.starGold,
       border: theme.starGold + '45',  // 27% alpha
+    },
+    bronze: {
+      // 테마 토큰에 없어서 고정 hex 사용 (Blue/Green 없음)
+      bg:     '#7A4A2A14',   // ~8% alpha
+      text:   '#A8643A',     // muted copper
+      border: '#7A4A2A52',   // ~32% alpha
     },
     steel: {
       bg:     theme.nebulaSteel + '26',
