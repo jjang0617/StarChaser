@@ -40,13 +40,14 @@ import { getDefaultSpotId } from './lib/config';
 import {
   ApiRequestError,
   type CorrectionAggregateDto,
+  fetchWeeklyTop5,
   fetchCorrectionAggregate,
   fetchStarIndex,
   SessionExpiredError,
   submitStarIndexCorrection,
 } from './lib/api-client';
 import { starIndexResponseToCardModel } from './lib/star-index-display';
-import type { StarIndexResponseDto } from './lib/types/api';
+import type { StarIndexResponseDto, WeeklyTop5ItemDto } from './lib/types/api';
 
 function starIndexErrorFromApi(e: ApiRequestError): StatefulCardError {
   if (e.status === 503) {
@@ -103,6 +104,10 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [perceivedQuality, setPerceivedQuality] = useState(75);
   const [corrBusy, setCorrBusy] = useState(false);
   const [corrMsg, setCorrMsg] = useState<string | null>(null);
+
+  const [top5Loading, setTop5Loading] = useState(false);
+  const [top5Error, setTop5Error] = useState<string | null>(null);
+  const [top5Items, setTop5Items] = useState<WeeklyTop5ItemDto[] | null>(null);
 
   /** 가상 밤하늘 — 관측 시각(UTC) 스크럽용 */
   const [skyObserveAtIso, setSkyObserveAtIso] = useState(() =>
@@ -173,6 +178,36 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
       cancelled = true;
     };
   }, [activeTab, focusSpotId, siRefreshKey]);
+
+  useEffect(() => {
+    if (activeTab !== 'home') return;
+    let cancelled = false;
+    (async () => {
+      setTop5Loading(true);
+      setTop5Error(null);
+      try {
+        const items = await fetchWeeklyTop5();
+        if (!cancelled) setTop5Items(items);
+      } catch (e) {
+        if (e instanceof SessionExpiredError) {
+          if (!cancelled) setTop5Error('세션이 만료되었습니다. 다시 로그인해 주세요.');
+          await onSessionInvalidated();
+          return;
+        }
+        if (e instanceof ApiRequestError) {
+          if (!cancelled) setTop5Error(e.message);
+        } else {
+          if (!cancelled) setTop5Error('주간 TOP5를 불러오지 못했습니다.');
+        }
+        if (!cancelled) setTop5Items(null);
+      } finally {
+        if (!cancelled) setTop5Loading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, onSessionInvalidated]);
 
   const kakaoJavascriptKey = process.env.EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY;
   const kakaoMapPageUrl = process.env.EXPO_PUBLIC_KAKAO_MAP_PAGE_URL;
@@ -463,6 +498,90 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               <Badge label="주차" variant="muted" />
               <Badge label="Red Mode" variant="red" />
             </View>
+
+            <Card
+              title="주간 TOP5"
+              description="지난주 Star-Index 평균이 높은 명소"
+            >
+              {top5Loading ? (
+                <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>
+                  불러오는 중…
+                </Text>
+              ) : top5Error ? (
+                <Text style={{ color: theme.destructive, fontSize: 12 }}>
+                  {top5Error}
+                </Text>
+              ) : top5Items == null ? (
+                <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>
+                  데이터를 준비 중입니다.
+                </Text>
+              ) : top5Items.length === 0 ? (
+                <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>
+                  지난주 TOP5 데이터가 아직 없습니다.
+                </Text>
+              ) : (
+                <View style={{ gap: 8 }}>
+                  {top5Items.slice(0, 5).map((item) => (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => setFocusSpotId(item.spotId)}
+                      style={({ pressed }) => {
+                        const selected = focusSpotId === item.spotId;
+                        return {
+                          paddingVertical: 8,
+                          paddingHorizontal: 10,
+                          borderRadius: theme.radius,
+                          borderWidth: 1,
+                          borderColor: selected ? theme.ring : theme.borderSubtle,
+                          backgroundColor: pressed || selected ? theme.input : 'transparent',
+                          opacity: pressed ? 0.95 : 1,
+                        };
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                        }}
+                      >
+                        <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Badge
+                            label={`${item.rank}위`}
+                            mono
+                            variant={
+                              item.rank === 1
+                                ? 'gold'     // 1위: gold
+                                : item.rank === 2
+                                  ? 'steel' // 2위: steel
+                                  : item.rank === 3
+                                    ? 'bronze' // 3위: bronze
+                                    : 'muted'
+                            }
+                          />
+                          <Text
+                            style={{ color: theme.foreground, fontSize: 13, fontWeight: '600' }}
+                            numberOfLines={1}
+                          >
+                            {item.spotName}
+                          </Text>
+                        </View>
+                        <Text
+                          style={{
+                            color: theme.starGold,
+                            fontFamily: 'SpaceMono-Regular',
+                            fontSize: 13,
+                          }}
+                        >
+                          {item.avgStarIndexText || '—'}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </Card>
 
             {focusSpotId ? (
               <Text

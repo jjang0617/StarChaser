@@ -52,3 +52,15 @@ export interface SpotDto {
   hasToilet: boolean;
   locationRadiusM: number;
 }
+
+export interface WeeklyTop5ItemDto {
+  id: string;
+  /** 집계 주 월요일 (YYYY-MM-DD) */
+  weekStart: string;
+  rank: number;
+  spotId: string;
+  spotName: string;
+  avgStarIndex: number;
+  /** 표시용 문자열(불필요한 0 제거) */
+  avgStarIndexText: string;
+}

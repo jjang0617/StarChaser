@@ -18,4 +18,10 @@ export class WeeklyTop5ItemDto {
 
   @ApiProperty({ example: 82.5 })
   avgStarIndex: number;
+
+  @ApiProperty({
+    description: '표시용 문자열',
+    example: '82.5',
+  })
+  avgStarIndexText: string;
 }
