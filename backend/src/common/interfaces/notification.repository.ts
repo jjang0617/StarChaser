@@ -16,6 +16,8 @@ export interface NotificationPreference {
   starIndexAlertEnabled: boolean;
   astronomyEventAlertEnabled: boolean;
   top5AlertEnabled: boolean;
+  /** Star-Index 임계 알림용 기준 명소 */
+  alertSpotId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +36,7 @@ export interface NotificationRepository {
     starIndexAlertEnabled: boolean;
     astronomyEventAlertEnabled: boolean;
     top5AlertEnabled: boolean;
+    alertSpotId: string | null;
   }): Promise<NotificationPreference>;
 
   /** 실발송 테스트 등: 활성 토큰만 */
@@ -43,6 +46,23 @@ export interface NotificationRepository {
   findAndroidRecipientsTop5Enabled(): Promise<
     Array<{ userId: string; fcmToken: string }>
   >;
+
+  /** Star-Index 임계 알림: 알림·Star-Index ON + 기준 명소 지정 + 안드로이드 토큰 */
+  findAndroidRecipientsStarIndexThreshold(): Promise<
+    Array<{ userId: string; fcmToken: string; alertSpotId: string }>
+  >;
+
+  hasStarIndexPushSentForKstDay(params: {
+    userId: string;
+    spotId: string;
+    dayKstYmd: string;
+  }): Promise<boolean>;
+
+  recordStarIndexPushSent(params: {
+    userId: string;
+    spotId: string;
+    dayKstYmd: string;
+  }): Promise<void>;
 }
 
 export const NOTIFICATION_REPOSITORY = 'NOTIFICATION_REPOSITORY';

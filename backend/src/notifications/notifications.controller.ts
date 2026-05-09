@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Post, Put, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -7,6 +17,7 @@ import { DeactivateNotificationTokenDto } from './dto/deactivate-notification-to
 import { NotificationTestSendDto } from './dto/notification-test-send.dto';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 import { UpsertNotificationTokenDto } from './dto/upsert-notification-token.dto';
+import { NotificationSchedulerService } from './notification-scheduler.service';
 import { NotificationsService } from './notifications.service';
 
 @ApiTags('notifications')
@@ -14,7 +25,11 @@ import { NotificationsService } from './notifications.service';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly config: ConfigService,
+    private readonly notificationScheduler: NotificationSchedulerService,
+  ) {}
 
   @Post('token')
   @ApiOperation({ summary: 'FCM 토큰 등록/갱신 (로그인 후 디바이스별 호출)' })
@@ -60,5 +75,29 @@ export class NotificationsController {
     @Body() dto: NotificationTestSendDto,
   ) {
     return this.notificationsService.sendTestPush(user.userId, dto);
+  }
+
+  @Post('dev/run-star-index-scheduled-push')
+  @ApiOperation({
+    summary:
+      '개발·검증용: Star-Index 스케줄 잡을 즉시 1회 실행 (:15 기다리지 않음). production 은 FCM_STAR_INDEX_MANUAL_TRIGGER_ENABLED=true 만 허용',
+  })
+  async runStarIndexScheduledPush(@CurrentUser() user: JwtValidatedUser) {
+    const nodeEnv = this.config.get<string>('NODE_ENV');
+    const forced =
+      this.config.get<string>('FCM_STAR_INDEX_MANUAL_TRIGGER_ENABLED') === 'true';
+    const allowed = forced || nodeEnv !== 'production';
+    if (!allowed) {
+      throw new ForbiddenException(
+        'production 에서는 FCM_STAR_INDEX_MANUAL_TRIGGER_ENABLED=true 일 때만 사용 가능',
+      );
+    }
+    await this.notificationScheduler.sendStarIndexThresholdDigest();
+    return {
+      ok: true,
+      triggeredBy: user.userId,
+      message:
+        'Star-Index 스케줄 로직을 1회 실행했습니다. 서버 로그([Star-Index push])를 확인하세요.',
+    };
   }
 }

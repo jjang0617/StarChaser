@@ -62,6 +62,8 @@ export interface NotificationPreferenceDto {
   starIndexAlertEnabled: boolean;
   astronomyEventAlertEnabled: boolean;
   top5AlertEnabled: boolean;
+  /** Star-Index 임계 알림 기준 명소 — 없으면 서버 스케줄에서 제외 */
+  alertSpotId?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -8,6 +8,7 @@ import type {
 } from '../common/interfaces/notification.repository';
 import { NotificationPreferenceEntity } from './notification-preference.entity';
 import { NotificationTokenEntity } from './notification-token.entity';
+import { StarIndexPushSentEntity } from './star-index-push-sent.entity';
 
 @Injectable()
 export class TypeOrmNotificationRepository implements NotificationRepository {
@@ -16,6 +17,8 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     private readonly tokens: Repository<NotificationTokenEntity>,
     @InjectRepository(NotificationPreferenceEntity)
     private readonly prefs: Repository<NotificationPreferenceEntity>,
+    @InjectRepository(StarIndexPushSentEntity)
+    private readonly pushSent: Repository<StarIndexPushSentEntity>,
   ) {}
 
   async upsertToken(params: {
@@ -73,6 +76,7 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     starIndexAlertEnabled: boolean;
     astronomyEventAlertEnabled: boolean;
     top5AlertEnabled: boolean;
+    alertSpotId: string | null;
   }): Promise<NotificationPreference> {
     const existing = await this.prefs.findOne({ where: { userId: params.userId } });
     if (!existing) {
@@ -82,6 +86,7 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
         starIndexAlertEnabled: params.starIndexAlertEnabled,
         astronomyEventAlertEnabled: params.astronomyEventAlertEnabled,
         top5AlertEnabled: params.top5AlertEnabled,
+        alertSpotId: params.alertSpotId,
       });
       return this.prefs.save(created);
     }
@@ -90,6 +95,7 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     existing.starIndexAlertEnabled = params.starIndexAlertEnabled;
     existing.astronomyEventAlertEnabled = params.astronomyEventAlertEnabled;
     existing.top5AlertEnabled = params.top5AlertEnabled;
+    existing.alertSpotId = params.alertSpotId;
     return this.prefs.save(existing);
   }
 
@@ -117,5 +123,75 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
       userId: String(r.userId ?? r.userid ?? ''),
       fcmToken: String(r.fcmToken ?? r.fcmtoken ?? ''),
     })).filter((r) => r.userId.length > 0 && r.fcmToken.length > 0);
+  }
+
+  async findAndroidRecipientsStarIndexThreshold(): Promise<
+    Array<{ userId: string; fcmToken: string; alertSpotId: string }>
+  > {
+    const raw = await this.tokens
+      .createQueryBuilder('t')
+      .innerJoin(
+        NotificationPreferenceEntity,
+        'p',
+        'p.userId = t.userId AND p.alertsEnabled = true AND p.starIndexAlertEnabled = true AND p.alertSpotId IS NOT NULL',
+      )
+      .where('t.isActive = :active', { active: true })
+      .andWhere('t.platform = :plat', { plat: 'android' })
+      .select('t.userId', 'userId')
+      .addSelect('t.fcmToken', 'fcmToken')
+      .addSelect('p.alertSpotId', 'alertSpotId')
+      .getRawMany<
+        Record<string, string | undefined> & {
+          userId?: string;
+          fcmToken?: string;
+          alertSpotId?: string;
+        }
+      >();
+    return raw
+      .map((r) => ({
+        userId: String(r.userId ?? r.userid ?? ''),
+        fcmToken: String(r.fcmToken ?? r.fcmtoken ?? ''),
+        alertSpotId: String(r.alertSpotId ?? r.alertspotid ?? ''),
+      }))
+      .filter(
+        (r) =>
+          r.userId.length > 0 &&
+          r.fcmToken.length > 0 &&
+          r.alertSpotId.length > 0,
+      );
+  }
+
+  async hasStarIndexPushSentForKstDay(params: {
+    userId: string;
+    spotId: string;
+    dayKstYmd: string;
+  }): Promise<boolean> {
+    const n = await this.pushSent.count({
+      where: {
+        userId: params.userId,
+        spotId: params.spotId,
+        sentDayKst: params.dayKstYmd,
+      },
+    });
+    return n > 0;
+  }
+
+  async recordStarIndexPushSent(params: {
+    userId: string;
+    spotId: string;
+    dayKstYmd: string;
+  }): Promise<void> {
+    const row = this.pushSent.create({
+      userId: params.userId,
+      spotId: params.spotId,
+      sentDayKst: params.dayKstYmd,
+    });
+    try {
+      await this.pushSent.save(row);
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === '23505') return;
+      throw e;
+    }
   }
 }

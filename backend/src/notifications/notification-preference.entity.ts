@@ -30,6 +30,10 @@ export class NotificationPreferenceEntity {
   @Column({ name: 'top5_alert_enabled', type: 'boolean', default: true })
   top5AlertEnabled: boolean;
 
+  /** Star-Index 임계 알림 기준 명소 — 없으면 해당 알림 스케줄에서 제외 */
+  @Column({ name: 'alert_spot_id', type: 'uuid', nullable: true })
+  alertSpotId: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
