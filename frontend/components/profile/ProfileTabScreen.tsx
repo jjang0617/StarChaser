@@ -1,6 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -14,7 +17,8 @@ import {
   authorizedGetJson,
   authorizedPutJson,
 } from '../../lib/api-client';
-import type { NotificationPreferenceDto } from '../../lib/types/api';
+import type { NotificationPreferenceDto, SpotDto } from '../../lib/types/api';
+import { fetchSpotsAll } from '../../lib/spots-api';
 import { Button, Card } from '../ui';
 
 interface ProfileTabScreenProps {
@@ -39,6 +43,9 @@ export function ProfileTabScreen({
   const [prefsError, setPrefsError] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<NotificationPreferenceDto | null>(null);
   const [prefsSaving, setPrefsSaving] = useState(false);
+  const [spots, setSpots] = useState<SpotDto[]>([]);
+  const [spotsLoading, setSpotsLoading] = useState(false);
+  const [spotPickerOpen, setSpotPickerOpen] = useState(false);
 
   const loadPrefs = useCallback(async () => {
     setPrefsError(null);
@@ -66,6 +73,42 @@ export function ProfileTabScreen({
     void loadPrefs();
   }, [loadPrefs]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setSpotsLoading(true);
+    void (async () => {
+      try {
+        const list = await fetchSpotsAll();
+        if (!cancelled) setSpots(list);
+      } catch (e) {
+        if (e instanceof SessionExpiredError) {
+          await onSessionInvalidated();
+          return;
+        }
+        if (!cancelled && __DEV__) {
+          // eslint-disable-next-line no-console
+          console.warn('[ProfileTabScreen] 명소 목록 로드 실패', e);
+        }
+      } finally {
+        if (!cancelled) setSpotsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [onSessionInvalidated]);
+
+  const alertSpotLabel = useMemo(() => {
+    const id = prefs?.alertSpotId;
+    if (!id) return '선택 안 함';
+    const s = spots.find(x => x.id === id);
+    return s?.name ?? '선택한 명소';
+  }, [prefs?.alertSpotId, spots]);
+
+  const sortedSpots = useMemo(() => {
+    return [...spots].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [spots]);
+
   const persistPrefs = useCallback(
     async (next: NotificationPreferenceDto) => {
       setPrefsSaving(true);
@@ -78,6 +121,7 @@ export function ProfileTabScreen({
             starIndexAlertEnabled: next.starIndexAlertEnabled,
             astronomyEventAlertEnabled: next.astronomyEventAlertEnabled,
             top5AlertEnabled: next.top5AlertEnabled,
+            alertSpotId: next.alertSpotId ?? null,
           },
         );
         setPrefs(saved);
@@ -114,6 +158,7 @@ export function ProfileTabScreen({
         next.starIndexAlertEnabled = false;
         next.astronomyEventAlertEnabled = false;
         next.top5AlertEnabled = false;
+        next.alertSpotId = null;
       }
       setPrefs(next);
       void persistPrefs(next);
@@ -157,12 +202,26 @@ export function ProfileTabScreen({
             />
             <Row
               label="별 보기 좋은 날 (Star-Index)"
-              description="점수가 좋을 때 알림"
+              description="기준 명소의 점수가 서버 설정 임계 이상일 때 하루 한 번 알림"
               value={prefs.starIndexAlertEnabled}
               disabled={prefsSaving || !prefs.alertsEnabled}
               theme={theme}
               onValueChange={(v) => toggleField('starIndexAlertEnabled', v)}
             />
+            <View style={{ gap: 8, opacity: prefs.alertsEnabled ? 1 : 0.45 }}>
+              <Text style={[styles.spotHint, { color: theme.mutedForeground }]}>
+                기준 명소: {spotsLoading ? '목록 불러오는 중…' : alertSpotLabel}
+              </Text>
+              <Button
+                label="기준 명소 선택"
+                variant="outline"
+                fullWidth
+                disabled={
+                  prefsSaving || !prefs.alertsEnabled || spotsLoading || spots.length === 0
+                }
+                onPress={() => setSpotPickerOpen(true)}
+              />
+            </View>
             <Row
               label="하늘 이벤트"
               description="유성우·특별 천체 등"
@@ -189,6 +248,61 @@ export function ProfileTabScreen({
           </View>
         )}
       </Card>
+
+      <Modal
+        visible={spotPickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSpotPickerOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setSpotPickerOpen(false)}>
+          <Pressable
+            style={[styles.modalSheet, { backgroundColor: theme.card, borderColor: theme.border }]}
+            onPress={e => e.stopPropagation()}
+          >
+            <Text style={[styles.modalTitle, { color: theme.foreground }]}>
+              Star-Index 알림 기준 명소
+            </Text>
+            <ScrollView style={{ maxHeight: 420 }}>
+              <Pressable
+                onPress={() => {
+                  setSpotPickerOpen(false);
+                  if (!prefs) return;
+                  void persistPrefs({ ...prefs, alertSpotId: null });
+                }}
+                style={({ pressed }) => [
+                  styles.modalRow,
+                  {
+                    borderBottomColor: theme.border,
+                    backgroundColor: pressed ? theme.muted : 'transparent',
+                  },
+                ]}
+              >
+                <Text style={{ color: theme.foreground }}>선택 안 함</Text>
+              </Pressable>
+              {sortedSpots.map(s => (
+                <Pressable
+                  key={s.id}
+                  onPress={() => {
+                    setSpotPickerOpen(false);
+                    if (!prefs) return;
+                    void persistPrefs({ ...prefs, alertSpotId: s.id });
+                  }}
+                  style={({ pressed }) => [
+                    styles.modalRow,
+                    {
+                      borderBottomColor: theme.border,
+                      backgroundColor: pressed ? theme.muted : 'transparent',
+                    },
+                  ]}
+                >
+                  <Text style={{ color: theme.foreground }}>{s.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Card title="표시" description="야간 관측 시 눈부심을 줄입니다">
         <Button
@@ -259,4 +373,23 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontFamily: 'SpaceMono-Regular', marginBottom: 16 },
   email: { fontSize: 14 },
   err: { fontSize: 13, marginBottom: 8 },
+  spotHint: { fontSize: 12 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalSheet: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    maxHeight: '80%',
+  },
+  modalTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12 },
+  modalRow: {
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
 });

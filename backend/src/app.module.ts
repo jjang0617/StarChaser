@@ -23,8 +23,16 @@ import { KakaoPageController } from './kakao-page.controller';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      /** npm run 에서 cwd 가 backend 여야 함. 혹시 루트에서 실행해도 backend/.env 를 읽도록 보조 경로 포함 */
-      envFilePath: [join(process.cwd(), '.env'), join(__dirname, '..', '.env')],
+      /**
+       * 1) 컴파일 결과 기준 backend/.env — cwd 와 무관하게 동일 서버 설정.
+       * 2) cwd 의 .env / 레포 루트에서 실행 시 backend/.env 보조.
+       * dotenv 는 이미 설정된 키를 나중 파일에서 덮어쓰지 않으므로, 가장 신뢰할 소스를 앞에 둠.
+       */
+      envFilePath: [
+        join(__dirname, '..', '.env'),
+        join(process.cwd(), '.env'),
+        join(process.cwd(), 'backend', '.env'),
+      ],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],

@@ -40,6 +40,7 @@ export class NotificationsService {
       starIndexAlertEnabled: true,
       astronomyEventAlertEnabled: true,
       top5AlertEnabled: true,
+      alertSpotId: null,
     });
   }
 
@@ -56,6 +57,8 @@ export class NotificationsService {
       astronomyEventAlertEnabled:
         dto.astronomyEventAlertEnabled ?? current.astronomyEventAlertEnabled,
       top5AlertEnabled: dto.top5AlertEnabled ?? current.top5AlertEnabled,
+      alertSpotId:
+        dto.alertSpotId !== undefined ? dto.alertSpotId : current.alertSpotId,
     });
   }
 
