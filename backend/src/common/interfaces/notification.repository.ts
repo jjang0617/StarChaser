@@ -35,6 +35,9 @@ export interface NotificationRepository {
     astronomyEventAlertEnabled: boolean;
     top5AlertEnabled: boolean;
   }): Promise<NotificationPreference>;
+
+  /** 실발송 테스트 등: 활성 토큰만 */
+  findActiveTokensByUserId(userId: string): Promise<NotificationToken[]>;
 }
 
 export const NOTIFICATION_REPOSITORY = 'NOTIFICATION_REPOSITORY';

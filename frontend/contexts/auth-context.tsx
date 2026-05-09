@@ -15,6 +15,7 @@ import {
 } from '../lib/auth-storage';
 import { ensureFreshAccessToken, postAuthJson } from '../lib/api-client';
 import { getJwtPayload } from '../lib/jwt-utils';
+import { registerDevicePushTokenWithServer } from '../lib/register-fcm-token';
 
 interface AuthContextValue {
   /** AsyncStorage + 선택적 선제 갱신 완료 */
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ? { id: u.id, email: u.email || '(이메일 없음)' }
             : null,
         );
+        void registerDevicePushTokenWithServer();
       } finally {
         if (!cancelled) setIsHydrated(true);
       }
@@ -84,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     setHasValidSession(true);
     setUser(data.user);
+    void registerDevicePushTokenWithServer();
   }, []);
 
   const register = useCallback(async (email: string, password: string) => {
@@ -95,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     setHasValidSession(true);
     setUser(data.user);
+    void registerDevicePushTokenWithServer();
   }, []);
 
   const logout = useCallback(async () => {

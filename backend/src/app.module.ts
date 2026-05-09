@@ -1,3 +1,4 @@
+import { join } from 'path';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -22,7 +23,8 @@ import { KakaoPageController } from './kakao-page.controller';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      /** npm run 에서 cwd 가 backend 여야 함. 혹시 루트에서 실행해도 backend/.env 를 읽도록 보조 경로 포함 */
+      envFilePath: [join(process.cwd(), '.env'), join(__dirname, '..', '.env')],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
