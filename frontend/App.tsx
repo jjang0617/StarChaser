@@ -335,6 +335,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               onLogout={() => void logout()}
               isRedMode={isRedMode}
               onToggleRedMode={toggleRed}
+              onSessionInvalidated={onSessionInvalidated}
               onDevResetOnboarding={__DEV__ ? onResetOnboarding : undefined}
             />
           ) : null

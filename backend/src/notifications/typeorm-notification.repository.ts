@@ -92,4 +92,30 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     existing.top5AlertEnabled = params.top5AlertEnabled;
     return this.prefs.save(existing);
   }
+
+  async findAndroidRecipientsTop5Enabled(): Promise<
+    Array<{ userId: string; fcmToken: string }>
+  > {
+    const raw = await this.tokens
+      .createQueryBuilder('t')
+      .innerJoin(
+        NotificationPreferenceEntity,
+        'p',
+        'p.userId = t.userId AND p.alertsEnabled = true AND p.top5AlertEnabled = true',
+      )
+      .where('t.isActive = :active', { active: true })
+      .andWhere('t.platform = :plat', { plat: 'android' })
+      .select('t.userId', 'userId')
+      .addSelect('t.fcmToken', 'fcmToken')
+      .getRawMany<
+        Record<string, string | undefined> & {
+          userId?: string;
+          fcmToken?: string;
+        }
+      >();
+    return raw.map((r) => ({
+      userId: String(r.userId ?? r.userid ?? ''),
+      fcmToken: String(r.fcmToken ?? r.fcmtoken ?? ''),
+    })).filter((r) => r.userId.length > 0 && r.fcmToken.length > 0);
+  }
 }

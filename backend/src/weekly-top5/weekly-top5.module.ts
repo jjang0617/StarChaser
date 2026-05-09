@@ -28,6 +28,10 @@ import { WeeklyTop5AggregationService } from './weekly-top5-aggregation.service'
     WeeklyTop5Service,
     WeeklyTop5AggregationService,
   ],
-  exports: [WEEKLY_TOP5_REPOSITORY, WeeklyTop5AggregationService],
+  exports: [
+    WEEKLY_TOP5_REPOSITORY,
+    WeeklyTop5AggregationService,
+    WeeklyTop5Service,
+  ],
 })
 export class WeeklyTop5Module {}

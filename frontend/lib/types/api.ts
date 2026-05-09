@@ -55,6 +55,17 @@ export interface SpotDto {
 }
 
 /** GET /top5/weekly 한 줄 */
+/** GET/PUT /notifications/preferences */
+export interface NotificationPreferenceDto {
+  userId: string;
+  alertsEnabled: boolean;
+  starIndexAlertEnabled: boolean;
+  astronomyEventAlertEnabled: boolean;
+  top5AlertEnabled: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface WeeklyTop5ItemDto {
   id: string;
   /** 집계 기준 월요일 (YYYY-MM-DD) */
