@@ -6,12 +6,17 @@ import {
 } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import type { Spot } from '../common/interfaces/spot.repository';
+import {
+  SPOT_REPOSITORY,
+  type SpotRepository,
+  type Spot,
+} from '../common/interfaces/spot.repository';
 import { MOON_ALTITUDE_MISSING_SENTINEL } from '../sky/kasi.mapper';
 import type { WeatherSnapshot } from '../common/interfaces/weather-snapshot';
 import { normalizeWeatherSnapshotForStorage } from '../common/interfaces/weather-snapshot';
 import { CorrectionsService } from '../corrections/corrections.service';
 import { getKstYmd } from '../common/kst-date';
+import { StarIndexCacheHydrationService } from '../cache-hydration/star-index-cache-hydration.service';
 
 // ── 기상 데이터 타입 ─────────────────────────────────────────
 interface WeatherData {
@@ -52,7 +57,9 @@ export class StarIndexService {
 
   constructor(
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    @Inject(SPOT_REPOSITORY) private readonly spots: SpotRepository,
     private readonly correctionsService: CorrectionsService,
+    private readonly cacheHydration: StarIndexCacheHydrationService,
   ) {}
 
   async calculateForSpotFromCache(spot: Spot): Promise<{
@@ -60,6 +67,8 @@ export class StarIndexService {
     weatherSnapshot: WeatherSnapshot;
     cacheKeys: { weatherKey: string; dustKey: string; moonKey: string };
   }> {
+    await this.cacheHydration.ensureForStarIndexRequest(spot.lat, spot.lng);
+
     const { nx, ny } = this.latLngToGrid(spot.lat, spot.lng);
     const weatherKey = `weather:${nx}:${ny}`;
     const dustKey = 'dust:서울';
@@ -70,16 +79,8 @@ export class StarIndexService {
     const moon = await this.cache.get<MoonData>(moonKey);
 
     if (!weather || !dust || !moon) {
-      const missing = [
-        !weather ? weatherKey : null,
-        !dust ? dustKey : null,
-        !moon ? moonKey : null,
-      ]
-        .filter(Boolean)
-        .join(', ');
-
       throw new ServiceUnavailableException(
-        `캐시 데이터가 부족합니다. 누락 키: ${missing}. Cron 수집기를 먼저 실행하세요.`,
+        '기상·미세먼지·달 데이터를 가져오지 못했습니다. KMA_API_KEY·AIRKOREA_API_KEY·KASI 키와 네트워크를 확인하세요.',
       );
     }
 
@@ -103,10 +104,104 @@ export class StarIndexService {
   }
 
   /**
+   * GPS(또는 임의 좌표) 격자 기상 + 주변 명소 Bortle/고도/보정으로 Star-Index.
+   * 명소 spotId 캐시는 쓰지 않고 매 요청 계산한다.
+   */
+  async calculateForLatLngFromCache(lat: number, lng: number): Promise<{
+    score: number;
+    weatherSnapshot: WeatherSnapshot;
+    cacheKeys: { weatherKey: string; dustKey: string; moonKey: string };
+    nearestSpot: Spot | null;
+    distanceKm: number | null;
+  }> {
+    await this.cacheHydration.ensureForStarIndexRequest(lat, lng);
+
+    const { nx, ny } = this.latLngToGrid(lat, lng);
+    const weatherKey = `weather:${nx}:${ny}`;
+    const dustKey = 'dust:서울';
+    const moonKey = `moon:${getKstYmd().replace(/-/g, '')}`;
+
+    const weather = await this.cache.get<WeatherData>(weatherKey);
+    const dust = await this.cache.get<DustData>(dustKey);
+    const moon = await this.cache.get<MoonData>(moonKey);
+
+    if (!weather || !dust || !moon) {
+      throw new ServiceUnavailableException(
+        '기상·미세먼지·달 데이터를 가져오지 못했습니다. KMA_API_KEY·AIRKOREA_API_KEY·KASI 키와 네트워크를 확인하세요.',
+      );
+    }
+
+    const nearby = await this.spots.findNearby(lat, lng, 200_000);
+    const nearest = this.pickNearestSpot(lat, lng, nearby);
+    const distanceKm = nearest
+      ? this.haversineKm(lat, lng, nearest.lat, nearest.lng)
+      : null;
+
+    const bortleClass = nearest?.bortleClass ?? 5;
+    const elevationM = nearest?.elevationM ?? 100;
+    const correctionScore = nearest
+      ? await this.correctionsService.getAggregatedCorrectionScoreForSpot(
+          nearest.id,
+        )
+      : 100;
+
+    const { score, weatherSnapshot } = this.calcStarIndexWithSnapshot({
+      weather,
+      dust,
+      moon,
+      bortleClass,
+      elevationM,
+      correctionScore,
+    });
+
+    return {
+      score,
+      weatherSnapshot,
+      cacheKeys: { weatherKey, dustKey, moonKey },
+      nearestSpot: nearest,
+      distanceKm,
+    };
+  }
+
+  private pickNearestSpot(lat: number, lng: number, spots: Spot[]): Spot | null {
+    if (!spots.length) return null;
+    let best = spots[0];
+    let bestD = this.haversineKm(lat, lng, best.lat, best.lng);
+    for (let i = 1; i < spots.length; i += 1) {
+      const s = spots[i];
+      const d = this.haversineKm(lat, lng, s.lat, s.lng);
+      if (d < bestD) {
+        best = s;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  private haversineKm(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ): number {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  /**
    * `star_index:{spotId}` 캐시를 보지 않고, 현재 weather/dust/moon 캐시만으로 점수 계산.
    * 일별 스냅샷·주간 TOP5 집계 등 배치용.
    */
   async computeFreshScoreFromCache(spot: Spot): Promise<number> {
+    await this.cacheHydration.ensureForStarIndexRequest(spot.lat, spot.lng);
+
     const { nx, ny } = this.latLngToGrid(spot.lat, spot.lng);
     const weatherKey = `weather:${nx}:${ny}`;
     const dustKey = 'dust:서울';
@@ -117,15 +212,8 @@ export class StarIndexService {
     const moon = await this.cache.get<MoonData>(moonKey);
 
     if (!weather || !dust || !moon) {
-      const missing = [
-        !weather ? weatherKey : null,
-        !dust ? dustKey : null,
-        !moon ? moonKey : null,
-      ]
-        .filter(Boolean)
-        .join(', ');
       throw new ServiceUnavailableException(
-        `캐시 데이터가 부족합니다. 누락 키: ${missing}. Cron 수집기를 먼저 실행하세요.`,
+        '기상·미세먼지·달 데이터를 가져오지 못했습니다. API 키·네트워크를 확인하세요.',
       );
     }
 

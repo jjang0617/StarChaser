@@ -1,4 +1,12 @@
-import { Controller, Get, Inject, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Inject,
+  NotFoundException,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
@@ -51,5 +59,19 @@ export class SpotsController {
     @Query('limit') limit = '20',
   ) {
     return this.spots.search(q ?? '', Number(limit) || 20);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get(':id')
+  @ApiOperation({
+    summary: '단일 명소 — Star-Index 없이도 천구·지도에 쓸 위경도 조회',
+  })
+  async findOne(@Param('id') id: string) {
+    const spot = await this.spots.findById(id);
+    if (!spot) {
+      throw new NotFoundException(`spot not found: ${id}`);
+    }
+    return spot;
   }
 }

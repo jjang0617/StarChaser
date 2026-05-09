@@ -10,6 +10,12 @@ export async function fetchSpotsAll(): Promise<SpotDto[]> {
   return authorizedGetJson<SpotDto[]>('/spots');
 }
 
+/** Star-Index 503이어도 천구용 위경도만 필요할 때 */
+export async function fetchSpotById(spotId: string): Promise<SpotDto> {
+  const q = encodeURIComponent(spotId);
+  return authorizedGetJson<SpotDto>(`/spots/${q}`);
+}
+
 export async function fetchSpotsNearby(
   lat: number,
   lng: number,

@@ -222,6 +222,15 @@ export function fetchStarIndex(spotId: string): Promise<StarIndexResponseDto> {
   return authorizedGetJson<StarIndexResponseDto>(`/star-index?spotId=${q}`);
 }
 
+/** JWT 필요. 기상은 lat·lng 격자, Bortle/고도는 (가능 시) 가장 가까운 명소 참고 */
+export function fetchStarIndexAtLocation(
+  lat: number,
+  lng: number,
+): Promise<StarIndexResponseDto> {
+  const q = new URLSearchParams({ lat: String(lat), lng: String(lng) });
+  return authorizedGetJson<StarIndexResponseDto>(`/star-index?${q.toString()}`);
+}
+
 export function fetchWeeklyTop5(weekStart?: string): Promise<WeeklyTop5ItemDto[]> {
   const q = new URLSearchParams();
   if (weekStart && weekStart.trim() !== '') q.set('weekStart', weekStart.trim());
@@ -262,6 +271,17 @@ export interface SkyViewConstellationLabelDto {
   azDeg: number;
 }
 
+export interface SkyViewBodyDto {
+  id: 'moon' | 'venus' | 'jupiter';
+  labelKo: string;
+  azDeg: number;
+  altDeg: number;
+  magnitude: number;
+  visible: boolean;
+  phaseFraction?: number;
+  moonPhaseDeg?: number;
+}
+
 export interface SkyViewResponseDto {
   at: string;
   lat: number;
@@ -270,6 +290,9 @@ export interface SkyViewResponseDto {
   lstDeg: number;
   stars: SkyViewStarDto[];
   constellationLabels: SkyViewConstellationLabelDto[];
+  /** 없으면 구 서버 응답 — 빈 배열로 처리 */
+  bodies?: SkyViewBodyDto[];
+  ephemerisSource?: string;
 }
 
 export function fetchSkyView(params: {
@@ -282,6 +305,24 @@ export function fetchSkyView(params: {
   q.set('lng', String(params.lng));
   if (params.at) q.set('at', params.at);
   return authorizedGetJson<SkyViewResponseDto>(`/sky/view?${q.toString()}`);
+}
+
+export interface ConstellationLineSegmentDto {
+  fromHip: number;
+  toHip: number;
+  con: string;
+}
+
+export interface ConstellationLinesResponseDto {
+  epoch: string;
+  note?: string;
+  segments: ConstellationLineSegmentDto[];
+}
+
+export function fetchConstellationLines(): Promise<ConstellationLinesResponseDto> {
+  return authorizedGetJson<ConstellationLinesResponseDto>(
+    '/sky/constellation-lines',
+  );
 }
 
 export interface CorrectionAggregateDto {

@@ -14,6 +14,10 @@ describe('SkyController', () => {
           useValue: {
             getMoonData: jest.fn(),
             getStaticStarsMvp: jest.fn().mockReturnValue({ stars: [] }),
+            getConstellationLines: jest.fn().mockReturnValue({
+              epoch: 'J2000',
+              segments: [],
+            }),
           },
         },
       ],

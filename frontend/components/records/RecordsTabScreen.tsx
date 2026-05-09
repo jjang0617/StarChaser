@@ -1,6 +1,8 @@
+import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,19 +15,31 @@ import {
   createObservation,
   fetchMyObservations,
   fetchStarIndex,
+  fetchStarIndexAtLocation,
   SessionExpiredError,
   type ObservationRowDto,
 } from '../../lib/api-client';
 import type { StarIndexResponseDto } from '../../lib/types/api';
 
+const RESULT_LABEL_KO: Record<'success' | 'partial' | 'fail', string> = {
+  success: '성공',
+  partial: '부분',
+  fail: '실패',
+};
+
 interface RecordsTabScreenProps {
   /** 홈·지도와 동일한 기준 명소 UUID (없으면 기록 불가 안내) */
   activeSpotId: string | null;
+  /** 있으면 Star-Index는 이 좌표 격자를 우선 (내 위치 점수) */
+  observerLat?: number | null;
+  observerLng?: number | null;
   onSessionInvalidated: () => Promise<void>;
 }
 
 export function RecordsTabScreen({
   activeSpotId,
+  observerLat = null,
+  observerLng = null,
   onSessionInvalidated,
 }: RecordsTabScreenProps) {
   const { theme } = useTheme();
@@ -63,23 +77,88 @@ export function RecordsTabScreen({
   }, [onSessionInvalidated]);
 
   const loadSi = useCallback(async () => {
-    if (!activeSpotId) {
+    let lat = observerLat;
+    let lng = observerLng;
+
+    if (
+      Platform.OS !== 'web' &&
+      (lat == null ||
+        lng == null ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng))
+    ) {
+      try {
+        const perm = await Location.getForegroundPermissionsAsync();
+        if (perm.status === Location.PermissionStatus.GRANTED) {
+          const pos = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+        }
+      } catch {
+        /* props 좌표만 사용 */
+      }
+    }
+
+    const hasCoords =
+      lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng);
+
+    if (!hasCoords && !activeSpotId) {
       setSiData(null);
       setSiErr(null);
       return;
     }
+
     setSiLoading(true);
     setSiErr(null);
     try {
-      const d = await fetchStarIndex(activeSpotId);
-      setSiData(d);
+      if (hasCoords) {
+        const d = await fetchStarIndexAtLocation(lat!, lng!);
+        setSiData(d);
+        return;
+      }
+      try {
+        const d = await fetchStarIndex(activeSpotId!);
+        setSiData(d);
+      } catch (e) {
+        if (
+          e instanceof ApiRequestError &&
+          e.status === 404 &&
+          Platform.OS !== 'web'
+        ) {
+          try {
+            const perm = await Location.getForegroundPermissionsAsync();
+            if (perm.status === Location.PermissionStatus.GRANTED) {
+              const pos = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+              });
+              const d = await fetchStarIndexAtLocation(
+                pos.coords.latitude,
+                pos.coords.longitude,
+              );
+              setSiData(d);
+              setSiErr(null);
+              return;
+            }
+          } catch {
+            /* 아래 공통 처리 */
+          }
+        }
+        throw e;
+      }
     } catch (e) {
       if (e instanceof SessionExpiredError) {
         await onSessionInvalidated();
         return;
       }
       if (e instanceof ApiRequestError) {
-        setSiErr(e.message);
+        const base = e.message;
+        setSiErr(
+          e.status === 503
+            ? `${base} (캐시 미준비 시 Swagger → POST /cron/run-once 후 다시 시도)`
+            : base,
+        );
       } else {
         setSiErr('Star-Index를 불러오지 못했습니다.');
       }
@@ -87,7 +166,7 @@ export function RecordsTabScreen({
     } finally {
       setSiLoading(false);
     }
-  }, [activeSpotId, onSessionInvalidated]);
+  }, [activeSpotId, observerLat, observerLng, onSessionInvalidated]);
 
   useEffect(() => {
     void loadList();
@@ -102,8 +181,10 @@ export function RecordsTabScreen({
     setSaveBusy(true);
     setSaveMsg(null);
     try {
+      const spotForRow =
+        siData.spotId && siData.spotId.length > 0 ? siData.spotId : activeSpotId ?? undefined;
       await createObservation({
-        spotId: activeSpotId ?? undefined,
+        spotId: spotForRow,
         starIndexVal: siData.score,
         weatherSnapshot: siData.weatherSnapshot as unknown as Record<
           string,
@@ -128,6 +209,13 @@ export function RecordsTabScreen({
     }
   };
 
+  const hasObserverGps =
+    observerLat != null &&
+    observerLng != null &&
+    Number.isFinite(observerLat) &&
+    Number.isFinite(observerLng);
+  const canLoadStarIndex = hasObserverGps || Boolean(activeSpotId);
+
   return (
     <ScrollView
       style={styles.scroll}
@@ -140,10 +228,11 @@ export function RecordsTabScreen({
         불러오세요.
       </Text>
 
-      {!activeSpotId ? (
-        <Card title="선택된 명소 없음" description="지도에서 마커를 누르거나 홈에 기본 명소를 설정하세요">
+      {!canLoadStarIndex ? (
+        <Card title="위치·명소 필요" description="위치 권한을 허용하거나 지도에서 명소를 고르세요">
           <Text style={{ color: theme.mutedForeground, fontSize: 13 }}>
-            EXPO_PUBLIC_DEFAULT_SPOT_ID 또는 지도에서 명소를 고르면 Star-Index를 불러올 수 있습니다.
+            GPS가 켜지면 현재 위치 격자로 Star-Index를 불러옵니다. 없으면 EXPO_PUBLIC_DEFAULT_SPOT_ID
+            또는 지도 마커로 명소를 정할 수 있어요.
           </Text>
         </Card>
       ) : (
@@ -153,9 +242,14 @@ export function RecordsTabScreen({
           ) : siErr ? (
             <Text style={{ color: theme.destructive }}>{siErr}</Text>
           ) : siData ? (
-            <Text style={{ color: theme.foreground, fontSize: 28 }}>
-              {siData.score}
-            </Text>
+            <View>
+              <Text style={{ color: theme.foreground, fontSize: 28 }}>
+                {siData.score}
+              </Text>
+              <Text style={{ color: theme.mutedForeground, fontSize: 12, marginTop: 6 }}>
+                {siData.name} · 구름 {siData.weatherSnapshot.cloud_score}
+              </Text>
+            </View>
           ) : null}
           <View style={{ marginTop: 8 }}>
             <Button
@@ -220,10 +314,15 @@ export function RecordsTabScreen({
               ]}
             >
               <Text style={{ color: theme.foreground, fontWeight: '600' }}>
-                {row.result} · SI {row.starIndexVal}
+                {RESULT_LABEL_KO[row.result]} · Star-Index {row.starIndexVal}
               </Text>
               <Text style={{ color: theme.mutedForeground, fontSize: 11, marginTop: 4 }}>
-                {new Date(row.observedAt).toLocaleString('ko-KR')}
+                {new Date(row.observedAt).toLocaleString('ko-KR', {
+                  timeZone: 'Asia/Seoul',
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+                {row.spotId ? ` · spot …${row.spotId.slice(-8)}` : ''}
               </Text>
             </View>
           ))

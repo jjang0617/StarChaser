@@ -1,13 +1,13 @@
 /**
  * StarChaser — App.tsx
- * AuthProvider → 온보딩 → 메인. Star-Index는 GET /star-index?spotId= 연동.
+ * 메인: 천구 + TOP5 · 지도 마커: Star-Index 상세 시트
  */
 
 import { StatusBar } from 'expo-status-bar';
+import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  ScrollView,
   Text,
   StyleSheet,
   View,
@@ -18,20 +18,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { ThemeProvider, useTheme } from './themes/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/auth-context';
-import {
-  Badge,
-  BottomTab,
-  Button,
-  Card,
-  StarIndexCard,
-  SpotCard,
-  StatefulCard,
-  Input,
-  Screen,
-  type StatefulCardError,
-} from './components/ui';
+import { BottomTab, Button, Screen, type StatefulCardError } from './components/ui';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { KakaoMapWebView } from './components/map/KakaoMapWebView';
+import { MapSpotDetailModal } from './components/map/MapSpotDetailModal';
 import { ProfileTabScreen } from './components/profile/ProfileTabScreen';
 import { RecordsTabScreen } from './components/records/RecordsTabScreen';
 import { SkyTabScreen } from './components/sky/SkyTabScreen';
@@ -39,24 +29,20 @@ import { AuthScreen } from './components/auth/auth-screen';
 import { getDefaultSpotId } from './lib/config';
 import {
   ApiRequestError,
-  type CorrectionAggregateDto,
   fetchWeeklyTop5,
-  fetchCorrectionAggregate,
   fetchStarIndex,
   SessionExpiredError,
-  submitStarIndexCorrection,
 } from './lib/api-client';
-import { starIndexResponseToCardModel } from './lib/star-index-display';
 import type { StarIndexResponseDto, WeeklyTop5ItemDto } from './lib/types/api';
 
 function starIndexErrorFromApi(e: ApiRequestError): StatefulCardError {
   if (e.status === 503) {
     return {
-      cardDescription: '캐시 준비 중',
+      cardDescription: '데이터 준비 중',
       isTransient: true,
       lines: [
-        '이 명소에 맞는 기상·미세먼지·달 캐시가 아직 없거나 갱신 중일 수 있어요. 서버는 실패해도 기존 캐시를 유지하니, 잠시 뒤 다시 시도해 주세요.',
-        '개발 환경: Swagger → cron → POST /cron/run-once 로 수집을 한 번 돌린 뒤 새로고침해 보세요.',
+        e.message,
+        '서버 API 키(KMA·에어코리아·KASI)와 네트워크를 확인하세요.',
       ],
     };
   }
@@ -70,13 +56,18 @@ function starIndexErrorFromApi(e: ApiRequestError): StatefulCardError {
 function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const { theme, toggleRed, isRedMode } = useTheme();
   const { user, logout, onSessionInvalidated } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>('home');
+  const [activeTab, setActiveTab] = useState<string>('sky');
   /** MAP 탭을 한 번 연 뒤에는 WebView를 유지해 줌/센터·마커 상태가 탭 전환 후에도 유지되게 함 */
   const [mapLayerMounted, setMapLayerMounted] = useState(false);
-  const [location, setLocation] = useState<string>('');
 
-  // Map: 마커 클릭 → 해당 spotId의 Star-Index 오버레이
+  const [deviceLat, setDeviceLat] = useState<number | null>(null);
+  const [deviceLng, setDeviceLng] = useState<number | null>(null);
+  const [foregroundLocationStatus, setForegroundLocationStatus] =
+    useState<Location.PermissionResponse['status'] | null>(null);
+
+  // Map: 마커 클릭 → 상세 시트
   const [mapSpotId, setMapSpotId] = useState<string | null>(null);
+  const [mapDetailOpen, setMapDetailOpen] = useState(false);
   /** MAP 탭 — NASA VIIRS 타일 오버레이 ON/OFF */
   const [mapViirsEnabled, setMapViirsEnabled] = useState(false);
   const [mapSiLoading, setMapSiLoading] = useState(false);
@@ -84,7 +75,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [mapSiData, setMapSiData] = useState<StarIndexResponseDto | null>(null);
 
   const defaultSpotId = getDefaultSpotId();
-  /** 지도 마커 또는 .env 기본 명소 — 홈·보정·관측 Log가 같은 UUID를 사용 */
+  /** TOP5·관측 로그 기준 명소 — 지도 선택과 별개로 유지 */
   const [focusSpotId, setFocusSpotId] = useState<string | null>(() => getDefaultSpotId() ?? null);
 
   useEffect(() => {
@@ -95,21 +86,64 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     if (activeTab === 'map') setMapLayerMounted(true);
   }, [activeTab]);
 
-  const [siLoading, setSiLoading] = useState(false);
-  const [siError, setSiError] = useState<StatefulCardError | null>(null);
-  const [siData, setSiData] = useState<StarIndexResponseDto | null>(null);
-  const [siRefreshKey, setSiRefreshKey] = useState(0);
+  useEffect(() => {
+    void (async () => {
+      const existing = await Location.getForegroundPermissionsAsync();
+      setForegroundLocationStatus(existing.status);
+      if (existing.status === Location.PermissionStatus.UNDETERMINED) {
+        const asked = await Location.requestForegroundPermissionsAsync();
+        setForegroundLocationStatus(asked.status);
+      }
+    })();
+  }, []);
 
-  const [corrAgg, setCorrAgg] = useState<CorrectionAggregateDto | null>(null);
-  const [perceivedQuality, setPerceivedQuality] = useState(75);
-  const [corrBusy, setCorrBusy] = useState(false);
-  const [corrMsg, setCorrMsg] = useState<string | null>(null);
+  useEffect(() => {
+    if (foregroundLocationStatus !== Location.PermissionStatus.GRANTED) {
+      return;
+    }
+    let sub: Location.LocationSubscription | undefined;
+    let alive = true;
+    void (async () => {
+      sub = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          distanceInterval: 25,
+          timeInterval: 8000,
+        },
+        (loc) => {
+          if (!alive) return;
+          setDeviceLat(loc.coords.latitude);
+          setDeviceLng(loc.coords.longitude);
+        },
+      );
+    })();
+    return () => {
+      alive = false;
+      sub?.remove();
+    };
+  }, [foregroundLocationStatus]);
+
+  const requestLocationPermission = useCallback(async () => {
+    const r = await Location.requestForegroundPermissionsAsync();
+    setForegroundLocationStatus(r.status);
+    if (r.status === Location.PermissionStatus.GRANTED) {
+      try {
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setDeviceLat(pos.coords.latitude);
+        setDeviceLng(pos.coords.longitude);
+      } catch {
+        /* 단말·서비스 일시 오류는 watch에서 보정 */
+      }
+    }
+  }, []);
 
   const [top5Loading, setTop5Loading] = useState(false);
   const [top5Error, setTop5Error] = useState<string | null>(null);
   const [top5Items, setTop5Items] = useState<WeeklyTop5ItemDto[] | null>(null);
 
-  /** 가상 밤하늘 — 관측 시각(UTC) 스크럽용 */
+  /** 가상 밤하늘 — UI는 한국 시각 기준, API `at`는 UTC ISO */
   const [skyObserveAtIso, setSkyObserveAtIso] = useState(() =>
     new Date().toISOString(),
   );
@@ -117,70 +151,17 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const shiftSkyObserveHours = useCallback((deltaHours: number) => {
     setSkyObserveAtIso((prev) => {
       const d = new Date(prev);
-      d.setUTCHours(d.getUTCHours() + deltaHours);
+      d.setTime(d.getTime() + deltaHours * 3600 * 1000);
       return d.toISOString();
     });
   }, []);
 
-  const resetSkyObserveNowUtc = useCallback(() => {
+  const resetSkyObserveNow = useCallback(() => {
     setSkyObserveAtIso(new Date().toISOString());
   }, []);
 
   useEffect(() => {
-    if (!focusSpotId) {
-      setSiData(null);
-      setSiError(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      setSiLoading(true);
-      setSiError(null);
-      try {
-        const data = await fetchStarIndex(focusSpotId);
-        if (!cancelled) setSiData(data);
-      } catch (e) {
-        if (e instanceof SessionExpiredError) {
-          await onSessionInvalidated();
-          return;
-        }
-        if (e instanceof ApiRequestError) {
-          if (!cancelled) setSiError(starIndexErrorFromApi(e));
-        } else if (!cancelled) {
-          setSiError({
-            cardDescription: '오류',
-            isTransient: false,
-            lines: ['Star-Index를 불러오지 못했습니다.'],
-          });
-        }
-        if (!cancelled) setSiData(null);
-      } finally {
-        if (!cancelled) setSiLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [focusSpotId, siRefreshKey, onSessionInvalidated]);
-
-  useEffect(() => {
-    if (activeTab !== 'home' || !focusSpotId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const a = await fetchCorrectionAggregate(focusSpotId);
-        if (!cancelled) setCorrAgg(a);
-      } catch {
-        if (!cancelled) setCorrAgg(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, focusSpotId, siRefreshKey]);
-
-  useEffect(() => {
-    if (activeTab !== 'home') return;
+    if (activeTab !== 'sky') return;
     let cancelled = false;
     (async () => {
       setTop5Loading(true);
@@ -212,8 +193,36 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const kakaoJavascriptKey = process.env.EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY;
   const kakaoMapPageUrl = process.env.EXPO_PUBLIC_KAKAO_MAP_PAGE_URL;
 
-  const starProps = siData ? starIndexResponseToCardModel(siData) : null;
-  const mapStarProps = mapSiData ? starIndexResponseToCardModel(mapSiData) : null;
+  const loadMapSpotStarIndex = useCallback(
+    (spotId: string) => {
+      setMapSiLoading(true);
+      setMapSiError(null);
+      setMapSiData(null);
+      void (async () => {
+        try {
+          const data = await fetchStarIndex(spotId);
+          setMapSiData(data);
+        } catch (e) {
+          if (e instanceof SessionExpiredError) {
+            await onSessionInvalidated();
+            return;
+          }
+          if (e instanceof ApiRequestError) {
+            setMapSiError(starIndexErrorFromApi(e));
+          } else {
+            setMapSiError({
+              cardDescription: '오류',
+              isTransient: false,
+              lines: ['Star-Index를 불러오지 못했습니다.'],
+            });
+          }
+        } finally {
+          setMapSiLoading(false);
+        }
+      })();
+    },
+    [onSessionInvalidated],
+  );
 
   return (
     <Screen>
@@ -250,31 +259,8 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                   const spotId = msg.data.spotId;
                   setFocusSpotId(spotId);
                   setMapSpotId(spotId);
-                  setMapSiLoading(true);
-                  setMapSiError(null);
-                  setMapSiData(null);
-                  void (async () => {
-                    try {
-                      const data = await fetchStarIndex(spotId);
-                      setMapSiData(data);
-                    } catch (e) {
-                      if (e instanceof SessionExpiredError) {
-                        await onSessionInvalidated();
-                        return;
-                      }
-                      if (e instanceof ApiRequestError) {
-                        setMapSiError(starIndexErrorFromApi(e));
-                      } else {
-                        setMapSiError({
-                          cardDescription: '오류',
-                          isTransient: false,
-                          lines: ['Star-Index를 불러오지 못했습니다.'],
-                        });
-                      }
-                    } finally {
-                      setMapSiLoading(false);
-                    }
-                  })();
+                  setMapDetailOpen(true);
+                  loadMapSpotStarIndex(spotId);
                 }
               }}
             />
@@ -314,512 +300,71 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                 </Pressable>
               )}
             </View>
-
-            {(mapSiLoading || mapSiError || mapStarProps) && (
-              <View style={styles.mapOverlay}>
-                <StatefulCard
-                  title="Star-Index"
-                  description={mapSiData?.name}
-                  loading={mapSiLoading}
-                  error={mapSiError}
-                  onRetry={
-                    mapSpotId
-                      ? () => {
-                          setMapSiLoading(true);
-                          setMapSiError(null);
-                          setMapSiData(null);
-                          void (async () => {
-                            try {
-                              const data = await fetchStarIndex(mapSpotId);
-                              setMapSiData(data);
-                            } catch (e) {
-                              if (e instanceof SessionExpiredError) {
-                                await onSessionInvalidated();
-                                return;
-                              }
-                              if (e instanceof ApiRequestError) {
-                                setMapSiError(starIndexErrorFromApi(e));
-                              } else {
-                                setMapSiError({
-                                  cardDescription: '오류',
-                                  isTransient: false,
-                                  lines: ['Star-Index를 불러오지 못했습니다.'],
-                                });
-                              }
-                            } finally {
-                              setMapSiLoading(false);
-                            }
-                          })();
-                        }
-                      : undefined
-                  }
-                  retryLabel="새로고침"
-                  footer={
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                      {mapSpotId ? (
-                        <Button
-                          label="홈·보정 기준"
-                          variant="secondary"
-                          size="sm"
-                          onPress={() => {
-                            setFocusSpotId(mapSpotId);
-                            setActiveTab('home');
-                          }}
-                        />
-                      ) : null}
-                      {mapSpotId && (
-                        <Button
-                          label="새로고침"
-                          variant="outline"
-                          size="sm"
-                          disabled={mapSiLoading}
-                          onPress={() => {
-                            setMapSiLoading(true);
-                            setMapSiError(null);
-                            setMapSiData(null);
-                            void (async () => {
-                              try {
-                                const data = await fetchStarIndex(mapSpotId);
-                                setMapSiData(data);
-                              } catch (e) {
-                                if (e instanceof SessionExpiredError) {
-                                  await onSessionInvalidated();
-                                  return;
-                                }
-                                if (e instanceof ApiRequestError) {
-                                  setMapSiError(starIndexErrorFromApi(e));
-                                } else {
-                                  setMapSiError({
-                                    cardDescription: '오류',
-                                    isTransient: false,
-                                    lines: ['Star-Index를 불러오지 못했습니다.'],
-                                  });
-                                }
-                              } finally {
-                                setMapSiLoading(false);
-                              }
-                            })();
-                          }}
-                        />
-                      )}
-                      <Button
-                        label="닫기"
-                        variant="ghost"
-                        size="sm"
-                        onPress={() => {
-                          setMapSpotId(null);
-                          setMapSiLoading(false);
-                          setMapSiError(null);
-                          setMapSiData(null);
-                        }}
-                      />
-                    </View>
-                  }
-                >
-                  {mapStarProps ? (
-                    <StarIndexCard
-                      bare
-                      score={mapStarProps.score}
-                      cloudCover={mapStarProps.cloudCover}
-                      pm25Level={mapStarProps.pm25Level}
-                      moonAltitude={mapStarProps.moonAltitude}
-                      moonAltitudeKnown={mapStarProps.moonAltitudeKnown}
-                    />
-                  ) : null}
-                </StatefulCard>
-              </View>
-            )}
             </View>
           </View>
         ) : null}
         {activeTab !== 'map' ? (
           activeTab === 'sky' ? (
-          <SkyTabScreen
-            observerLat={siData?.lat ?? null}
-            observerLng={siData?.lng ?? null}
-            observeAtIso={skyObserveAtIso}
-            onShiftHours={shiftSkyObserveHours}
-            onNowUtc={resetSkyObserveNowUtc}
-            onSessionInvalidated={onSessionInvalidated}
-          />
-        ) : activeTab === 'records' ? (
-          <RecordsTabScreen
-            activeSpotId={focusSpotId}
-            onSessionInvalidated={onSessionInvalidated}
-          />
-        ) : activeTab === 'profile' ? (
-          <ProfileTabScreen
-            email={user?.email ?? null}
-            onLogout={() => void logout()}
-          />
-        ) : (
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <Text
-              style={[
-                styles.appTitle,
-                { color: theme.foreground, fontFamily: 'SpaceMono-Regular' },
-              ]}
-            >
-              StarChaser
-            </Text>
-            <View style={styles.headerRow}>
-              <Text
-                style={[
-                  styles.appSub,
-                  { color: theme.mutedForeground, fontFamily: 'SpaceMono-Regular' },
-                ]}
-              >
-                {user?.email ?? ''}
-              </Text>
-              <Button
-                label="로그아웃"
-                variant="ghost"
-                size="sm"
-                onPress={() => void logout()}
-              />
-            </View>
-            {__DEV__ && (
-              <View style={styles.devRow}>
-                <Button
-                  label="DEV: 온보딩 다시보기"
-                  variant="outline"
-                  onPress={onResetOnboarding}
-                />
-              </View>
-            )}
-
-            <View style={styles.row}>
-              <Badge label="Bortle 3" variant="gold" mono />
-              <Badge label="▲ 757m" variant="steel" mono />
-              <Badge label="주차" variant="muted" />
-              <Badge label="Red Mode" variant="red" />
-            </View>
-
-            <Card
-              title="주간 TOP5"
-              description="지난주 Star-Index 평균이 높은 명소"
-            >
-              {top5Loading ? (
-                <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>
-                  불러오는 중…
-                </Text>
-              ) : top5Error ? (
-                <Text style={{ color: theme.destructive, fontSize: 12 }}>
-                  {top5Error}
-                </Text>
-              ) : top5Items == null ? (
-                <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>
-                  데이터를 준비 중입니다.
-                </Text>
-              ) : top5Items.length === 0 ? (
-                <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>
-                  지난주 TOP5 데이터가 아직 없습니다.
-                </Text>
-              ) : (
-                <View style={{ gap: 8 }}>
-                  {top5Items.slice(0, 5).map((item) => (
-                    <Pressable
-                      key={item.id}
-                      onPress={() => setFocusSpotId(item.spotId)}
-                      style={({ pressed }) => {
-                        const selected = focusSpotId === item.spotId;
-                        return {
-                          paddingVertical: 8,
-                          paddingHorizontal: 10,
-                          borderRadius: theme.radius,
-                          borderWidth: 1,
-                          borderColor: selected ? theme.ring : theme.borderSubtle,
-                          backgroundColor: pressed || selected ? theme.input : 'transparent',
-                          opacity: pressed ? 0.95 : 1,
-                        };
-                      }}
-                    >
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: 10,
-                        }}
-                      >
-                        <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <Badge
-                            label={`${item.rank}위`}
-                            mono
-                            variant={
-                              item.rank === 1
-                                ? 'gold'     // 1위: gold
-                                : item.rank === 2
-                                  ? 'steel' // 2위: steel
-                                  : item.rank === 3
-                                    ? 'bronze' // 3위: bronze
-                                    : 'muted'
-                            }
-                          />
-                          <Text
-                            style={{ color: theme.foreground, fontSize: 13, fontWeight: '600' }}
-                            numberOfLines={1}
-                          >
-                            {item.spotName}
-                          </Text>
-                        </View>
-                        <Text
-                          style={{
-                            color: theme.starGold,
-                            fontFamily: 'SpaceMono-Regular',
-                            fontSize: 13,
-                          }}
-                        >
-                          {item.avgStarIndexText || '—'}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </Card>
-
-            {focusSpotId ? (
-              <Text
-                style={{
-                  color: theme.mutedForeground,
-                  fontSize: 11,
-                  marginBottom: 8,
-                  fontFamily: 'SpaceMono-Regular',
-                }}
-                numberOfLines={2}
-              >
-                기준 명소 ID: {focusSpotId}
-                {defaultSpotId && focusSpotId !== defaultSpotId
-                  ? ' (지도에서 선택)'
-                  : ''}
-              </Text>
-            ) : null}
-
-            {defaultSpotId && focusSpotId && focusSpotId !== defaultSpotId ? (
-              <View style={{ marginBottom: 10 }}>
-                <Button
-                  label="기본 명소로 되돌리기"
-                  variant="outline"
-                  size="sm"
-                  onPress={() => setFocusSpotId(defaultSpotId)}
-                />
-              </View>
-            ) : null}
-
-            {/* Star-Index — GET /star-index?spotId= */}
-            {!focusSpotId ? (
-              <Card
-                title="Star-Index"
-                description="명소를 선택해야 점수를 불러옵니다."
-              >
-                <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>
-                  지도에서 마커를 누르거나, EXPO_PUBLIC_DEFAULT_SPOT_ID에 spots.id(UUID)를
-                  설정하세요.
-                </Text>
-              </Card>
-            ) : (
-              <StatefulCard
-                title="Star-Index"
-                loading={siLoading}
-                error={siError}
-                onRetry={() => setSiRefreshKey((k) => k + 1)}
-                footer={
-                  starProps && !siLoading && !siError ? (
-                    <Button
-                      label="Star-Index 새로고침"
-                      variant="outline"
-                      size="sm"
-                      onPress={() => setSiRefreshKey((k) => k + 1)}
-                    />
-                  ) : null
-                }
-              >
-                {starProps ? (
-                  <StarIndexCard
-                    bare
-                    score={starProps.score}
-                    cloudCover={starProps.cloudCover}
-                    pm25Level={starProps.pm25Level}
-                    moonAltitude={starProps.moonAltitude}
-                    moonAltitudeKnown={starProps.moonAltitudeKnown}
-                  />
-                ) : null}
-              </StatefulCard>
-            )}
-
-            {focusSpotId ? (
-              <StatefulCard
-                title="명소"
-                loading={siLoading}
-                error={siError}
-                onRetry={() => setSiRefreshKey((k) => k + 1)}
-              >
-                {siData ? (
-                  <SpotCard
-                    bare
-                    name={siData.name}
-                    region={`${siData.lat.toFixed(4)} · ${siData.lng.toFixed(4)}`}
-                    elevation={siData.elevationM}
-                    bortleClass={siData.bortleClass}
-                    starIndex={siData.score}
-                    hasParking={false}
-                    hasToilet={false}
-                  />
-                ) : null}
-              </StatefulCard>
-            ) : (
-              <SpotCard
-                name="화왕산 억새평원"
-                region="창녕군"
-                elevation={757}
-                bortleClass={3}
-                starIndex={78}
-                hasParking
-                hasToilet
-                distanceKm={23}
-              />
-            )}
-
-            {focusSpotId ? (
-              <Card
-                title="Star-Index 보정 제보"
-                description="현장 가시도(0~100) 제보가 집계되어 correction_score에 반영됩니다."
-              >
-                {corrAgg ? (
-                  <Text
-                    style={{
-                      color: theme.mutedForeground,
-                      fontSize: 12,
-                      marginBottom: 8,
-                    }}
-                  >
-                    제보 {corrAgg.submissionCount}건 · 집계 correction_score 약{' '}
-                    {corrAgg.aggregatedCorrectionScore}
-                  </Text>
-                ) : null}
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 12,
-                    marginVertical: 8,
-                  }}
-                >
-                  <Button
-                    label="−"
-                    variant="outline"
-                    size="sm"
-                    onPress={() =>
-                      setPerceivedQuality((v) => Math.max(0, v - 5))
-                    }
-                  />
-                  <Text
-                    style={{
-                      color: theme.foreground,
-                      minWidth: 40,
-                      textAlign: 'center',
-                      fontFamily: 'SpaceMono-Regular',
-                    }}
-                  >
-                    {perceivedQuality}
-                  </Text>
-                  <Button
-                    label="+"
-                    variant="outline"
-                    size="sm"
-                    onPress={() =>
-                      setPerceivedQuality((v) => Math.min(100, v + 5))
-                    }
-                  />
-                </View>
-                <Button
-                  label="제보 보내기"
-                  fullWidth
-                  loading={corrBusy}
-                  disabled={corrBusy}
-                  onPress={() => {
-                    if (!focusSpotId) return;
-                    void (async () => {
-                      setCorrBusy(true);
-                      setCorrMsg(null);
-                      try {
-                        await submitStarIndexCorrection({
-                          spotId: focusSpotId,
-                          perceivedQuality,
-                        });
-                        setCorrMsg('반영되었습니다. Star-Index를 갱신합니다.');
-                        setSiRefreshKey((k) => k + 1);
-                      } catch (e) {
-                        if (e instanceof SessionExpiredError) {
-                          await onSessionInvalidated();
-                          return;
-                        }
-                        if (e instanceof ApiRequestError) {
-                          setCorrMsg(e.message);
-                        } else {
-                          setCorrMsg('제보에 실패했습니다.');
-                        }
-                      } finally {
-                        setCorrBusy(false);
-                      }
-                    })();
-                  }}
-                />
-                {corrMsg ? (
-                  <Text
-                    style={{
-                      color: theme.mutedForeground,
-                      fontSize: 12,
-                      marginTop: 8,
-                    }}
-                  >
-                    {corrMsg}
-                  </Text>
-                ) : null}
-              </Card>
-            ) : null}
-
-            <Card title="오늘의 관측 조건" description="기상/달/광공해 데이터 기반 실시간 계산">
-              <View style={styles.cardInner}>
-                <Input
-                  label="관측 위치"
-                  placeholder="강원 영월 별마로천문대"
-                  value={location}
-                  onChangeText={setLocation}
-                  monoLabel
-                />
-                <Button
-                  label="관측 시작하기"
-                  fullWidth
-                  onPress={() => setActiveTab('records')}
-                />
-                <Button label="관측지 둘러보기" variant="outline" fullWidth />
-                <Button
-                  label={isRedMode ? '야간 모드 해제' : '🔴 Night Vision ON'}
-                  variant="red"
-                  fullWidth
-                  onPress={toggleRed}
-                />
-              </View>
-            </Card>
-          </ScrollView>
-        )
+            <SkyTabScreen
+              observerLat={deviceLat}
+              observerLng={deviceLng}
+              observerSpotId={focusSpotId}
+              observeAtIso={skyObserveAtIso}
+              onShiftHours={shiftSkyObserveHours}
+              onObserveNow={resetSkyObserveNow}
+              onSessionInvalidated={onSessionInvalidated}
+              skyUsesGps={deviceLat != null && deviceLng != null}
+              locationPermissionStatus={foregroundLocationStatus}
+              onRequestLocationPermission={requestLocationPermission}
+              top5Loading={top5Loading}
+              top5Error={top5Error}
+              top5Items={top5Items}
+              selectedSpotId={focusSpotId}
+              onSelectTop5Spot={(id: string) => setFocusSpotId(id)}
+            />
+          ) : activeTab === 'records' ? (
+            <RecordsTabScreen
+              activeSpotId={focusSpotId}
+              observerLat={deviceLat}
+              observerLng={deviceLng}
+              onSessionInvalidated={onSessionInvalidated}
+            />
+          ) : activeTab === 'profile' ? (
+            <ProfileTabScreen
+              email={user?.email ?? null}
+              onLogout={() => void logout()}
+              isRedMode={isRedMode}
+              onToggleRedMode={toggleRed}
+              onDevResetOnboarding={__DEV__ ? onResetOnboarding : undefined}
+            />
+          ) : null
         ) : null}
         </View>
+
+        <MapSpotDetailModal
+          visible={mapDetailOpen}
+          onClose={() => {
+            setMapDetailOpen(false);
+            setMapSpotId(null);
+            setMapSiData(null);
+            setMapSiError(null);
+          }}
+          spotId={mapSpotId}
+          loading={mapSiLoading}
+          error={mapSiError}
+          data={mapSiData}
+          onRetry={() => mapSpotId && loadMapSpotStarIndex(mapSpotId)}
+          onSessionInvalidated={onSessionInvalidated}
+          starIndexErrorFromApi={starIndexErrorFromApi}
+        />
 
         <View style={styles.tabWrap}>
           <BottomTab
             activeKey={activeTab}
             onChange={setActiveTab}
             items={[
-              { key: 'home', label: 'Home', icon: '⭐', redIcon: '★' },
-              { key: 'map', label: 'Map', icon: '🗺', redIcon: '◈', hasDot: true },
               { key: 'sky', label: 'Sky', icon: '🌌', redIcon: '◉' },
+              { key: 'map', label: 'Map', icon: '🗺', redIcon: '◈', hasDot: true },
               { key: 'records', label: 'Log', icon: '📋', redIcon: '≡' },
               { key: 'profile', label: 'Me', icon: '👤', redIcon: '○' },
             ]}
@@ -950,10 +495,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    gap: 12,
-    paddingBottom: 20,
-  },
   mainTabContent: {
     flex: 1,
   },
@@ -963,49 +504,13 @@ const styles = StyleSheet.create({
   mapTabLayerHidden: {
     opacity: 0,
   },
-  mapOverlay: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    top: 12,
-  },
   mapViirsChip: {
     position: 'absolute',
     right: 12,
     bottom: 12,
   },
-  appTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  appSub: {
-    fontSize: 10,
-    letterSpacing: 1,
-    flex: 1,
-  },
-  row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  cardInner: {
-    gap: 8,
-  },
   tabWrap: {
     paddingTop: 4,
-  },
-  devRow: {
-    marginTop: 8,
-    alignItems: 'flex-start',
-    gap: 8,
   },
   loadingWrap: {
     flex: 1,
