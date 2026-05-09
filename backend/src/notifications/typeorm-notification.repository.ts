@@ -45,6 +45,13 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     return saved;
   }
 
+  async findActiveTokensByUserId(userId: string): Promise<NotificationToken[]> {
+    return this.tokens.find({
+      where: { userId, isActive: true },
+      order: { updatedAt: 'DESC' },
+    });
+  }
+
   async deactivateToken(params: { userId: string; fcmToken: string }): Promise<void> {
     await this.tokens
       .createQueryBuilder()

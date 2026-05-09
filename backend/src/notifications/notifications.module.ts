@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { NOTIFICATION_REPOSITORY } from '../common/interfaces/notification.repository';
+import { FcmPushService } from './fcm-push.service';
 import { NotificationPreferenceEntity } from './notification-preference.entity';
 import { NotificationTokenEntity } from './notification-token.entity';
 import { NotificationsController } from './notifications.controller';
@@ -15,6 +16,7 @@ import { TypeOrmNotificationRepository } from './typeorm-notification.repository
   ],
   controllers: [NotificationsController],
   providers: [
+    FcmPushService,
     NotificationsService,
     TypeOrmNotificationRepository,
     {

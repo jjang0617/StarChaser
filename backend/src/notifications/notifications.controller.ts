@@ -4,6 +4,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { JwtValidatedUser } from '../auth/strategies/jwt.strategy';
 import { DeactivateNotificationTokenDto } from './dto/deactivate-notification-token.dto';
+import { NotificationTestSendDto } from './dto/notification-test-send.dto';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 import { UpsertNotificationTokenDto } from './dto/upsert-notification-token.dto';
 import { NotificationsService } from './notifications.service';
@@ -47,5 +48,17 @@ export class NotificationsController {
     @Body() dto: UpdateNotificationPreferencesDto,
   ) {
     return this.notificationsService.upsertPreference(user.userId, dto);
+  }
+
+  @Post('test-send')
+  @ApiOperation({
+    summary:
+      'FCM 실발송 검증(개발) — 본인 활성 토큰으로 전송. production 은 FCM_TEST_SEND_ENABLED=true 만 허용',
+  })
+  testSend(
+    @CurrentUser() user: JwtValidatedUser,
+    @Body() dto: NotificationTestSendDto,
+  ) {
+    return this.notificationsService.sendTestPush(user.userId, dto);
   }
 }
