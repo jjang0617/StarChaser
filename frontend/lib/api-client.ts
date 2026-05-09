@@ -164,6 +164,52 @@ export async function authorizedPostJson<T>(
   return body as T;
 }
 
+/**
+ * Bearer가 필요한 PUT JSON — 401 시 refresh 1회 후 재시도
+ */
+export async function authorizedPutJson<T>(
+  path: string,
+  payload: unknown,
+): Promise<T> {
+  const { accessToken, refreshToken } = await loadTokens();
+  if (!accessToken || !refreshToken) {
+    throw new SessionExpiredError();
+  }
+
+  const doFetch = (token: string) =>
+    fetch(`${getApiBaseUrl()}${path}`, {
+      method: 'PUT',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+  let res = await doFetch(accessToken);
+  if (res.status === 401) {
+    try {
+      const next = await requestAccessRefresh(refreshToken);
+      await setAccessToken(next);
+      res = await doFetch(next);
+    } catch {
+      await clearSession();
+      throw new SessionExpiredError();
+    }
+  }
+
+  const body = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiRequestError(
+      messageFromErrorBody(body, `요청 실패 (${res.status})`),
+      res.status,
+      body,
+    );
+  }
+  return body as T;
+}
+
 export async function postAuthJson(
   path: '/auth/login' | '/auth/register',
   payload: { email: string; password: string },

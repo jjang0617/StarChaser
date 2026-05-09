@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Button, Card, Screen } from '../ui';
 import { useTheme } from '../../themes/ThemeContext';
+import { authorizedPutJson } from '../../lib/api-client';
 import { SelectField } from './SelectField';
 import {
   doToGu,
@@ -215,6 +216,22 @@ export function OnboardingFlow({
             JSON.stringify(interests),
           ),
         ]);
+
+        try {
+          const anyChannel =
+            notifPrefs.starIndex70 || notifPrefs.meteorEvents || notifPrefs.weeklyTop5;
+          await authorizedPutJson('/notifications/preferences', {
+            alertsEnabled: anyChannel,
+            starIndexAlertEnabled: notifPrefs.starIndex70,
+            astronomyEventAlertEnabled: notifPrefs.meteorEvents,
+            top5AlertEnabled: notifPrefs.weeklyTop5,
+          });
+        } catch (e) {
+          if (__DEV__) {
+            // eslint-disable-next-line no-console
+            console.warn('[OnboardingFlow] 서버 알림 설정 동기화 실패(온보딩은 완료됨)', e);
+          }
+        }
 
         onDone();
       } finally {
