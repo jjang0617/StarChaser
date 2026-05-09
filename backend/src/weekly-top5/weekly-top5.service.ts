@@ -48,6 +48,7 @@ export class WeeklyTop5Service {
       spotId: row.spotId,
       spotName: spot?.name ?? '(명소 없음)',
       avgStarIndex: row.avgStarIndex,
+      avgStarIndexText: String(row.avgStarIndex),
     };
   }
 }

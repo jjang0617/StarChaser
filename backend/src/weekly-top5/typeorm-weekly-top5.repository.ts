@@ -16,20 +16,25 @@ export class TypeOrmWeeklyTop5Repository implements WeeklyTop5Repository {
   ) {}
 
   async findByWeekStart(weekStart: string): Promise<WeeklyTop5Entry[]> {
-    const rows = await this.repo.find({
-      where: { weekStart },
-      order: { rank: 'ASC', spotId: 'ASC' },
-    });
+    const rows = await this.repo
+      .createQueryBuilder('w')
+      // QueryBuilder에서는 엔티티 프로퍼티명을 사용해야 안정적으로 컬럼 매핑된다.
+      .where('w.weekStart = :weekStart', { weekStart })
+      .orderBy('w.rank', 'ASC')
+      .addOrderBy('w.spotId', 'ASC')
+      .getMany();
     return rows.map((e) => this.toEntry(e));
   }
 
   async findLatestWeekStart(): Promise<string | null> {
-    const row = await this.repo
-      .createQueryBuilder('w')
-      .select('MAX(w.week_start)', 'max')
-      .getRawOne<{ max: string | Date | null }>();
-    if (row?.max == null) return null;
-    return normalizeDateOnly(row.max);
+    // `MAX()` 대신 최신 row를 정렬로 조회 (date 타입 + driver 매핑 이슈 회피)
+    const [row] = await this.repo.find({
+      select: { weekStart: true } as unknown as { weekStart: true },
+      order: { weekStart: 'DESC' },
+      take: 1,
+    });
+    if (!row?.weekStart) return null;
+    return normalizeDateOnly(row.weekStart);
   }
 
   async replaceWeek(
