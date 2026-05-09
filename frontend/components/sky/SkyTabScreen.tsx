@@ -1,20 +1,60 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Accelerometer, Gyroscope } from 'expo-sensors';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
+  Linking,
+  Modal,
+  PanResponder,
+  Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import Svg, { Circle, Text as SvgText } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, {
+  Circle,
+  Defs,
+  Ellipse,
+  G,
+  Line,
+  LinearGradient,
+  Path,
+  RadialGradient,
+  Rect,
+  Stop,
+  Text as SvgText,
+} from 'react-native-svg';
 import { useTheme } from '../../themes/ThemeContext';
+import type { WeeklyTop5ItemDto } from '../../lib/types/api';
+import { spotNameWithoutRegionPrefix } from '../../lib/spot-display-name';
 import { Button, Card } from '../ui';
 import {
   ApiRequestError,
+  fetchConstellationLines,
   fetchSkyView,
+  fetchStarIndexAtLocation,
   SessionExpiredError,
+  type ConstellationLineSegmentDto,
+  type SkyViewBodyDto,
   type SkyViewResponseDto,
+  type SkyViewStarDto,
 } from '../../lib/api-client';
+import type { StarIndexResponseDto } from '../../lib/types/api';
+import { fetchSpotById } from '../../lib/spots-api';
+import { getConstellationLore } from './constellation-lore';
+import { SkyGlCanvas } from './SkyGlCanvas';
+import {
+  azAltToNorm,
+  magToRadius,
+  normToLayoutSlice,
+  planetDiskRadius,
+  rotateSkyNorm,
+} from './sky-projection';
 
 /** IAU 별자리 3글자 약어 → 한글(주요 별군만) */
 const CON_LABEL_KO: Record<string, string> = {
@@ -37,47 +77,296 @@ const CON_LABEL_KO: Record<string, string> = {
   UMa: '큰곰',
   PsA: '남쪽물고기',
   Pup: '고물',
+  Tri: '여름삼각',
 };
 
 export interface SkyTabScreenProps {
   observerLat: number | null;
   observerLng: number | null;
+  /** GPS가 없을 때 GET /spots/:id 로 보조 좌표 */
+  observerSpotId: string | null;
   observeAtIso: string;
   onShiftHours: (deltaHours: number) => void;
-  onNowUtc: () => void;
+  onObserveNow: () => void;
   onSessionInvalidated: () => Promise<void>;
+  /** 기기 GPS로 천구 중심을 잡는 중인지 */
+  skyUsesGps: boolean;
+  /** expo-location 전경 위치 권한(null이면 아직 조회 전) */
+  locationPermissionStatus?: Location.PermissionResponse['status'] | null;
+  /** 위치 권한 시스템 다이얼로그 재요청 */
+  onRequestLocationPermission?: () => void | Promise<void>;
+  top5Loading: boolean;
+  top5Error: string | null;
+  top5Items: WeeklyTop5ItemDto[] | null;
+  selectedSpotId: string | null;
+  onSelectTop5Spot: (spotId: string) => void;
 }
 
-/** 북=0° 동=90° 고도·방위 → 0~100 정규화 천구 원 투영(지평선 위만 표시용) */
-function azAltToNorm(azDeg: number, altDeg: number): { nx: number; ny: number } {
-  const r = Math.max(0, Math.min(48, ((90 - altDeg) / 90) * 46));
-  const az = (azDeg * Math.PI) / 180;
-  return {
-    nx: 50 + r * Math.sin(az),
-    ny: 50 - r * Math.cos(az),
-  };
+/** astronomy-engine 기반 위상 — 이분 원형 오버레이 근사 */
+function MoonDiskGlyph({
+  nx,
+  ny,
+  lit,
+  moonPhaseDeg,
+}: {
+  nx: number;
+  ny: number;
+  lit: number;
+  moonPhaseDeg: number;
+}) {
+  const moonR = 5.7;
+  if (lit >= 0.997) {
+    return (
+      <Circle
+        cx={nx}
+        cy={ny}
+        r={moonR}
+        fill="#fff6dc"
+        stroke="#d4b878"
+        strokeWidth={0.45}
+      />
+    );
+  }
+  if (lit <= 0.003) {
+    return (
+      <Circle cx={nx} cy={ny} r={moonR * 0.45} fill="#2a2835" opacity={0.95} />
+    );
+  }
+  const waxing = moonPhaseDeg > 0 && moonPhaseDeg < 180;
+  const dx = waxing ? -moonR * 1.92 * (1 - lit) : moonR * 1.92 * (1 - lit);
+  return (
+    <>
+      <Circle cx={nx} cy={ny} r={moonR} fill="#fff6dc" stroke="#c9a662" strokeWidth={0.35} />
+      <Circle cx={nx + dx} cy={ny} r={moonR} fill="#121018" fillOpacity={0.88} />
+    </>
+  );
 }
 
-function magToRadius(mag: number): number {
-  const t = Math.max(-2, Math.min(6, mag));
-  return Math.max(0.55, 2.4 - t * 0.28);
+/** 단순 원 대신 작은 십자·별꼴 글리프(천구 스케일) */
+function StarGlyph({ nx, ny, mag }: { nx: number; ny: number; mag: number }) {
+  const rr = magToRadius(mag);
+  const bright = mag < 1.8;
+  const arm = Math.max(0.42, rr * 1.05);
+  const core = Math.max(0.22, rr * 0.42);
+  const spikes = 4;
+  let d = '';
+  for (let i = 0; i < spikes * 2; i += 1) {
+    const ang = (i * Math.PI) / spikes - Math.PI / 2;
+    const r = i % 2 === 0 ? arm : core;
+    const x = nx + r * Math.cos(ang);
+    const y = ny + r * Math.sin(ang);
+    d += i === 0 ? `M${x.toFixed(3)} ${y.toFixed(3)}` : `L${x.toFixed(3)} ${y.toFixed(3)}`;
+  }
+  d += 'Z';
+  return (
+    <>
+      {bright ? (
+        <Path
+          d={`M${nx} ${ny - arm * 1.35} L${nx} ${ny + arm * 1.35} M${nx - arm * 1.35} ${ny} L${nx + arm * 1.35} ${ny}`}
+          stroke="#ffffff"
+          strokeWidth={0.22}
+          strokeOpacity={0.2}
+          strokeLinecap="round"
+        />
+      ) : null}
+      <Path
+        d={d}
+        fill="#f2f5ff"
+        fillOpacity={0.96}
+        stroke={bright ? '#dfe8ff' : 'none'}
+        strokeWidth={0.06}
+      />
+    </>
+  );
 }
+
+function formatKstFull(isoUtc: string): string {
+  try {
+    return new Date(isoUtc).toLocaleString('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    return '';
+  }
+}
+
+function formatUtcFootnote(isoUtc: string): string {
+  const w = isoUtc.slice(0, 19).replace('T', ' ');
+  return `${w} UTC (천문 API·계산 동일 시각)`;
+}
+
+function formatKstHm(isoUtc: string): string {
+  try {
+    return new Date(isoUtc).toLocaleTimeString('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    return '';
+  }
+}
+
+/** 스타렐리움식 지평선 위 나무·언덕 실루엣(회전 천구 위에 덮어 별이 지평선 아래 가려짐) */
+const STELLARIUM_HILL_BASE =
+  'M0,100 L0,93 Q12,90 28,91 Q42,88 50,90 Q62,87 78,90 Q90,88 100,91 L100,100 Z';
+const STELLARIUM_TREE_LINE =
+  'M0,100 L0,91 L4,92 L7,87 L11,89 L14,84 L18,86 L22,81 L27,84 L31,79 L36,82 L42,76 L48,80 L55,73 L62,78 L68,74 L75,77 L82,71 L90,75 L96,70 L100,73 L100,100 Z';
+const STELLARIUM_BOKEH = [
+  { cx: 78, cy: 94.5, r: 1.15, o: 0.45 },
+  { cx: 86, cy: 93.2, r: 0.85, o: 0.38 },
+  { cx: 72, cy: 95.8, r: 0.7, o: 0.32 },
+  { cx: 91, cy: 95.5, r: 1.6, o: 0.18 },
+  { cx: 83, cy: 96.8, r: 0.9, o: 0.28 },
+] as const;
+
+const SKY_RENDER_STORAGE_KEY = 'starChaser:skyRenderMode';
+const SKY_CONTROLS_EXPANDED_KEY = 'starChaser:skyControlsExpanded';
+
+const HEADING_LOWPASS = 0.88;
+/** 자이로 보조 시 나침반에 가끔 붙는 가중(드리프트 억제) */
+const COMPASS_BLEND_MOTION = 0.07;
+/** 가속도계 롤 → 천구 회전에 더하는 비율(세로 기기 기준 실험값) */
+const TILT_GAIN = 0.09;
 
 export function SkyTabScreen({
   observerLat,
   observerLng,
+  observerSpotId,
   observeAtIso,
   onShiftHours,
-  onNowUtc,
+  onObserveNow,
   onSessionInvalidated,
+  skyUsesGps,
+  locationPermissionStatus = null,
+  onRequestLocationPermission,
+  top5Loading,
+  top5Error,
+  top5Items,
+  selectedSpotId,
+  onSelectTop5Spot,
 }: SkyTabScreenProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [skyStage, setSkyStage] = useState({ w: 0, h: 0 });
+  /** flex 천구 뷰포트 실측 — OpenGL 버퍼 크기용 */
+  const [skyVp, setSkyVp] = useState({ w: 0, h: 0 });
+  const [spotFallback, setSpotFallback] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [data, setData] = useState<SkyViewResponseDto | null>(null);
+  const [lineSegments, setLineSegments] = useState<ConstellationLineSegmentDto[]>([]);
+  const [alignHeading, setAlignHeading] = useState(false);
+  const [motionAssist, setMotionAssist] = useState(false);
+  const [tiltRollDeg, setTiltRollDeg] = useState(0);
+  /**
+   * 손가락 가로 드래그로 “고개를 돌린 것처럼” 별·은하·별선만 방위 이동(°).
+   * 지평 실루엣·나침반 정렬(skyRotation)은 그대로 둠.
+   */
+  const [viewAzPanDeg, setViewAzPanDeg] = useState(0);
+  const [renderEngine, setRenderEngine] = useState<'svg' | 'gl'>('svg');
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void AsyncStorage.getItem(SKY_RENDER_STORAGE_KEY).then((raw) => {
+      if (raw === 'gl' || raw === 'svg') setRenderEngine(raw);
+    });
+  }, []);
+
+  /** 기본 접힘 — 별자리 탭이 왼쪽 패널에 가리지 않도록 */
+  const [controlsExpanded, setControlsExpanded] = useState(false);
+  useEffect(() => {
+    void AsyncStorage.getItem(SKY_CONTROLS_EXPANDED_KEY).then((raw) => {
+      if (raw === '1') setControlsExpanded(true);
+    });
+  }, []);
+
+  const persistControlsExpanded = useCallback((next: boolean) => {
+    setControlsExpanded(next);
+    void AsyncStorage.setItem(SKY_CONTROLS_EXPANDED_KEY, next ? '1' : '0');
+  }, []);
+
+  const persistRenderEngine = useCallback((mode: 'svg' | 'gl') => {
+    setRenderEngine(mode);
+    if (Platform.OS !== 'web') {
+      void AsyncStorage.setItem(SKY_RENDER_STORAGE_KEY, mode);
+    }
+  }, []);
+
+  const [constellationSheet, setConstellationSheet] = useState<{
+    con: string;
+    labelKo: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (renderEngine === 'gl') setConstellationSheet(null);
+  }, [renderEngine]);
+
+  const [locStarIndex, setLocStarIndex] = useState<StarIndexResponseDto | null>(null);
+  const [locSiLoading, setLocSiLoading] = useState(false);
+  const [locSiErr, setLocSiErr] = useState<string | null>(null);
+
+  const [headingDeg, setHeadingDeg] = useState<number | null>(null);
+  const [headingErr, setHeadingErr] = useState<string | null>(null);
+  const headingSmoothRef = useRef<number | null>(null);
+  const fusedHeadingRef = useRef<number | null>(null);
+  const lastGyroAtRef = useRef<number>(Date.now());
+  const prevMotionAssistRef = useRef(false);
+
+  const obsLat =
+    observerLat != null && Number.isFinite(observerLat)
+      ? observerLat
+      : spotFallback?.lat ?? null;
+  const obsLng =
+    observerLng != null && Number.isFinite(observerLng)
+      ? observerLng
+      : spotFallback?.lng ?? null;
+
+  useEffect(() => {
+    const hasSi =
+      observerLat != null &&
+      observerLng != null &&
+      Number.isFinite(observerLat) &&
+      Number.isFinite(observerLng);
+    if (hasSi) {
+      setSpotFallback(null);
+      return;
+    }
+    if (!observerSpotId) {
+      setSpotFallback(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const s = await fetchSpotById(observerSpotId);
+        if (!cancelled) setSpotFallback({ lat: s.lat, lng: s.lng });
+      } catch (e) {
+        if (e instanceof SessionExpiredError) {
+          await onSessionInvalidated();
+          return;
+        }
+        if (!cancelled) setSpotFallback(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [observerLat, observerLng, observerSpotId, onSessionInvalidated]);
 
   const load = useCallback(async () => {
-    if (observerLat == null || observerLng == null) {
+    if (obsLat == null || obsLng == null) {
       setData(null);
       setErr(null);
       return;
@@ -86,8 +375,8 @@ export function SkyTabScreen({
     setErr(null);
     try {
       const v = await fetchSkyView({
-        lat: observerLat,
-        lng: observerLng,
+        lat: obsLat,
+        lng: obsLng,
         at: observeAtIso,
       });
       setData(v);
@@ -105,134 +394,1179 @@ export function SkyTabScreen({
     } finally {
       setLoading(false);
     }
-  }, [observerLat, observerLng, observeAtIso, onSessionInvalidated]);
+  }, [obsLat, obsLng, observeAtIso, onSessionInvalidated]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setViewAzPanDeg(0);
+  }, [obsLat, obsLng]);
+
+  useEffect(() => {
+    if (
+      obsLat == null ||
+      obsLng == null ||
+      !Number.isFinite(obsLat) ||
+      !Number.isFinite(obsLng)
+    ) {
+      setLocStarIndex(null);
+      setLocSiErr(null);
+      setLocSiLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLocSiLoading(true);
+    setLocSiErr(null);
+    void (async () => {
+      try {
+        const d = await fetchStarIndexAtLocation(obsLat, obsLng);
+        if (!cancelled) setLocStarIndex(d);
+      } catch (e) {
+        if (e instanceof SessionExpiredError) {
+          await onSessionInvalidated();
+          return;
+        }
+        if (!cancelled) {
+          if (e instanceof ApiRequestError) {
+            setLocSiErr(
+              e.status === 503
+                ? `${e.message} (서버 캐시·API 키 확인)`
+                : e.message,
+            );
+          } else {
+            setLocSiErr('Star-Index를 불러오지 못했습니다.');
+          }
+          setLocStarIndex(null);
+        }
+      } finally {
+        if (!cancelled) setLocSiLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [obsLat, obsLng, onSessionInvalidated]);
+
+  useEffect(() => {
+    if (obsLat == null || obsLng == null) {
+      setLineSegments([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetchConstellationLines();
+        if (!cancelled) setLineSegments(res.segments ?? []);
+      } catch {
+        if (!cancelled) setLineSegments([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [obsLat, obsLng]);
+
+  useEffect(() => {
+    if (!alignHeading) {
+      setMotionAssist(false);
+    }
+  }, [alignHeading]);
+
+  useEffect(() => {
+    const wasMotion = prevMotionAssistRef.current;
+    if (!motionAssist) {
+      fusedHeadingRef.current = null;
+      setTiltRollDeg(0);
+      if (wasMotion && headingDeg != null) {
+        headingSmoothRef.current = headingDeg;
+      }
+    } else if (!wasMotion && headingDeg != null) {
+      fusedHeadingRef.current = headingDeg;
+    }
+    prevMotionAssistRef.current = motionAssist;
+  }, [motionAssist, headingDeg]);
+
+  useEffect(() => {
+    if (!alignHeading || Platform.OS === 'web') {
+      return;
+    }
+    let sub: Location.LocationSubscription | undefined;
+    let cancelled = false;
+    headingSmoothRef.current = null;
+    setHeadingErr(null);
+
+    void (async () => {
+      try {
+        await Location.requestForegroundPermissionsAsync();
+        if (cancelled) return;
+        sub = await Location.watchHeadingAsync((h) => {
+          const raw = h.trueHeading >= 0 ? h.trueHeading : h.magHeading;
+          if (motionAssist) {
+            const prev = fusedHeadingRef.current;
+            const next =
+              prev == null
+                ? raw
+                : prev * (1 - COMPASS_BLEND_MOTION) + raw * COMPASS_BLEND_MOTION;
+            fusedHeadingRef.current = next;
+            headingSmoothRef.current = next;
+            setHeadingDeg(next);
+          } else {
+            const prev = headingSmoothRef.current;
+            const next =
+              prev == null
+                ? raw
+                : prev * HEADING_LOWPASS + raw * (1 - HEADING_LOWPASS);
+            headingSmoothRef.current = next;
+            setHeadingDeg(next);
+          }
+        });
+      } catch {
+        if (!cancelled) setHeadingErr('나침반을 쓸 수 없습니다. 위치 권한·기기를 확인해 주세요.');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      sub?.remove();
+    };
+  }, [alignHeading, motionAssist]);
+
+  useEffect(() => {
+    if (!alignHeading || !motionAssist || Platform.OS === 'web') {
+      return;
+    }
+    lastGyroAtRef.current = Date.now();
+    Gyroscope.setUpdateInterval(Platform.OS === 'android' ? 200 : 40);
+    const sub = Gyroscope.addListener((e) => {
+      const now = Date.now();
+      const dt = Math.min(0.12, (now - lastGyroAtRef.current) / 1000);
+      lastGyroAtRef.current = now;
+      if (fusedHeadingRef.current == null) return;
+      fusedHeadingRef.current += (-e.z * dt * 180) / Math.PI;
+      headingSmoothRef.current = fusedHeadingRef.current;
+      setHeadingDeg(fusedHeadingRef.current);
+    });
+    return () => sub.remove();
+  }, [alignHeading, motionAssist]);
+
+  useEffect(() => {
+    if (!alignHeading || !motionAssist || Platform.OS === 'web') {
+      return;
+    }
+    Accelerometer.setUpdateInterval(Platform.OS === 'android' ? 200 : 50);
+    const sub = Accelerometer.addListener((a) => {
+      const roll = (Math.atan2(a.x, a.y) * 180) / Math.PI;
+      setTiltRollDeg(roll);
+    });
+    return () => sub.remove();
+  }, [alignHeading, motionAssist]);
+
+  const starsByHip = useMemo(() => {
+    const m = new Map<number, SkyViewStarDto>();
+    if (!data) return m;
+    for (const s of data.stars) m.set(s.hip, s);
+    return m;
+  }, [data]);
+
+  /** 나침반 = 자북에서 기기 상단까지 시계방향° → 천구 도표는 반시계 보정. 자이로 보조 시 가속도 롤을 소량 가산 */
+  const skyRotation =
+    alignHeading && Platform.OS !== 'web' && headingDeg != null
+      ? -headingDeg + (motionAssist ? tiltRollDeg * TILT_GAIN : 0)
+      : 0;
+
+  const celestialRot = skyRotation + viewAzPanDeg;
+
+  const skyPanLastX = useRef<number | null>(null);
+  const skyPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_, g) =>
+          data != null &&
+          Math.abs(g.dx) > 16 &&
+          Math.abs(g.dx) > Math.abs(g.dy) * 0.65,
+        onPanResponderGrant: (e) => {
+          skyPanLastX.current = e.nativeEvent.pageX;
+        },
+        onPanResponderMove: (e) => {
+          if (skyPanLastX.current == null) return;
+          const x = e.nativeEvent.pageX;
+          const dx = x - skyPanLastX.current;
+          skyPanLastX.current = x;
+          setViewAzPanDeg((deg) => deg + dx * 0.32);
+        },
+        onPanResponderRelease: () => {
+          skyPanLastX.current = null;
+        },
+        onPanResponderTerminate: () => {
+          skyPanLastX.current = null;
+        },
+      }),
+    [data],
+  );
+
   const hasObserver =
-    observerLat != null &&
-    observerLng != null &&
-    Number.isFinite(observerLat) &&
-    Number.isFinite(observerLng);
+    obsLat != null && obsLng != null && Number.isFinite(obsLat) && Number.isFinite(obsLng);
+
+  const kstPrimary = formatKstFull(observeAtIso);
+  const utcNote = formatUtcFootnote(observeAtIso);
+  const useGlView = renderEngine === 'gl' && Platform.OS !== 'web';
+
+  const win = Dimensions.get('window');
+  const stageW = skyStage.w > 0 ? skyStage.w : win.width;
+  const stageH = skyStage.h > 0 ? skyStage.h : win.height;
+  const top3MaxWidth = Math.min(142, stageW * 0.42);
+  const controlsMaxW = Math.min(188, Math.max(136, stageW - top3MaxWidth - 44));
+
+  const top3Floating = (
+    <View
+      style={[
+        styles.top3FloatWrap,
+        {
+          top: Math.max(insets.top, 6) + 4,
+          right: 10,
+        },
+      ]}
+      pointerEvents="box-none"
+    >
+      <View
+        style={[
+          styles.top3FloatCard,
+          {
+            borderColor: theme.borderSubtle,
+            maxWidth: top3MaxWidth,
+          },
+        ]}
+        accessibilityLabel="주간 Star-Index 상위 명소"
+      >
+        <Text style={[styles.top3FloatLabel, { color: theme.mutedForeground }]}>주간 TOP3</Text>
+        {top5Loading ? (
+          <Text style={{ color: theme.mutedForeground, fontSize: 10, marginTop: 6 }}>불러오는 중…</Text>
+        ) : top5Error ? (
+          <Text style={{ color: theme.destructive, fontSize: 9, marginTop: 6 }} numberOfLines={3}>
+            {top5Error}
+          </Text>
+        ) : top5Items == null ? (
+          <Text style={{ color: theme.mutedForeground, fontSize: 10, marginTop: 6 }}>준비 중</Text>
+        ) : top5Items.length === 0 ? (
+          <Text style={{ color: theme.mutedForeground, fontSize: 10, marginTop: 6 }}>데이터 없음</Text>
+        ) : (
+          top5Items.slice(0, 3).map((item) => {
+            const selected = selectedSpotId === item.spotId;
+            const displayName = spotNameWithoutRegionPrefix(item.spotName);
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => onSelectTop5Spot(item.spotId)}
+                style={({ pressed }) => ({
+                  marginTop: 8,
+                  paddingVertical: 6,
+                  paddingHorizontal: 2,
+                  opacity: pressed ? 0.88 : 1,
+                  borderLeftWidth: 2,
+                  borderLeftColor: selected ? theme.starGold : 'transparent',
+                  paddingLeft: 6,
+                })}
+              >
+                <View style={styles.top3RowHead}>
+                  <Text
+                    style={[
+                      styles.top3Rank,
+                      {
+                        color:
+                          item.rank === 1
+                            ? theme.starGold
+                            : item.rank === 2
+                              ? theme.mutedForeground
+                              : theme.mutedForeground,
+                      },
+                    ]}
+                  >
+                    {item.rank}
+                  </Text>
+                  <Text
+                    style={[styles.top3Score, { color: theme.starGold }]}
+                    numberOfLines={1}
+                  >
+                    {item.avgStarIndexText ?? '—'}
+                  </Text>
+                </View>
+                <Text
+                  style={[styles.top3Name, { color: theme.foreground }]}
+                  numberOfLines={2}
+                >
+                  {displayName}
+                </Text>
+              </Pressable>
+            );
+          })
+        )}
+      </View>
+    </View>
+  );
+
+  const skySvg = data ? (
+    <Svg
+      width="100%"
+      height="100%"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="xMidYMid slice"
+      pointerEvents="auto"
+    >
+      <Defs>
+        <LinearGradient
+          id="stellariumSky"
+          x1="50"
+          y1="0"
+          x2="50"
+          y2="100"
+          gradientUnits="userSpaceOnUse"
+        >
+          <Stop offset="0%" stopColor="#070414" />
+          <Stop offset="18%" stopColor="#0c0822" />
+          <Stop offset="40%" stopColor="#140b34" />
+          <Stop offset="55%" stopColor="#281848" />
+          <Stop offset="70%" stopColor="#4a2048" />
+          <Stop offset="82%" stopColor="#7c3028" />
+          <Stop offset="91%" stopColor="#d06028" />
+          <Stop offset="97%" stopColor="#e89040" />
+          <Stop offset="100%" stopColor="#f8d090" />
+        </LinearGradient>
+        <RadialGradient
+          id="zenithCool"
+          cx="50"
+          cy="10"
+          rx="55"
+          ry="42"
+          fx="50"
+          fy="6"
+          gradientUnits="userSpaceOnUse"
+        >
+          <Stop offset="0%" stopColor="#1a2058" stopOpacity="0.5" />
+          <Stop offset="100%" stopColor="#1a2058" stopOpacity="0" />
+        </RadialGradient>
+        <LinearGradient
+          id="horizonMist"
+          x1="50"
+          y1="52"
+          x2="50"
+          y2="101"
+          gradientUnits="userSpaceOnUse"
+        >
+          <Stop offset="0%" stopColor="#ff9850" stopOpacity="0" />
+          <Stop offset="70%" stopColor="#ff8840" stopOpacity="0.18" />
+          <Stop offset="100%" stopColor="#ffd8b0" stopOpacity="0.4" />
+        </LinearGradient>
+        <LinearGradient
+          id="milkyWayBand"
+          x1="8"
+          y1="82"
+          x2="92"
+          y2="18"
+          gradientUnits="userSpaceOnUse"
+        >
+          <Stop offset="0%" stopColor="#5860a0" stopOpacity="0" />
+          <Stop offset="42%" stopColor="#8890c8" stopOpacity="0.11" />
+          <Stop offset="58%" stopColor="#9098d0" stopOpacity="0.13" />
+          <Stop offset="100%" stopColor="#5860a0" stopOpacity="0" />
+        </LinearGradient>
+        <RadialGradient id="mwDustA" cx="32" cy="34" r="38" gradientUnits="userSpaceOnUse">
+          <Stop offset="0%" stopColor="#c8d0f8" stopOpacity="0.5" />
+          <Stop offset="40%" stopColor="#7080b0" stopOpacity="0.2" />
+          <Stop offset="100%" stopColor="#283050" stopOpacity="0" />
+        </RadialGradient>
+        <RadialGradient id="mwDustB" cx="70" cy="46" r="32" gradientUnits="userSpaceOnUse">
+          <Stop offset="0%" stopColor="#a8b0e0" stopOpacity="0.45" />
+          <Stop offset="100%" stopColor="#202840" stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+      {/* 야경·은하 장식 — 나침반(skyRotation)만. 손가락 패닝(viewAzPan)으로는 돌지 않음 */}
+      <G transform={`rotate(${skyRotation}, 50, 50)`}>
+        <Rect x="0" y="0" width="100" height="100" fill="url(#stellariumSky)" />
+        <Rect x="0" y="0" width="100" height="100" fill="url(#zenithCool)" />
+        <Rect x="0" y="0" width="100" height="100" fill="url(#horizonMist)" />
+        <Rect x="0" y="0" width="100" height="100" fill="url(#milkyWayBand)" opacity={0.85} />
+        <Ellipse cx="34" cy="36" rx="27" ry="11" fill="url(#mwDustA)" opacity={0.42} />
+        <Ellipse cx="64" cy="46" rx="22" ry="8" fill="url(#mwDustB)" opacity={0.34} />
+      </G>
+      {/* 별·별선·행성만 나침반 + 패닝 각도 — 드래그 시 다른 방위의 별자리만 이동 */}
+      <G transform={`rotate(${celestialRot}, 50, 50)`}>
+        {lineSegments.map((seg, i) => {
+          const a = starsByHip.get(seg.fromHip);
+          const b = starsByHip.get(seg.toHip);
+          if (!a?.visible || !b?.visible) return null;
+          const pa = azAltToNorm(a.azDeg, a.altDeg);
+          const pb = azAltToNorm(b.azDeg, b.altDeg);
+          return (
+            <Line
+              key={`${seg.fromHip}-${seg.toHip}-${i}`}
+              x1={pa.nx}
+              y1={pa.ny}
+              x2={pb.nx}
+              y2={pb.ny}
+              stroke="#c4b8e8"
+              strokeOpacity={0.28}
+              strokeWidth={0.4}
+            />
+          );
+        })}
+        {data.stars
+          .filter((s) => s.visible)
+          .map((s) => {
+            const { nx, ny } = azAltToNorm(s.azDeg, s.altDeg);
+            return <StarGlyph key={s.hip} nx={nx} ny={ny} mag={s.mag} />;
+          })}
+        {(data.bodies ?? [])
+          .filter((b: SkyViewBodyDto) => b.visible)
+          .map((b: SkyViewBodyDto) => {
+            const { nx, ny } = azAltToNorm(b.azDeg, b.altDeg);
+            const labelY = Math.max(
+              4,
+              ny - (b.id === 'moon' ? 7.5 : planetDiskRadius(b.magnitude) + 4.5),
+            );
+            return (
+              <React.Fragment key={b.id}>
+                {b.id === 'moon' ? (
+                  <>
+                    <Circle cx={nx} cy={ny} r={9.5} fill="#fff6e8" opacity={0.16} />
+                    <MoonDiskGlyph
+                      nx={nx}
+                      ny={ny}
+                      lit={b.phaseFraction ?? 1}
+                      moonPhaseDeg={b.moonPhaseDeg ?? 90}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Circle
+                      cx={nx}
+                      cy={ny}
+                      r={planetDiskRadius(b.magnitude) + 2.4}
+                      fill={b.id === 'venus' ? '#fff4e8' : '#f0e4d4'}
+                      opacity={0.14}
+                    />
+                    <Circle
+                      cx={nx}
+                      cy={ny}
+                      r={planetDiskRadius(b.magnitude)}
+                      fill={b.id === 'venus' ? '#fff9f6' : '#f4e6d8'}
+                      stroke={b.id === 'venus' ? '#e8ddd4' : '#c9a882'}
+                      strokeWidth={0.3}
+                      opacity={0.99}
+                    />
+                  </>
+                )}
+                <SvgText
+                  x={nx}
+                  y={labelY}
+                  fill="#fffaf0"
+                  stroke="#120818"
+                  strokeWidth={0.45}
+                  strokeOpacity={0.75}
+                  fontSize="3.5"
+                  fontWeight="700"
+                  textAnchor="middle"
+                  opacity={0.98}
+                >
+                  {b.labelKo}
+                </SvgText>
+              </React.Fragment>
+            );
+          })}
+      </G>
+      <G transform={`rotate(${skyRotation}, 50, 50)`}>
+        <Path d={STELLARIUM_HILL_BASE} fill="#030308" opacity={0.98} />
+        <Path d={STELLARIUM_TREE_LINE} fill="#020205" />
+        {STELLARIUM_BOKEH.map((b, i) => (
+          <Circle key={`bokeh-${i}`} cx={b.cx} cy={b.cy} r={b.r} fill="#ffe8c8" opacity={b.o} />
+        ))}
+      </G>
+      {data.constellationLabels.map((lb, idx) => {
+        const base = azAltToNorm(lb.azDeg, lb.altDeg);
+        const { nx, ny } = rotateSkyNorm(base.nx, base.ny, celestialRot);
+        const label = CON_LABEL_KO[lb.con] ?? lb.con;
+        const ly = Math.max(5, ny - 4);
+        return (
+          <SvgText
+            key={`${lb.con}-${idx}`}
+            x={nx}
+            y={ly}
+            fill="#ffdca8"
+            stroke="#1a0a20"
+            strokeWidth={0.35}
+            strokeOpacity={0.65}
+            fontSize="3.05"
+            fontWeight="600"
+            textAnchor="middle"
+            opacity={0.92}
+            pointerEvents="none"
+          >
+            {label}
+          </SvgText>
+        );
+      })}
+    </Svg>
+  ) : null;
+
+  /** SVG Text onPress는 기기별로 불안정해서, 동일 좌표에 RN Pressable 오버레이 */
+  const constellationHitOverlay =
+    data && !useGlView && skyVp.w > 0 && skyVp.h > 0 ? (
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none" collapsable={false}>
+        {data.constellationLabels.map((lb, idx) => {
+          const base = azAltToNorm(lb.azDeg, lb.altDeg);
+          const { nx, ny } = rotateSkyNorm(base.nx, base.ny, celestialRot);
+          const ly = Math.max(5, ny - 4);
+          const { x, y } = normToLayoutSlice(nx, ly, skyVp.w, skyVp.h);
+          const labelKo = CON_LABEL_KO[lb.con] ?? lb.con;
+          return (
+            <Pressable
+              key={`con-hit-${lb.con}-${idx}`}
+              accessibilityRole="button"
+              accessibilityLabel={`${labelKo} 별자리 운세`}
+              onPress={() => setConstellationSheet({ con: lb.con, labelKo: labelKo })}
+              style={{ position: 'absolute', left: x - 44, top: y - 14, width: 88, height: 30 }}
+            />
+          );
+        })}
+      </View>
+    ) : null;
+
+  const locDenied =
+    Platform.OS !== 'web' &&
+    locationPermissionStatus === Location.PermissionStatus.DENIED;
+
+  const controlsPanel =
+    hasObserver && data ? (
+      <View
+        style={[StyleSheet.absoluteFillObject, styles.controlsTouchPassthrough]}
+        pointerEvents="box-none"
+      >
+        <View
+          style={[
+            styles.controlsFloat,
+            {
+              top: Math.max(insets.top, 6) + 4,
+              left: 8,
+              maxWidth: controlsMaxW,
+            },
+          ]}
+          pointerEvents="auto"
+        >
+        <View style={[styles.controlsFloatInner, { borderColor: theme.borderSubtle }]}>
+          <Pressable
+            onPress={() => persistControlsExpanded(!controlsExpanded)}
+            style={({ pressed }) => [
+              styles.controlsHeaderRow,
+              { opacity: pressed ? 0.85 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={controlsExpanded ? '천구 패널 접기' : '천구 패널 펼치기'}
+          >
+            <Text style={[styles.controlsHeaderTitle, { color: theme.foreground }]}>
+              천구 · 관측
+            </Text>
+            <Text style={[styles.controlsHeaderChevron, { color: theme.starGold }]}>
+              {controlsExpanded ? '▼' : '▶'}
+            </Text>
+          </Pressable>
+
+          {!controlsExpanded ? (
+            <View style={styles.controlsCompact}>
+              <Text style={[styles.controlsCompactTime, { color: theme.foreground }]}>
+                {formatKstHm(observeAtIso)} KST
+              </Text>
+              {locSiLoading ? (
+                <Text style={[styles.controlsCompactMeta, { color: theme.mutedForeground }]}>
+                  SI …
+                </Text>
+              ) : locStarIndex != null ? (
+                <Text style={[styles.controlsCompactMeta, { color: theme.starGold }]}>
+                  SI {locStarIndex.score}
+                </Text>
+              ) : locSiErr ? (
+                <Text style={[styles.controlsCompactMeta, { color: theme.destructive }]} numberOfLines={1}>
+                  SI 오류
+                </Text>
+              ) : (
+                <Text style={[styles.controlsCompactMeta, { color: theme.mutedForeground }]}>
+                  SI —
+                </Text>
+              )}
+              <Text style={[styles.controlsCompactMeta, { color: theme.mutedForeground }]}>
+                {renderEngine === 'svg' ? 'SVG' : 'GL'}
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text style={[styles.controlsTime, { color: theme.foreground }]} numberOfLines={1}>
+                {kstPrimary}
+              </Text>
+              <Text style={[styles.controlsUtc, { color: theme.mutedForeground }]} numberOfLines={1}>
+                {utcNote}
+              </Text>
+              {Platform.OS !== 'web' &&
+              locationPermissionStatus != null &&
+              locationPermissionStatus !== Location.PermissionStatus.GRANTED ? (
+                <View style={{ marginTop: 8, gap: 6 }}>
+                  <Text style={[styles.hint, { color: theme.mutedForeground }]}>
+                    위치를 허용하면 천구·Star-Index가 현재 좌표를 씁니다.
+                  </Text>
+                  {!locDenied ? (
+                    <Button
+                      label="위치 권한 허용"
+                      variant="secondary"
+                      size="sm"
+                      onPress={() => void onRequestLocationPermission?.()}
+                    />
+                  ) : (
+                    <Button
+                      label="설정에서 위치 켜기"
+                      variant="outline"
+                      size="sm"
+                      onPress={() => void Linking.openSettings()}
+                    />
+                  )}
+                </View>
+              ) : null}
+              <Text style={[styles.renderModeLabel, { color: theme.mutedForeground, marginTop: 8 }]}>
+                이 위치 Star-Index
+              </Text>
+              {locSiLoading ? (
+                <Text style={{ color: theme.mutedForeground, fontSize: 10, marginTop: 4 }}>
+                  점수 불러오는 중…
+                </Text>
+              ) : locSiErr ? (
+                <Text
+                  style={{ color: theme.destructive, fontSize: 10, marginTop: 4 }}
+                  numberOfLines={4}
+                >
+                  {locSiErr}
+                </Text>
+              ) : locStarIndex ? (
+                <View style={{ marginTop: 4 }}>
+                  <Text
+                    style={{
+                      color: theme.starGold,
+                      fontSize: 22,
+                      fontFamily: 'SpaceMono-Regular',
+                      fontWeight: '700',
+                    }}
+                  >
+                    {locStarIndex.score}
+                  </Text>
+                  <Text
+                    style={{
+                      color: theme.mutedForeground,
+                      fontSize: 9,
+                      marginTop: 4,
+                      lineHeight: 13,
+                    }}
+                    numberOfLines={5}
+                  >
+                    {locStarIndex.name}
+                  </Text>
+                </View>
+              ) : null}
+              <View style={[styles.row, { marginTop: 8 }]}>
+                <Button label="−6h" variant="outline" size="sm" onPress={() => onShiftHours(-6)} />
+                <Button label="−1h" variant="outline" size="sm" onPress={() => onShiftHours(-1)} />
+                <Button label="지금" variant="secondary" size="sm" onPress={onObserveNow} />
+                <Button label="+1h" variant="outline" size="sm" onPress={() => onShiftHours(1)} />
+                <Button label="+6h" variant="outline" size="sm" onPress={() => onShiftHours(6)} />
+              </View>
+              <View style={[styles.row, { marginTop: 8 }]}>
+                <Button
+                  label={alignHeading ? '방위 끄기' : '방위 맞춤'}
+                  variant={alignHeading ? 'secondary' : 'outline'}
+                  size="sm"
+                  onPress={() => setAlignHeading((v) => !v)}
+                />
+                <Button
+                  label={motionAssist ? '자이로 끄기' : '자이로'}
+                  variant={motionAssist ? 'secondary' : 'outline'}
+                  size="sm"
+                  disabled={!alignHeading}
+                  onPress={() => setMotionAssist((v) => !v)}
+                />
+              </View>
+              <Text style={[styles.renderModeLabel, { color: theme.mutedForeground }]}>천구 렌더</Text>
+              {renderEngine === 'svg' ? (
+                <Text style={[styles.constellationTapHint, { color: theme.mutedForeground }]}>
+                  화면의 별자리 이름을 누르면 운세·이야기를 볼 수 있어요.
+                </Text>
+              ) : null}
+              <View
+                style={[
+                  styles.renderModeRow,
+                  { borderColor: theme.borderSubtle, backgroundColor: theme.card },
+                ]}
+              >
+                <Pressable
+                  onPress={() => persistRenderEngine('svg')}
+                  style={({ pressed }) => [
+                    styles.renderModeSeg,
+                    renderEngine === 'svg' && {
+                      backgroundColor: theme.input,
+                      borderColor: theme.starGold,
+                    },
+                    { borderColor: theme.borderSubtle },
+                    pressed && { opacity: 0.88 },
+                  ]}
+                >
+                  <Text style={[styles.renderModeTitle, { color: theme.foreground }]}>고해상도 SVG</Text>
+                  <Text style={[styles.renderModeSub, { color: theme.mutedForeground }]}>
+                    라벨 · 별자리 · 벡터
+                  </Text>
+                </Pressable>
+                <Pressable
+                  disabled={Platform.OS === 'web'}
+                  onPress={() => persistRenderEngine('gl')}
+                  style={({ pressed }) => [
+                    styles.renderModeSeg,
+                    renderEngine === 'gl' && {
+                      backgroundColor: theme.input,
+                      borderColor: theme.starGold,
+                    },
+                    { borderColor: theme.borderSubtle },
+                    Platform.OS === 'web' && { opacity: 0.45 },
+                    pressed && { opacity: 0.88 },
+                  ]}
+                >
+                  <Text style={[styles.renderModeTitle, { color: theme.foreground }]}>GPU OpenGL</Text>
+                  <Text style={[styles.renderModeSub, { color: theme.mutedForeground }]}>
+                    텍스처 은하 · 실시간
+                  </Text>
+                </Pressable>
+              </View>
+              <View style={[styles.row, { marginTop: 8 }]}>
+                <Button
+                  label="새로고침"
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => void load()}
+                  disabled={loading}
+                />
+              </View>
+              {!skyUsesGps && spotFallback ? (
+                <Text style={[styles.hint, { color: theme.mutedForeground, marginTop: 8 }]}>
+                  명소 좌표 기준 · GPS 켜면 현재 위치로 전환
+                </Text>
+              ) : null}
+              {Platform.OS === 'web' ? (
+                <Text style={[styles.hint, { color: theme.mutedForeground, marginTop: 6 }]}>
+                  웹에서는 나침반 미지원
+                </Text>
+              ) : null}
+              {headingErr ? (
+                <Text style={{ color: theme.destructive, fontSize: 10, marginTop: 6 }}>{headingErr}</Text>
+              ) : null}
+              {alignHeading && headingDeg != null && Platform.OS !== 'web' ? (
+                <Text style={[styles.hint, { color: theme.mutedForeground, marginTop: 4 }]}>
+                  방위 {headingDeg.toFixed(0)}°
+                  {motionAssist ? ' · 자이로' : ''}
+                </Text>
+              ) : null}
+            </>
+          )}
+        </View>
+        </View>
+        <Text
+          pointerEvents="none"
+          style={[
+            styles.skyMetaFloat,
+            {
+              color: theme.mutedForeground,
+              bottom: Math.max(insets.bottom, 10) + 2,
+            },
+          ]}
+          numberOfLines={2}
+        >
+          LST {data.lstDeg.toFixed(1)}° · JD {data.jd.toFixed(4)} · 별{' '}
+          {data.stars.filter((s) => s.visible).length}/{data.stars.length}
+          {data.ephemerisSource ? ` · ${data.ephemerisSource}` : ''}
+        </Text>
+      </View>
+    ) : null;
+
+  const constellationLoreOpen = constellationSheet
+    ? getConstellationLore(constellationSheet.con)
+    : null;
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.scrollInner}
-      showsVerticalScrollIndicator={false}
+    <View
+      style={[styles.root, { backgroundColor: theme.background }]}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        setSkyStage({ w: width, h: height });
+      }}
     >
-      <Text style={[styles.title, { color: theme.foreground }]}>가상 밤하늘</Text>
-      <Text style={[styles.sub, { color: theme.mutedForeground }]}>
-        위치·시각(UTC) 기준 지평선 상 별 + 별자리 라벨 MVP — GET /sky/view
-      </Text>
-
       {!hasObserver ? (
-        <Card title="관측 위치 필요" description="홈에서 Star-Index를 불러오거나 지도에서 명소를 고르세요">
-          <Text style={{ color: theme.mutedForeground, fontSize: 13 }}>
-            기준 명소의 위도·경도가 있어야 천구를 그릴 수 있습니다.
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollInner}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={[styles.title, { color: theme.foreground }]}>가상 밤하늘</Text>
+          <Text style={[styles.sub, { color: theme.mutedForeground }]}>
+            위치를 잡으면 천구가 화면을 채웁니다. 명소는 오른쪽 TOP3에서 고를 수 있어요.
           </Text>
-        </Card>
+          {Platform.OS !== 'web' &&
+          locationPermissionStatus != null &&
+          locationPermissionStatus !== Location.PermissionStatus.GRANTED ? (
+            <Card title="위치 권한" description="천구·Star-Index에 현재 좌표를 쓰려면 필요합니다">
+              <Text style={{ color: theme.mutedForeground, fontSize: 13, marginBottom: 10 }}>
+                {locDenied
+                  ? '이전에 거부하셨다면 시스템 설정에서 위치를 켜 주세요.'
+                  : '아래에서 허용하면 OS 위치 권한 창이 뜹니다.'}
+              </Text>
+              {!locDenied ? (
+                <Button
+                  label="위치 권한 허용"
+                  variant="secondary"
+                  onPress={() => void onRequestLocationPermission?.()}
+                />
+              ) : (
+                <Button
+                  label="설정 열기"
+                  variant="outline"
+                  onPress={() => void Linking.openSettings()}
+                />
+              )}
+            </Card>
+          ) : null}
+          <Card
+            title="관측 위치 필요"
+            description="위치 권한을 허용하거나 지도·TOP3에서 명소를 고르세요"
+          >
+            <Text style={{ color: theme.mutedForeground, fontSize: 13 }}>
+              GPS가 꺼져 있으면 기본 명소나 TOP3 좌표로 천구를 그립니다.
+            </Text>
+          </Card>
+        </ScrollView>
       ) : (
-        <>
-          <Card title="시각 (UTC)" description={observeAtIso.slice(0, 19) + 'Z'}>
-            <View style={styles.row}>
-              <Button label="−6h" variant="outline" size="sm" onPress={() => onShiftHours(-6)} />
-              <Button label="−1h" variant="outline" size="sm" onPress={() => onShiftHours(-1)} />
-              <Button label="지금(UTC)" variant="secondary" size="sm" onPress={onNowUtc} />
-              <Button label="+1h" variant="outline" size="sm" onPress={() => onShiftHours(1)} />
-              <Button label="+6h" variant="outline" size="sm" onPress={() => onShiftHours(6)} />
+        <View style={styles.skyStage}>
+          {loading && !data ? (
+            <ActivityIndicator color={theme.starGold} style={{ marginTop: 24 }} />
+          ) : null}
+          {err ? <Text style={{ color: theme.destructive, padding: 16, textAlign: 'center' }}>{err}</Text> : null}
+          {data ? (
+            <View
+              collapsable={false}
+              style={styles.skyViewportFill}
+              onLayout={(e) => {
+                const { width, height } = e.nativeEvent.layout;
+                if (width > 0 && height > 0) {
+                  setSkyVp((prev) =>
+                    prev.w === width && prev.h === height ? prev : { w: width, h: height },
+                  );
+                }
+              }}
+              {...skyPanResponder.panHandlers}
+            >
+              {useGlView && skyVp.w > 0 && skyVp.h > 0 ? (
+                <SkyGlCanvas
+                  layoutWidth={skyVp.w}
+                  layoutHeight={skyVp.h}
+                  hideCaption
+                  skyRotationDeg={skyRotation}
+                  celestialPanDeg={viewAzPanDeg}
+                  data={data}
+                  lineSegments={lineSegments}
+                  starsByHip={starsByHip}
+                  starColorHex="#f0f4ff"
+                  lineColorHex="#c4b8e8"
+                  bodyPlanetHex="#f4e6d8"
+                  bodyMoonHex="#fff6dc"
+                />
+              ) : !useGlView ? (
+                <View style={{ flex: 1, position: 'relative' }}>
+                  {skySvg}
+                  {constellationHitOverlay}
+                </View>
+              ) : (
+                <View style={styles.glPlaceholder} />
+              )}
             </View>
-            <View style={{ marginTop: 8 }}>
+          ) : null}
+
+          {data ? controlsPanel : null}
+        </View>
+      )}
+      {top3Floating}
+
+      <Modal
+        visible={constellationSheet != null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setConstellationSheet(null)}
+      >
+        {constellationSheet ? (
+          <View style={styles.sheetOverlay}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              accessibilityRole="button"
+              accessibilityLabel="닫기"
+              onPress={() => setConstellationSheet(null)}
+            />
+            <View
+              style={[
+                styles.sheetCard,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  paddingBottom: Math.max(insets.bottom, 16) + 8,
+                },
+              ]}
+            >
+              <View style={[styles.sheetGrab, { backgroundColor: theme.borderSubtle }]} />
+              <Text style={[styles.sheetTitle, { color: theme.foreground }]}>
+                {constellationSheet.labelKo}
+              </Text>
+              <Text style={[styles.sheetSection, { color: theme.starGold }]}>별자리 운세</Text>
+              <ScrollView
+                style={styles.sheetScroll}
+                contentContainerStyle={styles.sheetScrollInner}
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={[styles.sheetBody, { color: theme.foreground }]}>
+                  {constellationLoreOpen?.fortune}
+                </Text>
+                <Text style={[styles.sheetSection, { color: theme.starGold, marginTop: 18 }]}>
+                  이야기
+                </Text>
+                <Text style={[styles.sheetStory, { color: theme.mutedForeground }]}>
+                  {constellationLoreOpen?.story}
+                </Text>
+              </ScrollView>
               <Button
-                label="다시 불러오기"
-                variant="ghost"
-                size="sm"
-                onPress={() => void load()}
-                disabled={loading}
+                label="닫기"
+                variant="secondary"
+                fullWidth
+                onPress={() => setConstellationSheet(null)}
               />
             </View>
-          </Card>
-
-          {loading ? (
-            <ActivityIndicator color={theme.starGold} style={{ marginVertical: 16 }} />
-          ) : null}
-          {err ? (
-            <Text style={{ color: theme.destructive, marginBottom: 8 }}>{err}</Text>
-          ) : null}
-
-          {data ? (
-            <>
-              <Text style={[styles.meta, { color: theme.mutedForeground }]}>
-                LST {data.lstDeg.toFixed(2)}° · JD {data.jd.toFixed(5)} · 가시 별{' '}
-                {data.stars.filter((s) => s.visible).length}/{data.stars.length}
-              </Text>
-              <View style={[styles.skyWrap, { borderColor: theme.border }]}>
-                <Svg width="100%" height={340} viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
-                  <Circle
-                    cx="50"
-                    cy="50"
-                    r="48"
-                    fill={theme.background}
-                    stroke={theme.border}
-                    strokeWidth="0.35"
-                  />
-                  <Circle cx="50" cy="50" r="1.2" fill={theme.starGold} />
-                  {data.stars
-                    .filter((s) => s.visible)
-                    .map((s) => {
-                      const { nx, ny } = azAltToNorm(s.azDeg, s.altDeg);
-                      const rr = magToRadius(s.mag);
-                      return (
-                        <Circle
-                          key={s.hip}
-                          cx={nx}
-                          cy={ny}
-                          r={rr}
-                          fill={theme.foreground}
-                          opacity={0.92}
-                        />
-                      );
-                    })}
-                  {data.constellationLabels.map((lb) => {
-                    const { nx, ny } = azAltToNorm(lb.azDeg, lb.altDeg);
-                    const label = CON_LABEL_KO[lb.con] ?? lb.con;
-                    return (
-                      <SvgText
-                        key={lb.con}
-                        x={nx}
-                        y={Math.max(6, ny - 4)}
-                        fill={theme.starGold}
-                        fontSize="3.2"
-                        fontWeight="600"
-                        textAnchor="middle"
-                      >
-                        {label}
-                      </SvgText>
-                    );
-                  })}
-                </Svg>
-              </View>
-            </>
-          ) : null}
-        </>
-      )}
-    </ScrollView>
+          </View>
+        ) : null}
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
+  skyStage: {
+    flex: 1,
+    minHeight: 0,
+  },
+  /** 탭 콘텐츠 영역 거의 전체 — 스타렐리움식 풀스크린에 가깝게 */
+  skyViewportFill: {
+    flex: 1,
+    minHeight: 0,
+    marginHorizontal: 3,
+    marginVertical: 3,
+    overflow: 'hidden',
+    borderRadius: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.35,
+        shadowRadius: 14,
+      },
+      android: { elevation: 6 },
+    }),
+  },
+  glPlaceholder: { flex: 1, minHeight: 120 },
   scroll: { flex: 1 },
-  scrollInner: { padding: 16, paddingBottom: 32 },
+  scrollInner: { padding: 16, paddingBottom: 120, paddingRight: 120 },
+  top3FloatWrap: {
+    position: 'absolute',
+    zIndex: 20,
+  },
+  top3FloatCard: {
+    backgroundColor: 'rgba(6, 8, 18, 0.4)',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  top3FloatLabel: {
+    fontSize: 9,
+    fontFamily: 'SpaceMono-Regular',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  top3RowHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  top3Rank: {
+    fontSize: 14,
+    fontFamily: 'SpaceMono-Regular',
+    fontWeight: '700',
+    minWidth: 16,
+  },
+  top3Score: {
+    fontSize: 11,
+    fontFamily: 'SpaceMono-Regular',
+    fontWeight: '600',
+    flexShrink: 0,
+  },
+  top3Name: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+    lineHeight: 14,
+  },
+  /** 천구 위에 얹되, 패널 밖 터치는 아래 SVG로 통과 */
+  controlsTouchPassthrough: {
+    zIndex: 4,
+  },
+  controlsFloat: {
+    position: 'absolute',
+    zIndex: 5,
+    left: 0,
+  },
+  controlsFloatInner: {
+    backgroundColor: 'rgba(6, 8, 14, 0.55)',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  controlsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+    paddingVertical: 2,
+  },
+  controlsHeaderTitle: {
+    fontSize: 10,
+    fontFamily: 'SpaceMono-Regular',
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  controlsHeaderChevron: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  controlsCompact: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    paddingTop: 2,
+  },
+  controlsCompactTime: {
+    fontSize: 11,
+    fontFamily: 'SpaceMono-Regular',
+    fontWeight: '600',
+  },
+  controlsCompactMeta: {
+    fontSize: 10,
+    fontFamily: 'SpaceMono-Regular',
+    fontWeight: '600',
+  },
+  controlsTime: {
+    fontSize: 11,
+    fontFamily: 'SpaceMono-Regular',
+    fontWeight: '600',
+  },
+  controlsUtc: {
+    fontSize: 8,
+    marginTop: 2,
+    fontFamily: 'SpaceMono-Regular',
+    opacity: 0.85,
+  },
+  skyMetaFloat: {
+    position: 'absolute',
+    alignSelf: 'center',
+    left: 12,
+    right: 12,
+    textAlign: 'center',
+    fontSize: 9,
+    fontFamily: 'SpaceMono-Regular',
+    zIndex: 5,
+    opacity: 0.9,
+  },
   title: { fontSize: 20, fontFamily: 'SpaceMono-Regular', marginBottom: 6 },
   sub: { fontSize: 12, marginBottom: 12, lineHeight: 18 },
-  meta: { fontSize: 11, marginBottom: 8, fontFamily: 'SpaceMono-Regular' },
+  hint: { fontSize: 10 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  skyWrap: {
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
-    marginTop: 4,
+  renderModeLabel: {
+    fontSize: 9,
+    fontFamily: 'SpaceMono-Regular',
+    marginTop: 10,
+    marginBottom: 4,
+    letterSpacing: 0.5,
   },
+  renderModeRow: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    overflow: 'hidden',
+    gap: 0,
+  },
+  renderModeSeg: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    margin: 4,
+  },
+  renderModeTitle: { fontSize: 11, fontWeight: '700' },
+  renderModeSub: { fontSize: 9, marginTop: 2, lineHeight: 12 },
+  constellationTapHint: {
+    fontSize: 9,
+    lineHeight: 13,
+    marginBottom: 6,
+    opacity: 0.9,
+  },
+  sheetOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.52)',
+  },
+  sheetCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    maxHeight: '78%',
+  },
+  sheetGrab: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  sheetTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    fontFamily: 'SpaceMono-Regular',
+    marginBottom: 14,
+    letterSpacing: -0.3,
+  },
+  sheetSection: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    marginBottom: 8,
+    fontFamily: 'SpaceMono-Regular',
+  },
+  sheetScroll: { maxHeight: 360 },
+  sheetScrollInner: { paddingBottom: 12 },
+  sheetBody: { fontSize: 15, lineHeight: 24 },
+  sheetStory: { fontSize: 14, lineHeight: 23 },
 });

@@ -17,7 +17,8 @@ export interface WeatherSnapshotDto {
 }
 
 export interface StarIndexResponseDto {
-  spotId: string;
+  /** 명소 기준이면 UUID · GPS 전용 응답이면 가장 가까운 명소 id 또는 생략 */
+  spotId?: string;
   name: string;
   lat: number;
   lng: number;
@@ -53,14 +54,15 @@ export interface SpotDto {
   locationRadiusM: number;
 }
 
+/** GET /top5/weekly 한 줄 */
 export interface WeeklyTop5ItemDto {
   id: string;
-  /** 집계 주 월요일 (YYYY-MM-DD) */
+  /** 집계 기준 월요일 (YYYY-MM-DD) */
   weekStart: string;
   rank: number;
   spotId: string;
   spotName: string;
   avgStarIndex: number;
-  /** 표시용 문자열(불필요한 0 제거) */
+  /** 표시용 문자열 (불필요한 0 제거) */
   avgStarIndexText: string;
 }

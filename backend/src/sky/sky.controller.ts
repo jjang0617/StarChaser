@@ -16,11 +16,23 @@ export class SkyController {
   @Get('view')
   @ApiOperation({
     summary:
-      '천구 MVP — 위도·경도·시각(UT) 기준 고도/방위·지평선 필터·IAU 별자리 약어 라벨',
+      '천구 — 위도·경도·시각(UT) 기준 별(hip) + 달·금성·목성(astronomy-engine) 지평선 + 별자리 라벨',
   })
   getSkyView(@Query() q: SkyViewQueryDto) {
     const when = q.at ? new Date(q.at) : new Date();
     return this.skyService.buildSkyView(q.lat, q.lng, when);
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 120 } })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('constellation-lines')
+  @ApiOperation({
+    summary:
+      '별자리 연결선 MVP — HIP 번호 쌍(적위 epoch는 응답 epoch 참고, 정적 JSON)',
+  })
+  getConstellationLines() {
+    return this.skyService.getConstellationLines();
   }
 
   @UseGuards(JwtAuthGuard)

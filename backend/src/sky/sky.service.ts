@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as Astronomy from 'astronomy-engine';
 import axios from 'axios';
 import { parseStringPromise } from 'xml2js';
 import {
@@ -24,6 +25,32 @@ type CatalogRow = {
   name?: string;
 };
 
+export type ConstellationLineSegmentDto = {
+  fromHip: number;
+  toHip: number;
+  con: string;
+};
+
+export type ConstellationLinesResponseDto = {
+  epoch: string;
+  note?: string;
+  segments: ConstellationLineSegmentDto[];
+};
+
+/** 달·내행성·목성 — astronomy-engine 지평 좌표 + 가시 등급 */
+export type SkyViewBodyDto = {
+  id: 'moon' | 'venus' | 'jupiter';
+  labelKo: string;
+  azDeg: number;
+  altDeg: number;
+  magnitude: number;
+  visible: boolean;
+  /** 달만 — 조명 비율 0~1 (Illumination.phase_fraction) */
+  phaseFraction?: number;
+  /** 달만 — 0° 근처 신월 … Astronomy.MoonPhase (°) */
+  moonPhaseDeg?: number;
+};
+
 type KasiApiEnvelope = {
   response?: {
     body?: {
@@ -40,6 +67,9 @@ export class SkyService {
 
   /** hip-bright-subset.json 로드 결과 캐시 */
   private catalogCache: CatalogRow[] | null = null;
+
+  /** constellation-lines-mvp.json 캐시 */
+  private constellationLinesCache: ConstellationLinesResponseDto | null = null;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -217,6 +247,8 @@ export class SkyService {
       altDeg: number;
       azDeg: number;
     }>;
+    bodies: SkyViewBodyDto[];
+    ephemerisSource: string;
   } {
     const jd = julianDateUT(atUtc);
     const lstDeg = localSiderealDegrees(jd, lngDeg);
@@ -274,6 +306,7 @@ export class SkyService {
     constellationLabels.sort((a, b) => a.con.localeCompare(b.con));
     const maxLabels = 14;
     const labelsTop = constellationLabels.slice(0, maxLabels);
+    const bodies = this.buildSolarSystemBodies(atUtc, latDeg, lngDeg);
 
     return {
       at: atUtc.toISOString(),
@@ -283,6 +316,87 @@ export class SkyService {
       lstDeg: Math.round(lstDeg * 1000) / 1000,
       stars,
       constellationLabels: labelsTop,
+      bodies,
+      ephemerisSource: 'astronomy-engine',
     };
+  }
+
+  /**
+   * 달·금성·목성 — VSOP / 내장 lunar theory 기반 지평선 상 방위·고도 (대기 굴절 normal).
+   */
+  private buildSolarSystemBodies(
+    atUtc: Date,
+    latDeg: number,
+    lngDeg: number,
+  ): SkyViewBodyDto[] {
+    const observer = new Astronomy.Observer(latDeg, lngDeg, 0);
+    const specs: Array<{
+      body: Astronomy.Body;
+      id: SkyViewBodyDto['id'];
+      labelKo: string;
+    }> = [
+      { body: Astronomy.Body.Moon, id: 'moon', labelKo: '달' },
+      { body: Astronomy.Body.Venus, id: 'venus', labelKo: '금성' },
+      { body: Astronomy.Body.Jupiter, id: 'jupiter', labelKo: '목성' },
+    ];
+
+    let moonPhaseDeg: number | undefined;
+    try {
+      moonPhaseDeg = Astronomy.MoonPhase(atUtc);
+    } catch {
+      moonPhaseDeg = undefined;
+    }
+
+    const out: SkyViewBodyDto[] = [];
+
+    for (const { body, id, labelKo } of specs) {
+      try {
+        const eq = Astronomy.Equator(body, atUtc, observer, true, true);
+        const hor = Astronomy.Horizon(atUtc, observer, eq.ra, eq.dec, 'normal');
+        const ill = Astronomy.Illumination(body, atUtc);
+        const altDeg = Math.round(hor.altitude * 100) / 100;
+        const azDeg = Math.round(hor.azimuth * 100) / 100;
+        const visible = isAboveHorizon(altDeg);
+        const row: SkyViewBodyDto = {
+          id,
+          labelKo,
+          azDeg,
+          altDeg,
+          magnitude: Math.round(ill.mag * 100) / 100,
+          visible,
+        };
+        if (id === 'moon') {
+          row.phaseFraction = Math.round(ill.phase_fraction * 1000) / 1000;
+          if (moonPhaseDeg !== undefined) {
+            row.moonPhaseDeg = Math.round(moonPhaseDeg * 1000) / 1000;
+          }
+        }
+        out.push(row);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`태양계 천체 ${id} 계산 실패: ${msg}`);
+      }
+    }
+
+    return out;
+  }
+
+  /**
+   * 별자리 연결선(HIP 쌍) — 정적 MVP. 향후 epoch·LOD는 쿼리로 확장 가능.
+   */
+  getConstellationLines(): ConstellationLinesResponseDto {
+    if (this.constellationLinesCache) return this.constellationLinesCache;
+    try {
+      const p = path.join(__dirname, 'data', 'constellation-lines-mvp.json');
+      const raw = fs.readFileSync(p, 'utf8');
+      const parsed = JSON.parse(raw) as ConstellationLinesResponseDto;
+      this.constellationLinesCache = parsed;
+      this.logger.log(`별자리 선 세그먼트 로드 — ${parsed.segments?.length ?? 0}개 (${p})`);
+      return parsed;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.warn(`constellation-lines-mvp.json 로드 실패(${msg}) — 빈 목록 반환`);
+      return { epoch: 'J2000', segments: [] };
+    }
   }
 }
