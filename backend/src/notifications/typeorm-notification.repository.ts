@@ -9,6 +9,7 @@ import type {
 import { NotificationPreferenceEntity } from './notification-preference.entity';
 import { NotificationTokenEntity } from './notification-token.entity';
 import { StarIndexPushSentEntity } from './star-index-push-sent.entity';
+import { AstroEventPushSentEntity } from './astro-event-push-sent.entity';
 
 @Injectable()
 export class TypeOrmNotificationRepository implements NotificationRepository {
@@ -19,6 +20,8 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     private readonly prefs: Repository<NotificationPreferenceEntity>,
     @InjectRepository(StarIndexPushSentEntity)
     private readonly pushSent: Repository<StarIndexPushSentEntity>,
+    @InjectRepository(AstroEventPushSentEntity)
+    private readonly astroSent: Repository<AstroEventPushSentEntity>,
   ) {}
 
   async upsertToken(params: {
@@ -188,6 +191,61 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     });
     try {
       await this.pushSent.save(row);
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === '23505') return;
+      throw e;
+    }
+  }
+
+  async findAndroidRecipientsAstronomyEventsEnabled(): Promise<
+    Array<{ userId: string; fcmToken: string }>
+  > {
+    const raw = await this.tokens
+      .createQueryBuilder('t')
+      .innerJoin(
+        NotificationPreferenceEntity,
+        'p',
+        'p.userId = t.userId AND p.alertsEnabled = true AND p.astronomyEventAlertEnabled = true',
+      )
+      .where('t.isActive = :active', { active: true })
+      .andWhere('t.platform = :plat', { plat: 'android' })
+      .select('t.userId', 'userId')
+      .addSelect('t.fcmToken', 'fcmToken')
+      .getRawMany<
+        Record<string, string | undefined> & {
+          userId?: string;
+          fcmToken?: string;
+        }
+      >();
+    return raw
+      .map((r) => ({
+        userId: String(r.userId ?? r.userid ?? ''),
+        fcmToken: String(r.fcmToken ?? r.fcmtoken ?? ''),
+      }))
+      .filter((r) => r.userId.length > 0 && r.fcmToken.length > 0);
+  }
+
+  async hasAstroEventPushSent(params: {
+    userId: string;
+    eventId: string;
+  }): Promise<boolean> {
+    const n = await this.astroSent.count({
+      where: { userId: params.userId, eventId: params.eventId },
+    });
+    return n > 0;
+  }
+
+  async recordAstroEventPushSent(params: {
+    userId: string;
+    eventId: string;
+  }): Promise<void> {
+    const row = this.astroSent.create({
+      userId: params.userId,
+      eventId: params.eventId,
+    });
+    try {
+      await this.astroSent.save(row);
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code;
       if (code === '23505') return;

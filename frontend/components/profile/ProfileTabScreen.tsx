@@ -19,6 +19,7 @@ import {
 } from '../../lib/api-client';
 import type { NotificationPreferenceDto, SpotDto } from '../../lib/types/api';
 import { fetchSpotsAll } from '../../lib/spots-api';
+import { PhotographyGuideModal } from '../guide/PhotographyGuideModal';
 import { Button, Card } from '../ui';
 
 interface ProfileTabScreenProps {
@@ -46,6 +47,7 @@ export function ProfileTabScreen({
   const [spots, setSpots] = useState<SpotDto[]>([]);
   const [spotsLoading, setSpotsLoading] = useState(false);
   const [spotPickerOpen, setSpotPickerOpen] = useState(false);
+  const [photographyGuideOpen, setPhotographyGuideOpen] = useState(false);
 
   const loadPrefs = useCallback(async () => {
     setPrefsError(null);
@@ -167,7 +169,13 @@ export function ProfileTabScreen({
   );
 
   return (
-    <View style={styles.wrap}>
+    <>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator
+      >
       <Text style={[styles.title, { color: theme.foreground }]}>마이페이지</Text>
       <Card
         title="계정"
@@ -249,6 +257,38 @@ export function ProfileTabScreen({
         )}
       </Card>
 
+      <Card
+        title="촬영 가이드"
+        description="별·야경·유성우 촬영 시 참고할 기본 설정과 안전 안내입니다."
+      >
+        <Button
+          label="별·야경 촬영 기본 가이드 보기"
+          variant="outline"
+          fullWidth
+          onPress={() => setPhotographyGuideOpen(true)}
+        />
+      </Card>
+
+      <Card title="표시" description="야간 관측 시 눈부심을 줄입니다">
+        <Button
+          label={isRedMode ? '야간 모드(Night Vision) 해제' : '야간 모드(Night Vision) 켜기'}
+          variant="red"
+          fullWidth
+          onPress={onToggleRedMode}
+        />
+      </Card>
+      {onDevResetOnboarding ? (
+        <Card title="개발" description="온보딩 플로우만 다시 봅니다">
+          <Button
+            label="DEV: 온보딩 다시보기"
+            variant="outline"
+            fullWidth
+            onPress={onDevResetOnboarding}
+          />
+        </Card>
+      ) : null}
+      </ScrollView>
+
       <Modal
         visible={spotPickerOpen}
         transparent
@@ -304,25 +344,11 @@ export function ProfileTabScreen({
         </Pressable>
       </Modal>
 
-      <Card title="표시" description="야간 관측 시 눈부심을 줄입니다">
-        <Button
-          label={isRedMode ? '야간 모드(Night Vision) 해제' : '야간 모드(Night Vision) 켜기'}
-          variant="red"
-          fullWidth
-          onPress={onToggleRedMode}
-        />
-      </Card>
-      {onDevResetOnboarding ? (
-        <Card title="개발" description="온보딩 플로우만 다시 봅니다">
-          <Button
-            label="DEV: 온보딩 다시보기"
-            variant="outline"
-            fullWidth
-            onPress={onDevResetOnboarding}
-          />
-        </Card>
-      ) : null}
-    </View>
+      <PhotographyGuideModal
+        visible={photographyGuideOpen}
+        onClose={() => setPhotographyGuideOpen(false)}
+      />
+    </>
   );
 }
 
@@ -369,7 +395,8 @@ const rowStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: 16 },
+  scroll: { flex: 1 },
+  scrollContent: { padding: 16, paddingBottom: 28 },
   title: { fontSize: 20, fontFamily: 'SpaceMono-Regular', marginBottom: 16 },
   email: { fontSize: 14 },
   err: { fontSize: 13, marginBottom: 8 },

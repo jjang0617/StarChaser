@@ -63,6 +63,21 @@ export interface NotificationRepository {
     spotId: string;
     dayKstYmd: string;
   }): Promise<void>;
+
+  /** 천체 이벤트 알림: 알림·하늘 이벤트 ON + 안드로이드 활성 토큰 */
+  findAndroidRecipientsAstronomyEventsEnabled(): Promise<
+    Array<{ userId: string; fcmToken: string }>
+  >;
+
+  hasAstroEventPushSent(params: {
+    userId: string;
+    eventId: string;
+  }): Promise<boolean>;
+
+  recordAstroEventPushSent(params: {
+    userId: string;
+    eventId: string;
+  }): Promise<void>;
 }
 
 export const NOTIFICATION_REPOSITORY = 'NOTIFICATION_REPOSITORY';

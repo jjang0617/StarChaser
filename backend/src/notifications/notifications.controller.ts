@@ -100,4 +100,28 @@ export class NotificationsController {
         'Star-Index 스케줄 로직을 1회 실행했습니다. 서버 로그([Star-Index push])를 확인하세요.',
     };
   }
+
+  @Post('dev/run-astro-event-scheduled-push')
+  @ApiOperation({
+    summary:
+      '개발·검증용: 천체 이벤트 스케줄 잡을 즉시 1회 실행. production 은 FCM_ASTRO_EVENT_MANUAL_TRIGGER_ENABLED=true 만 허용',
+  })
+  async runAstroEventScheduledPush(@CurrentUser() user: JwtValidatedUser) {
+    const nodeEnv = this.config.get<string>('NODE_ENV');
+    const forced =
+      this.config.get<string>('FCM_ASTRO_EVENT_MANUAL_TRIGGER_ENABLED') === 'true';
+    const allowed = forced || nodeEnv !== 'production';
+    if (!allowed) {
+      throw new ForbiddenException(
+        'production 에서는 FCM_ASTRO_EVENT_MANUAL_TRIGGER_ENABLED=true 일 때만 사용 가능',
+      );
+    }
+    await this.notificationScheduler.sendAstronomyEventAlerts();
+    return {
+      ok: true,
+      triggeredBy: user.userId,
+      message:
+        '천체 이벤트 스케줄 로직을 1회 실행했습니다. 서버 로그([Astro event push])를 확인하세요.',
+    };
+  }
 }
