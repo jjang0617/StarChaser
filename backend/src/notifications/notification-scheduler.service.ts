@@ -13,6 +13,7 @@ import { getKstYmd } from '../common/kst-date';
 import { StarIndexService } from '../star-index/star-index.service';
 import { FcmPushService } from './fcm-push.service';
 import { WeeklyTop5Service } from '../weekly-top5/weekly-top5.service';
+import { AstronomyEventsCatalogService } from '../astronomy-events/astronomy-events-catalog.service';
 
 /**
  * 사용자 알림 설정·FCM과 연동된 예약 발송.
@@ -36,6 +37,7 @@ export class NotificationSchedulerService {
     private readonly starIndex: StarIndexService,
     @Inject(SPOT_REPOSITORY)
     private readonly spots: SpotRepository,
+    private readonly astronomyCatalog: AstronomyEventsCatalogService,
   ) {}
 
   @Cron('5 7 * * 1', { timeZone: 'Asia/Seoul' })
@@ -243,6 +245,109 @@ export class NotificationSchedulerService {
 
     this.logger.log(
       `[Star-Index push] 완료 dayKst=${dayKst} 임계=${thresholdScore} 대상=${recipients.length} 성공=${ok} 실패=${failed} 건너뜀=${skipped}`,
+    );
+  }
+
+  /**
+   * 천체 이벤트(정적 JSON 윈도) — 매시 20분 KST.
+   * 이벤트·사용자별 1회(astro_event_push_sent).
+   */
+  @Cron('20 * * * *', { timeZone: 'Asia/Seoul' })
+  async sendAstronomyEventAlerts(): Promise<void> {
+    this.logger.log('[Astro event push] cron tick');
+    const raw = this.envStr('FCM_SCHEDULED_ASTRO_EVENT_PUSH_ENABLED');
+    const enabled = String(raw ?? '').trim().toLowerCase() === 'true';
+    if (!enabled) {
+      this.logger.warn(
+        `[Astro event push] 건너뜀: FCM_SCHEDULED_ASTRO_EVENT_PUSH_ENABLED=${JSON.stringify(raw)}`,
+      );
+      return;
+    }
+    if (!this.fcm.isReady()) {
+      this.logger.warn(
+        '[Astro event push] FCM 미초기화 — FIREBASE_* 환경변수를 확인하세요.',
+      );
+      return;
+    }
+
+    const events = this.astronomyCatalog.getActiveEvents(new Date());
+    if (!events.length) {
+      this.logger.log('[Astro event push] 활성 이벤트(윈도) 없음');
+      return;
+    }
+    this.logger.log(
+      `[Astro event push] 활성 윈도: ${events.map((e) => `${e.id}(${e.type})`).join(', ')}`,
+    );
+
+    let recipients;
+    try {
+      recipients =
+        await this.notifications.findAndroidRecipientsAstronomyEventsEnabled();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(`[Astro event push] 수신자 조회 실패: ${msg}`);
+      return;
+    }
+
+    if (!recipients.length) {
+      this.logger.log('[Astro event push] 조건에 맞는 안드로이드 토큰 없음');
+      return;
+    }
+
+    let ok = 0;
+    let failed = 0;
+    let skipped = 0;
+
+    for (const event of events) {
+      for (const { userId, fcmToken } of recipients) {
+        const already = await this.notifications.hasAstroEventPushSent({
+          userId,
+          eventId: event.id,
+        });
+        if (already) {
+          skipped++;
+          continue;
+        }
+
+        const data: Record<string, string> = {
+          type: 'astronomy_event',
+          eventId: event.id,
+          eventType: event.type,
+        };
+
+        try {
+          await this.fcm.sendToToken(fcmToken, {
+            title: event.title,
+            body: event.body,
+            data,
+          });
+          await this.notifications.recordAstroEventPushSent({
+            userId,
+            eventId: event.id,
+          });
+          ok++;
+        } catch (err: unknown) {
+          failed++;
+          const message = err instanceof Error ? err.message : String(err);
+          if (
+            message.includes('not a valid FCM registration token') ||
+            message.includes('registration-token-not-registered')
+          ) {
+            await this.notifications.deactivateToken({ userId, fcmToken });
+            this.logger.warn(
+              `[Astro event push] 무효 토큰 비활성화 user=${userId.slice(0, 8)}…`,
+            );
+          } else {
+            this.logger.warn(
+              `[Astro event push] 발송 실패 event=${event.id} user=${userId.slice(0, 8)}… ${message}`,
+            );
+          }
+        }
+      }
+    }
+
+    this.logger.log(
+      `[Astro event push] 완료 이벤트=${events.length} 수신행=${recipients.length} 성공=${ok} 실패=${failed} 건너뜀=${skipped}`,
     );
   }
 }

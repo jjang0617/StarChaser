@@ -8,6 +8,10 @@
       {
         "include": "sky/data/*.json",
         "watchAssets": true
+      },
+      {
+        "include": "astronomy-events/data/*.json",
+        "watchAssets": true
       }
     ]
   }
