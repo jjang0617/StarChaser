@@ -23,6 +23,8 @@ type CatalogRow = {
   mag: number;
   con: string;
   name?: string;
+  /** 지구까지 거리(광년), 카탈로그 정적값 — 없으면 null */
+  distLy?: number;
 };
 
 export type ConstellationLineSegmentDto = {
@@ -241,6 +243,7 @@ export class SkyService {
       altDeg: number;
       azDeg: number;
       visible: boolean;
+      distanceLy: number | null;
     }>;
     constellationLabels: Array<{
       con: string;
@@ -257,6 +260,11 @@ export class SkyService {
     const stars = rows.map((s) => {
       const { altDeg, azDeg } = raDecToAltAz(s.raDeg, s.decDeg, latDeg, lstDeg);
       const visible = isAboveHorizon(altDeg);
+      const distSrc = s.distLy;
+      const distanceLy =
+        typeof distSrc === 'number' && Number.isFinite(distSrc)
+          ? Math.round(distSrc * 100) / 100
+          : null;
       return {
         hip: s.hip,
         name: s.name ?? null,
@@ -267,6 +275,7 @@ export class SkyService {
         altDeg: Math.round(altDeg * 100) / 100,
         azDeg: Math.round(azDeg * 100) / 100,
         visible,
+        distanceLy,
       };
     });
 

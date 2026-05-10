@@ -1,9 +1,18 @@
 import { authorizedGetJson, SessionExpiredError } from './api-client';
+import { parseSpotMapLabels } from './spot-map-labels';
 import type { MapSpot } from './types/map-spot';
 import type { SpotDto } from './types/api';
 
 export function spotDtoToMapSpot(s: SpotDto): MapSpot {
-  return { id: s.id, title: s.name, lat: s.lat, lng: s.lng };
+  const { regionKey, shortTitle } = parseSpotMapLabels(s.name, s.lat, s.lng);
+  return {
+    id: s.id,
+    title: s.name,
+    lat: s.lat,
+    lng: s.lng,
+    regionKey,
+    shortTitle,
+  };
 }
 
 export async function fetchSpotsAll(): Promise<SpotDto[]> {

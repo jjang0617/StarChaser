@@ -20,7 +20,8 @@
           "locationAlwaysAndWhenInUsePermission": "StarChaser가 관측 알림을 위해 위치 정보를 사용합니다."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-screen-orientation"
     ],
     "ios": {
       "supportsTablet": true,

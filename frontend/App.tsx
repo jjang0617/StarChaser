@@ -5,7 +5,7 @@
 
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Text,
@@ -20,7 +20,11 @@ import { ThemeProvider, useTheme } from './themes/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/auth-context';
 import { BottomTab, Button, Screen, type StatefulCardError } from './components/ui';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
-import { KakaoMapWebView } from './components/map/KakaoMapWebView';
+import {
+  KakaoMapWebView,
+  type KakaoMapWebViewHandle,
+} from './components/map/KakaoMapWebView';
+import { MapClusterSpotsSheet } from './components/map/MapClusterSpotsSheet';
 import { MapSpotDetailModal } from './components/map/MapSpotDetailModal';
 import { ProfileTabScreen } from './components/profile/ProfileTabScreen';
 import { RecordsTabScreen } from './components/records/RecordsTabScreen';
@@ -34,6 +38,7 @@ import {
   SessionExpiredError,
 } from './lib/api-client';
 import type { StarIndexResponseDto, WeeklyTop5ItemDto } from './lib/types/api';
+import type { ClusterSpotRnDto } from './lib/types/map-spot';
 
 function starIndexErrorFromApi(e: ApiRequestError): StatefulCardError {
   if (e.status === 503) {
@@ -65,9 +70,16 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [foregroundLocationStatus, setForegroundLocationStatus] =
     useState<Location.PermissionResponse['status'] | null>(null);
 
+  const mapWebViewRef = useRef<KakaoMapWebViewHandle>(null);
+
   // Map: 마커 클릭 → 상세 시트
   const [mapSpotId, setMapSpotId] = useState<string | null>(null);
   const [mapDetailOpen, setMapDetailOpen] = useState(false);
+  /** 광역·격자 클러스터 탭 → 명소 목록 시트 */
+  const [mapClusterSheet, setMapClusterSheet] = useState<{
+    title: string;
+    spots: ClusterSpotRnDto[];
+  } | null>(null);
   /** MAP 탭 — NASA VIIRS 타일 오버레이 ON/OFF */
   const [mapViirsEnabled, setMapViirsEnabled] = useState(false);
   const [mapSiLoading, setMapSiLoading] = useState(false);
@@ -84,6 +96,12 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
 
   useEffect(() => {
     if (activeTab === 'map') setMapLayerMounted(true);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'map') {
+      mapWebViewRef.current?.clearMapFocus();
+    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -241,6 +259,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
           >
             <View style={{ flex: 1 }}>
             <KakaoMapWebView
+              ref={mapWebViewRef}
               mapPageUrl={kakaoMapPageUrl}
               kakaoJavascriptKey={kakaoJavascriptKey}
               spotListMode="all"
@@ -254,6 +273,21 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                   }
                   // eslint-disable-next-line no-console
                   console.log('[KakaoMap]', msg);
+                }
+                if (msg.type === 'CLUSTER_SPOTS') {
+                  const d = msg.data;
+                  if (d.kind === 'province') {
+                    setMapClusterSheet({
+                      title: `${d.regionKey} · 명소 ${d.spots.length}곳`,
+                      spots: d.spots,
+                    });
+                  } else {
+                    setMapClusterSheet({
+                      title: `이 구역 · 명소 ${d.spots.length}곳`,
+                      spots: d.spots,
+                    });
+                  }
+                  return;
                 }
                 if (msg.type === 'MARKER_CLICK') {
                   const spotId = msg.data.spotId;
@@ -341,6 +375,21 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
           ) : null
         ) : null}
         </View>
+
+        <MapClusterSpotsSheet
+          visible={mapClusterSheet != null}
+          title={mapClusterSheet?.title ?? ''}
+          spots={mapClusterSheet?.spots ?? []}
+          onClose={() => setMapClusterSheet(null)}
+          onSessionInvalidated={onSessionInvalidated}
+          onPickSpot={(spot) => {
+            const label =
+              spot.shortTitle?.trim() ||
+              spot.title?.trim() ||
+              `명소 ${spot.id.slice(0, 8)}`;
+            mapWebViewRef.current?.focusMap(spot.lat, spot.lng, 7, label, spot.id);
+          }}
+        />
 
         <MapSpotDetailModal
           visible={mapDetailOpen}

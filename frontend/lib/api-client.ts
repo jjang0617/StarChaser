@@ -277,6 +277,21 @@ export function fetchStarIndexAtLocation(
   return authorizedGetJson<StarIndexResponseDto>(`/star-index?${q.toString()}`);
 }
 
+/** 지도 클러스터 시트 — 등록된 명소 N곳의 점수(요청 1회) */
+export function fetchStarIndexSpotScores(
+  spotIds: string[],
+): Promise<{ spotId: string; score: number }[]> {
+  const ids = spotIds
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 40);
+  if (ids.length === 0) return Promise.resolve([]);
+  const q = encodeURIComponent(ids.join(','));
+  return authorizedGetJson<{ items: { spotId: string; score: number }[] }>(
+    `/star-index/spot-scores?ids=${q}`,
+  ).then((r) => r.items ?? []);
+}
+
 export function fetchWeeklyTop5(weekStart?: string): Promise<WeeklyTop5ItemDto[]> {
   const q = new URLSearchParams();
   if (weekStart && weekStart.trim() !== '') q.set('weekStart', weekStart.trim());
@@ -309,6 +324,8 @@ export interface SkyViewStarDto {
   altDeg: number;
   azDeg: number;
   visible: boolean;
+  /** 지구까지 거리(광년) — 서버 카탈로그에 없으면 null */
+  distanceLy?: number | null;
 }
 
 export interface SkyViewConstellationLabelDto {

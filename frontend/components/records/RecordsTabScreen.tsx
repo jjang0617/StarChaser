@@ -50,6 +50,10 @@ export function RecordsTabScreen({
   const [siData, setSiData] = useState<StarIndexResponseDto | null>(null);
   const [siLoading, setSiLoading] = useState(false);
   const [siErr, setSiErr] = useState<string | null>(null);
+  /** GPS 기준 역지오코딩 — 영천 등 “가까운 명소” 이름 대신 실제 동네 표시 */
+  const [siPlaceLabel, setSiPlaceLabel] = useState<string | null>(null);
+  /** true면 저장 시 spotId 없이 좌표 스냅샷만 (잘못된 명소 연결 방지) */
+  const [siFromGps, setSiFromGps] = useState(false);
 
   const [result, setResult] = useState<'success' | 'partial' | 'fail'>('success');
   const [saveBusy, setSaveBusy] = useState(false);
@@ -77,16 +81,10 @@ export function RecordsTabScreen({
   }, [onSessionInvalidated]);
 
   const loadSi = useCallback(async () => {
-    let lat = observerLat;
-    let lng = observerLng;
+    let lat: number | undefined;
+    let lng: number | undefined;
 
-    if (
-      Platform.OS !== 'web' &&
-      (lat == null ||
-        lng == null ||
-        !Number.isFinite(lat) ||
-        !Number.isFinite(lng))
-    ) {
+    if (Platform.OS !== 'web') {
       try {
         const perm = await Location.getForegroundPermissionsAsync();
         if (perm.status === Location.PermissionStatus.GRANTED) {
@@ -97,8 +95,20 @@ export function RecordsTabScreen({
           lng = pos.coords.longitude;
         }
       } catch {
-        /* props 좌표만 사용 */
+        /* 아래에서 observer 좌표 폴백 */
       }
+    }
+
+    if (
+      (lat == null ||
+        lng == null ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng)) &&
+      observerLat != null &&
+      observerLng != null
+    ) {
+      lat = observerLat;
+      lng = observerLng;
     }
 
     const hasCoords =
@@ -107,46 +117,57 @@ export function RecordsTabScreen({
     if (!hasCoords && !activeSpotId) {
       setSiData(null);
       setSiErr(null);
+      setSiPlaceLabel(null);
+      setSiFromGps(false);
       return;
     }
 
     setSiLoading(true);
     setSiErr(null);
+
     try {
       if (hasCoords) {
         const d = await fetchStarIndexAtLocation(lat!, lng!);
         setSiData(d);
+        setSiFromGps(true);
+        try {
+          if (Platform.OS !== 'web') {
+            const geo = await Location.reverseGeocodeAsync({
+              latitude: lat!,
+              longitude: lng!,
+            });
+            const a = geo[0];
+            if (a) {
+              const parts = [
+                a.region,
+                a.city || a.subregion,
+                a.district,
+                a.street,
+                a.name,
+              ].filter((x): x is string => Boolean(x && String(x).trim()));
+              const uniq: string[] = [];
+              for (const p of parts) {
+                if (!uniq.includes(p)) uniq.push(p);
+              }
+              setSiPlaceLabel(
+                uniq.slice(0, 5).join(' ') || `${lat!.toFixed(4)}, ${lng!.toFixed(4)}`,
+              );
+            } else {
+              setSiPlaceLabel(`${lat!.toFixed(4)}, ${lng!.toFixed(4)}`);
+            }
+          } else {
+            setSiPlaceLabel(`${lat!.toFixed(4)}, ${lng!.toFixed(4)}`);
+          }
+        } catch {
+          setSiPlaceLabel(`${lat!.toFixed(4)}, ${lng!.toFixed(4)}`);
+        }
         return;
       }
-      try {
-        const d = await fetchStarIndex(activeSpotId!);
-        setSiData(d);
-      } catch (e) {
-        if (
-          e instanceof ApiRequestError &&
-          e.status === 404 &&
-          Platform.OS !== 'web'
-        ) {
-          try {
-            const perm = await Location.getForegroundPermissionsAsync();
-            if (perm.status === Location.PermissionStatus.GRANTED) {
-              const pos = await Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.Balanced,
-              });
-              const d = await fetchStarIndexAtLocation(
-                pos.coords.latitude,
-                pos.coords.longitude,
-              );
-              setSiData(d);
-              setSiErr(null);
-              return;
-            }
-          } catch {
-            /* 아래 공통 처리 */
-          }
-        }
-        throw e;
-      }
+
+      setSiFromGps(false);
+      setSiPlaceLabel(null);
+      const d = await fetchStarIndex(activeSpotId!);
+      setSiData(d);
     } catch (e) {
       if (e instanceof SessionExpiredError) {
         await onSessionInvalidated();
@@ -163,6 +184,8 @@ export function RecordsTabScreen({
         setSiErr('Star-Index를 불러오지 못했습니다.');
       }
       setSiData(null);
+      setSiPlaceLabel(null);
+      setSiFromGps(false);
     } finally {
       setSiLoading(false);
     }
@@ -181,8 +204,11 @@ export function RecordsTabScreen({
     setSaveBusy(true);
     setSaveMsg(null);
     try {
-      const spotForRow =
-        siData.spotId && siData.spotId.length > 0 ? siData.spotId : activeSpotId ?? undefined;
+      const spotForRow = siFromGps
+        ? undefined
+        : siData.spotId && siData.spotId.length > 0
+          ? siData.spotId
+          : activeSpotId ?? undefined;
       await createObservation({
         spotId: spotForRow,
         starIndexVal: siData.score,
@@ -214,7 +240,9 @@ export function RecordsTabScreen({
     observerLng != null &&
     Number.isFinite(observerLat) &&
     Number.isFinite(observerLng);
-  const canLoadStarIndex = hasObserverGps || Boolean(activeSpotId);
+  /** 네이티브는 앱에서 GPS 조회 시도 · 웹은 좌표 또는 기본 명소 필요 */
+  const canLoadStarIndex =
+    Platform.OS !== 'web' || hasObserverGps || Boolean(activeSpotId);
 
   return (
     <ScrollView
@@ -236,7 +264,14 @@ export function RecordsTabScreen({
           </Text>
         </Card>
       ) : (
-        <Card title="현재 Star-Index" description={siData?.name}>
+        <Card
+          title="현재 Star-Index"
+          description={
+            siPlaceLabel
+              ? `${siPlaceLabel} 기준`
+              : siData?.name ?? 'GPS·격자 기준으로 불러옵니다'
+          }
+        >
           {siLoading ? (
             <ActivityIndicator color={theme.starGold} />
           ) : siErr ? (
@@ -247,7 +282,8 @@ export function RecordsTabScreen({
                 {siData.score}
               </Text>
               <Text style={{ color: theme.mutedForeground, fontSize: 12, marginTop: 6 }}>
-                {siData.name} · 구름 {siData.weatherSnapshot.cloud_score}
+                {(siPlaceLabel ?? siData.name) +
+                  ` · 구름 ${siData.weatherSnapshot.cloud_score}`}
               </Text>
             </View>
           ) : null}
@@ -295,6 +331,15 @@ export function RecordsTabScreen({
             {saveMsg}
           </Text>
         ) : null}
+      </Card>
+
+      <Card
+        title="명소가 목록에 없나요?"
+        description="추후 GPS 또는 지역 선택으로 새 명소를 제안·등록할 수 있게 준비 중입니다."
+      >
+        <Text style={{ color: theme.mutedForeground, fontSize: 13, lineHeight: 19 }}>
+          DB에 없는 관측지도 커뮤니티와 함께 채워 나갈 예정이에요.
+        </Text>
       </Card>
 
       <Card title="내 기록" description={listLoading ? '불러오는 중…' : `${list.length}건`}>
