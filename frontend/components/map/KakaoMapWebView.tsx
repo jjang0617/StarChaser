@@ -1,5 +1,13 @@
 import * as Location from 'expo-location';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Platform, Text, View } from 'react-native';
 import WebView, { WebViewMessageEvent } from 'react-native-webview';
 
@@ -9,10 +17,23 @@ import {
   SessionExpiredError,
   spotDtoToMapSpot,
 } from '../../lib/spots-api';
-import type { LatLng, MapSpot } from '../../lib/types/map-spot';
+import type { ClusterSpotRnDto, LatLng, MapSpot } from '../../lib/types/map-spot';
 import { buildKakaoMapInlineHtml } from './kakao-map-inline-html';
 
-export type { LatLng, MapSpot } from '../../lib/types/map-spot';
+export type { ClusterSpotRnDto, LatLng, MapSpot } from '../../lib/types/map-spot';
+
+/** RN에서 특정 좌표로 지도 이동·줌 (label·spotId면 명소 마커와 통합 표시) */
+export type KakaoMapWebViewHandle = {
+  focusMap: (
+    lat: number,
+    lng: number,
+    level?: number,
+    label?: string,
+    spotId?: string,
+  ) => void;
+  /** 포커스 칩/별도 라벨 제거 — 다른 탭으로 나갈 때 호출 */
+  clearMapFocus: () => void;
+};
 
 export type SpotListMode = 'nearby' | 'all';
 
@@ -29,6 +50,8 @@ type RNToWebMessage =
   | { type: 'SET_CURRENT_LOCATION'; data: LatLng }
   | { type: 'CLEAR_CURRENT_LOCATION' }
   | { type: 'SET_SPOTS'; data: MapSpot[] }
+  | { type: 'FOCUS_MAP'; data: { lat: number; lng: number; level?: number; label?: string; spotId?: string } }
+  | { type: 'CLEAR_MAP_FOCUS' }
   | {
       type: 'SET_VIIRS_LAYER';
       data: {
@@ -46,6 +69,12 @@ type RNToWebMessage =
 type WebToRNMessage =
   | { type: 'MAP_READY' }
   | { type: 'MARKER_CLICK'; data: { spotId: string } }
+  | {
+      type: 'CLUSTER_SPOTS';
+      data:
+        | { kind: 'province'; regionKey: string; spots: ClusterSpotRnDto[] }
+        | { kind: 'grid'; spots: ClusterSpotRnDto[] };
+    }
   | { type: 'VIIRS_LAYER_READY'; data?: Record<string, unknown> }
   | { type: 'VIIRS_LAYER_ERROR'; data?: { message?: string } };
 
@@ -82,27 +111,7 @@ function injectWebMessage(webView: WebView | null, msg: RNToWebMessage) {
   webView.injectJavaScript(script);
 }
 
-export function KakaoMapWebView({
-  mapPageUrl,
-  kakaoJavascriptKey,
-  onMessage,
-  /** MAP_READY 이후 expo-location으로 내 위치 마커 (기본 true) */
-  showUserLocation = true,
-  /** `nearby`: GET /spots/nearby(위치 확보 후) · `all`: GET /spots */
-  spotListMode = 'nearby' as SpotListMode,
-  /** nearby 반경(미터) */
-  spotsNearbyRadiusM = 50000,
-  /** spots API에서 401/세션 만료 시 */
-  onSessionExpired,
-  /** NASA GIBS WMS(bounds 이미지) 오버레이 */
-  viirsLayerEnabled = false,
-  viirsOpacity = 0.75,
-  viirsCopyrightMsg,
-  viirsCopyrightShortMsg,
-  // Black Marble은 TIME 없이도 동작(서버가 TIME 생략)
-  viirsTime = '',
-  viirsLayer = DEFAULT_VIIRS_LAYER_ID,
-}: {
+export type KakaoMapWebViewProps = {
   mapPageUrl?: string;
   kakaoJavascriptKey: string | undefined;
   onMessage?: (msg: WebToRNMessage) => void;
@@ -116,8 +125,54 @@ export function KakaoMapWebView({
   viirsCopyrightShortMsg?: string;
   viirsTime?: string;
   viirsLayer?: string;
-}) {
+};
+
+export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebViewProps>(
+  function KakaoMapWebView(
+    {
+      mapPageUrl,
+      kakaoJavascriptKey,
+      onMessage,
+      showUserLocation = true,
+      spotListMode = 'nearby' as SpotListMode,
+      spotsNearbyRadiusM = 50000,
+      onSessionExpired,
+      viirsLayerEnabled = false,
+      viirsOpacity = 0.75,
+      viirsCopyrightMsg,
+      viirsCopyrightShortMsg,
+      viirsTime = '',
+      viirsLayer = DEFAULT_VIIRS_LAYER_ID,
+    },
+    ref,
+  ) {
   const webViewRef = useRef<WebView>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focusMap(lat: number, lng: number, level?: number, label?: string, spotId?: string) {
+        injectWebMessage(webViewRef.current, {
+          type: 'FOCUS_MAP',
+          data: {
+            lat,
+            lng,
+            level: level ?? 7,
+            ...(label != null && String(label).trim() !== ''
+              ? { label: String(label).trim() }
+              : {}),
+            ...(spotId != null && String(spotId).trim() !== ''
+              ? { spotId: String(spotId).trim() }
+              : {}),
+          },
+        });
+      },
+      clearMapFocus() {
+        injectWebMessage(webViewRef.current, { type: 'CLEAR_MAP_FOCUS' });
+      },
+    }),
+    [],
+  );
   const [mapReady, setMapReady] = useState(false);
   /** nearby: 첫 GPS 좌표(주변 spots API 트리거) */
   const [coordsForSpots, setCoordsForSpots] = useState<LatLng | null>(null);
@@ -389,4 +444,7 @@ export function KakaoMapWebView({
       </View>
     </View>
   );
-}
+  },
+);
+
+KakaoMapWebView.displayName = 'KakaoMapWebView';

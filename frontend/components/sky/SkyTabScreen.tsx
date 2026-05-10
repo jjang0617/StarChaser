@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { Accelerometer, Gyroscope } from 'expo-sensors';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -48,13 +49,17 @@ import type { StarIndexResponseDto } from '../../lib/types/api';
 import { fetchSpotById } from '../../lib/spots-api';
 import { getConstellationLore } from './constellation-lore';
 import { SkyGlCanvas } from './SkyGlCanvas';
+import { sunAltAzDeg } from '../../lib/sun-position';
 import {
   azAltToNorm,
   magToRadius,
   normToLayoutSlice,
-  planetDiskRadius,
   rotateSkyNorm,
 } from './sky-projection';
+import { skyBackdropFromSunAlt } from './sky-appearance';
+import { namedStarLabelKo } from './named-star-labels';
+import { layoutNamedStarLabels, type LabelAnchor } from './sky-label-layout';
+import { formatStarDistanceLyAu } from '../../lib/star-distance-format';
 
 /** IAU 별자리 3글자 약어 → 한글(주요 별군만) */
 const CON_LABEL_KO: Record<string, string> = {
@@ -79,6 +84,13 @@ const CON_LABEL_KO: Record<string, string> = {
   Pup: '고물',
   Tri: '여름삼각',
 };
+
+/** 별 탭 히트 영역 (px) — 최소 터치 타깃 근사 */
+const STAR_HIT_PX = 44;
+
+type SkyOverlaySheet =
+  | { kind: 'constellation'; con: string; labelKo: string }
+  | { kind: 'star'; star: SkyViewStarDto };
 
 export interface SkyTabScreenProps {
   observerLat: number | null;
@@ -142,41 +154,175 @@ function MoonDiskGlyph({
   );
 }
 
-/** 단순 원 대신 작은 십자·별꼴 글리프(천구 스케일) */
-function StarGlyph({ nx, ny, mag }: { nx: number; ny: number; mag: number }) {
-  const rr = magToRadius(mag);
-  const bright = mag < 1.8;
-  const arm = Math.max(0.42, rr * 1.05);
-  const core = Math.max(0.22, rr * 0.42);
+/** 바깥 halo 없음 — 작은 별꼴 Path만 (등급별 크기) */
+function CompactStarGlyph({
+  nx,
+  ny,
+  mag,
+  opacityScale,
+}: {
+  nx: number;
+  ny: number;
+  mag: number;
+  opacityScale: number;
+}) {
+  const rr = Math.min(1.28, magToRadius(mag) * 0.48);
   const spikes = 4;
+  const outer = rr;
+  const inner = rr * 0.36;
   let d = '';
   for (let i = 0; i < spikes * 2; i += 1) {
     const ang = (i * Math.PI) / spikes - Math.PI / 2;
-    const r = i % 2 === 0 ? arm : core;
-    const x = nx + r * Math.cos(ang);
-    const y = ny + r * Math.sin(ang);
+    const rad = i % 2 === 0 ? outer : inner;
+    const x = nx + rad * Math.cos(ang);
+    const y = ny + rad * Math.sin(ang);
     d += i === 0 ? `M${x.toFixed(3)} ${y.toFixed(3)}` : `L${x.toFixed(3)} ${y.toFixed(3)}`;
   }
   d += 'Z';
-  return (
-    <>
-      {bright ? (
-        <Path
-          d={`M${nx} ${ny - arm * 1.35} L${nx} ${ny + arm * 1.35} M${nx - arm * 1.35} ${ny} L${nx + arm * 1.35} ${ny}`}
-          stroke="#ffffff"
-          strokeWidth={0.22}
-          strokeOpacity={0.2}
-          strokeLinecap="round"
+  const base = Math.max(0.22, Math.min(1, 1.02 - mag * 0.088));
+  const vis = base * opacityScale;
+  if (vis < 0.02) return null;
+  return <Path d={d} fill="#eef3ff" fillOpacity={vis} />;
+}
+
+const BODY_LABEL_FONT =
+  Platform.OS === 'ios'
+    ? 'Helvetica Neue'
+    : Platform.OS === 'android'
+      ? 'sans-serif'
+      : undefined;
+
+/** 행성·달 — 라벨을 원형 배지 안에 (샘 플랫 MVP 타이포) */
+function CelestialBodyMarker({
+  nx,
+  ny,
+  body,
+}: {
+  nx: number;
+  ny: number;
+  body: SkyViewBodyDto;
+}) {
+  const label = body.labelKo;
+
+  if (body.id === 'moon') {
+    const mr = 5.7;
+    const badgeCy = ny + mr + 5;
+    const badgeR = Math.max(5.6, 3.2 + Math.min(label.length, 7) * 2);
+    return (
+      <G>
+        <MoonDiskGlyph
+          nx={nx}
+          ny={ny - 1}
+          lit={body.phaseFraction ?? 1}
+          moonPhaseDeg={body.moonPhaseDeg ?? 90}
         />
-      ) : null}
-      <Path
-        d={d}
-        fill="#f2f5ff"
-        fillOpacity={0.96}
-        stroke={bright ? '#dfe8ff' : 'none'}
-        strokeWidth={0.06}
+        <Circle
+          cx={nx}
+          cy={badgeCy}
+          r={badgeR}
+          fill="rgba(16,14,28,0.94)"
+          stroke="rgba(255,212,170,0.45)"
+          strokeWidth={0.26}
+        />
+        <SvgText
+          x={nx}
+          y={badgeCy + 1}
+          fill="#f7f4ff"
+          fontSize={2.52}
+          fontWeight="600"
+          fontFamily={BODY_LABEL_FONT}
+          letterSpacing={0.15}
+          textAnchor="middle"
+        >
+          {label}
+        </SvgText>
+      </G>
+    );
+  }
+
+  const diskR = Math.max(6.4, 4.2 + Math.min(label.length, 7) * 2.05);
+  const isVenus = body.id === 'venus';
+  const plate = isVenus ? '#fff9f6' : '#fdf8f0';
+  const rim = isVenus ? '#f0d8cc' : '#dccfb8';
+  const ink = '#3a3548';
+
+  return (
+    <G>
+      <Circle
+        cx={nx}
+        cy={ny}
+        r={diskR}
+        fill={plate}
+        fillOpacity={0.97}
+        stroke={rim}
+        strokeWidth={0.34}
       />
-    </>
+      <Circle
+        cx={nx}
+        cy={ny - diskR * 0.42}
+        r={2.05}
+        fill={isVenus ? '#ffe8dc' : '#f2e6d4'}
+        opacity={0.96}
+      />
+      <SvgText
+        x={nx}
+        y={ny + diskR * 0.28}
+        fill={ink}
+        fontSize={2.48}
+        fontWeight="600"
+        fontFamily={BODY_LABEL_FONT}
+        letterSpacing={0.12}
+        textAnchor="middle"
+      >
+        {label}
+      </SvgText>
+    </G>
+  );
+}
+
+/** 태양 — 짧은 방사선 + 디스크 (suncalc 근사 고도) */
+function SunGlyph({
+  nx,
+  ny,
+  altDeg,
+}: {
+  nx: number;
+  ny: number;
+  altDeg: number;
+}) {
+  if (altDeg < -3.5) return null;
+  const r = 4.4;
+  const rayLen = 7.2;
+  const rays = 8;
+  const diskOp = altDeg < -1 ? 0.65 + ((altDeg + 3.5) / 2.5) * 0.35 : 1;
+  return (
+    <G opacity={diskOp}>
+      {Array.from({ length: rays }, (_, i) => {
+        const a = (i * Math.PI * 2) / rays - Math.PI / 2;
+        return (
+          <Line
+            key={i}
+            x1={nx}
+            y1={ny}
+            x2={nx + Math.cos(a) * rayLen}
+            y2={ny + Math.sin(a) * rayLen}
+            stroke="#fff8e6"
+            strokeWidth={0.5}
+            strokeOpacity={0.88}
+            strokeLinecap="round"
+          />
+        );
+      })}
+      <Circle
+        cx={nx}
+        cy={ny}
+        r={r}
+        fill="#fff3c8"
+        stroke="#ffc040"
+        strokeWidth={0.32}
+        opacity={0.98}
+      />
+    </G>
   );
 }
 
@@ -304,14 +450,28 @@ export function SkyTabScreen({
     }
   }, []);
 
-  const [constellationSheet, setConstellationSheet] = useState<{
-    con: string;
-    labelKo: string;
-  } | null>(null);
+  const [overlaySheet, setOverlaySheet] = useState<SkyOverlaySheet | null>(null);
 
   useEffect(() => {
-    if (renderEngine === 'gl') setConstellationSheet(null);
+    if (renderEngine === 'gl') setOverlaySheet(null);
   }, [renderEngine]);
+
+  /** SVG 천구만 세로 고정 — 가로 회전 시 왜곡·패닝 UX 저하 방지 */
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const lock = renderEngine === 'svg' && data != null;
+    if (!lock) {
+      void ScreenOrientation.unlockAsync();
+      return undefined;
+    }
+
+    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+
+    return () => {
+      void ScreenOrientation.unlockAsync();
+    };
+  }, [renderEngine, data]);
 
   const [locStarIndex, setLocStarIndex] = useState<StarIndexResponseDto | null>(null);
   const [locSiLoading, setLocSiLoading] = useState(false);
@@ -610,6 +770,56 @@ export function SkyTabScreen({
   const hasObserver =
     obsLat != null && obsLng != null && Number.isFinite(obsLat) && Number.isFinite(obsLng);
 
+  /** 관측 시각·관측자 위치 → 태양 고도 (한국 낮/밤 하늘 색에 사용) */
+  const observeDate = useMemo(() => new Date(observeAtIso), [observeAtIso]);
+  const sunAltAzForSky = useMemo(() => {
+    if (!data || !hasObserver || obsLat == null || obsLng == null) return null;
+    return sunAltAzDeg(observeDate, obsLat, obsLng);
+  }, [data, hasObserver, observeDate, obsLat, obsLng]);
+
+  const skyBackdrop = useMemo(
+    () => skyBackdropFromSunAlt(sunAltAzForSky?.altDeg ?? -90),
+    [sunAltAzForSky],
+  );
+
+  /** HIP 카탈로그 이름 별 — RN 레이어 라벨(GL/SVG 공통). 겹침은 layoutNamedStarLabels로 분산. */
+  const namedStarOverlayLayout = useMemo(() => {
+    if (!data || skyVp.w <= 0 || skyVp.h <= 0) return [];
+    const anchors: LabelAnchor[] = [];
+    for (const s of data.stars) {
+      if (!s.visible) continue;
+      const ko = namedStarLabelKo(s.hip);
+      if (!ko) continue;
+      const base = azAltToNorm(s.azDeg, s.altDeg);
+      const { nx, ny } = rotateSkyNorm(base.nx, base.ny, celestialRot);
+      const { x, y } = normToLayoutSlice(nx, ny, skyVp.w, skyVp.h);
+      anchors.push({
+        id: String(s.hip),
+        anchorX: x,
+        anchorY: y + 7,
+        label: ko,
+        mag: s.mag,
+      });
+    }
+    return layoutNamedStarLabels(anchors);
+  }, [data, skyVp.w, skyVp.h, celestialRot]);
+
+  /** 겹칠 때 어두운 별이 위 레이어를 받도록 시각등급 내림차순 */
+  const starHitTargets = useMemo(() => {
+    if (!data || skyVp.w <= 0 || skyVp.h <= 0) return [];
+    const half = STAR_HIT_PX / 2;
+    const rows: Array<{ star: SkyViewStarDto; left: number; top: number }> = [];
+    for (const s of data.stars) {
+      if (!s.visible) continue;
+      const base = azAltToNorm(s.azDeg, s.altDeg);
+      const { nx, ny } = rotateSkyNorm(base.nx, base.ny, celestialRot);
+      const { x, y } = normToLayoutSlice(nx, ny, skyVp.w, skyVp.h);
+      rows.push({ star: s, left: x - half, top: y - half });
+    }
+    rows.sort((a, b) => b.star.mag - a.star.mag);
+    return rows;
+  }, [data, skyVp.w, skyVp.h, celestialRot]);
+
   const kstPrimary = formatKstFull(observeAtIso);
   const utcNote = formatUtcFootnote(observeAtIso);
   const useGlView = renderEngine === 'gl' && Platform.OS !== 'web';
@@ -717,48 +927,30 @@ export function SkyTabScreen({
     >
       <Defs>
         <LinearGradient
-          id="stellariumSky"
+          id="dynSkyMain"
           x1="50"
           y1="0"
           x2="50"
           y2="100"
           gradientUnits="userSpaceOnUse"
         >
-          <Stop offset="0%" stopColor="#070414" />
-          <Stop offset="18%" stopColor="#0c0822" />
-          <Stop offset="40%" stopColor="#140b34" />
-          <Stop offset="55%" stopColor="#281848" />
-          <Stop offset="70%" stopColor="#4a2048" />
-          <Stop offset="82%" stopColor="#7c3028" />
-          <Stop offset="91%" stopColor="#d06028" />
-          <Stop offset="97%" stopColor="#e89040" />
-          <Stop offset="100%" stopColor="#f8d090" />
+          <Stop offset="0%" stopColor={skyBackdrop.zenith} />
+          <Stop offset="46%" stopColor={skyBackdrop.mid} />
+          <Stop offset="100%" stopColor={skyBackdrop.horizon} />
         </LinearGradient>
         <RadialGradient
           id="zenithCool"
           cx="50"
-          cy="10"
-          rx="55"
-          ry="42"
+          cy="8"
+          rx="58"
+          ry="44"
           fx="50"
-          fy="6"
+          fy="4"
           gradientUnits="userSpaceOnUse"
         >
-          <Stop offset="0%" stopColor="#1a2058" stopOpacity="0.5" />
-          <Stop offset="100%" stopColor="#1a2058" stopOpacity="0" />
+          <Stop offset="0%" stopColor="#182458" stopOpacity="0.42" />
+          <Stop offset="100%" stopColor="#182458" stopOpacity="0" />
         </RadialGradient>
-        <LinearGradient
-          id="horizonMist"
-          x1="50"
-          y1="52"
-          x2="50"
-          y2="101"
-          gradientUnits="userSpaceOnUse"
-        >
-          <Stop offset="0%" stopColor="#ff9850" stopOpacity="0" />
-          <Stop offset="70%" stopColor="#ff8840" stopOpacity="0.18" />
-          <Stop offset="100%" stopColor="#ffd8b0" stopOpacity="0.4" />
-        </LinearGradient>
         <LinearGradient
           id="milkyWayBand"
           x1="8"
@@ -768,31 +960,65 @@ export function SkyTabScreen({
           gradientUnits="userSpaceOnUse"
         >
           <Stop offset="0%" stopColor="#5860a0" stopOpacity="0" />
-          <Stop offset="42%" stopColor="#8890c8" stopOpacity="0.11" />
-          <Stop offset="58%" stopColor="#9098d0" stopOpacity="0.13" />
+          <Stop offset="38%" stopColor="#8890c8" stopOpacity="0.075" />
+          <Stop offset="52%" stopColor="#9098d0" stopOpacity="0.095" />
           <Stop offset="100%" stopColor="#5860a0" stopOpacity="0" />
         </LinearGradient>
         <RadialGradient id="mwDustA" cx="32" cy="34" r="38" gradientUnits="userSpaceOnUse">
-          <Stop offset="0%" stopColor="#c8d0f8" stopOpacity="0.5" />
-          <Stop offset="40%" stopColor="#7080b0" stopOpacity="0.2" />
+          <Stop offset="0%" stopColor="#c8d0f8" stopOpacity="0.28" />
+          <Stop offset="45%" stopColor="#7080b0" stopOpacity="0.12" />
           <Stop offset="100%" stopColor="#283050" stopOpacity="0" />
         </RadialGradient>
         <RadialGradient id="mwDustB" cx="70" cy="46" r="32" gradientUnits="userSpaceOnUse">
-          <Stop offset="0%" stopColor="#a8b0e0" stopOpacity="0.45" />
+          <Stop offset="0%" stopColor="#a8b0e0" stopOpacity="0.26" />
           <Stop offset="100%" stopColor="#202840" stopOpacity="0" />
         </RadialGradient>
       </Defs>
-      {/* 야경·은하 장식 — 나침반(skyRotation)만. 손가락 패닝(viewAzPan)으로는 돌지 않음 */}
+      {/* 하늘 배경·은하 — 태양 고도(관측 시각·위치)에 따라 낮/황혼/밤 */}
       <G transform={`rotate(${skyRotation}, 50, 50)`}>
-        <Rect x="0" y="0" width="100" height="100" fill="url(#stellariumSky)" />
-        <Rect x="0" y="0" width="100" height="100" fill="url(#zenithCool)" />
-        <Rect x="0" y="0" width="100" height="100" fill="url(#horizonMist)" />
-        <Rect x="0" y="0" width="100" height="100" fill="url(#milkyWayBand)" opacity={0.85} />
-        <Ellipse cx="34" cy="36" rx="27" ry="11" fill="url(#mwDustA)" opacity={0.42} />
-        <Ellipse cx="64" cy="46" rx="22" ry="8" fill="url(#mwDustB)" opacity={0.34} />
+        <Rect x="0" y="0" width="100" height="100" fill="url(#dynSkyMain)" />
+        <Rect
+          x="0"
+          y="0"
+          width="100"
+          height="100"
+          fill="url(#zenithCool)"
+          opacity={skyBackdrop.zenithCoolOpacity}
+        />
+        <Rect
+          x="0"
+          y="0"
+          width="100"
+          height="100"
+          fill="url(#milkyWayBand)"
+          opacity={skyBackdrop.milkyOpacity}
+        />
+        <Ellipse
+          cx="34"
+          cy="36"
+          rx="27"
+          ry="11"
+          fill="url(#mwDustA)"
+          opacity={skyBackdrop.milkyOpacity * 0.45}
+        />
+        <Ellipse
+          cx="64"
+          cy="46"
+          rx="22"
+          ry="8"
+          fill="url(#mwDustB)"
+          opacity={skyBackdrop.milkyOpacity * 0.37}
+        />
       </G>
-      {/* 별·별선·행성만 나침반 + 패닝 각도 — 드래그 시 다른 방위의 별자리만 이동 */}
+      {/* 별·태양·별선·행성 — 나침반 + 패닝 */}
       <G transform={`rotate(${celestialRot}, 50, 50)`}>
+        {sunAltAzForSky ? (
+          <SunGlyph
+            nx={azAltToNorm(sunAltAzForSky.azDeg, sunAltAzForSky.altDeg).nx}
+            ny={azAltToNorm(sunAltAzForSky.azDeg, sunAltAzForSky.altDeg).ny}
+            altDeg={sunAltAzForSky.altDeg}
+          />
+        ) : null}
         {lineSegments.map((seg, i) => {
           const a = starsByHip.get(seg.fromHip);
           const b = starsByHip.get(seg.toHip);
@@ -807,7 +1033,7 @@ export function SkyTabScreen({
               x2={pb.nx}
               y2={pb.ny}
               stroke="#c4b8e8"
-              strokeOpacity={0.28}
+              strokeOpacity={skyBackdrop.lineOpacity}
               strokeWidth={0.4}
             />
           );
@@ -816,71 +1042,35 @@ export function SkyTabScreen({
           .filter((s) => s.visible)
           .map((s) => {
             const { nx, ny } = azAltToNorm(s.azDeg, s.altDeg);
-            return <StarGlyph key={s.hip} nx={nx} ny={ny} mag={s.mag} />;
+            return (
+              <CompactStarGlyph
+                key={s.hip}
+                nx={nx}
+                ny={ny}
+                mag={s.mag}
+                opacityScale={skyBackdrop.starOpacity}
+              />
+            );
           })}
         {(data.bodies ?? [])
           .filter((b: SkyViewBodyDto) => b.visible)
           .map((b: SkyViewBodyDto) => {
             const { nx, ny } = azAltToNorm(b.azDeg, b.altDeg);
-            const labelY = Math.max(
-              4,
-              ny - (b.id === 'moon' ? 7.5 : planetDiskRadius(b.magnitude) + 4.5),
-            );
-            return (
-              <React.Fragment key={b.id}>
-                {b.id === 'moon' ? (
-                  <>
-                    <Circle cx={nx} cy={ny} r={9.5} fill="#fff6e8" opacity={0.16} />
-                    <MoonDiskGlyph
-                      nx={nx}
-                      ny={ny}
-                      lit={b.phaseFraction ?? 1}
-                      moonPhaseDeg={b.moonPhaseDeg ?? 90}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <Circle
-                      cx={nx}
-                      cy={ny}
-                      r={planetDiskRadius(b.magnitude) + 2.4}
-                      fill={b.id === 'venus' ? '#fff4e8' : '#f0e4d4'}
-                      opacity={0.14}
-                    />
-                    <Circle
-                      cx={nx}
-                      cy={ny}
-                      r={planetDiskRadius(b.magnitude)}
-                      fill={b.id === 'venus' ? '#fff9f6' : '#f4e6d8'}
-                      stroke={b.id === 'venus' ? '#e8ddd4' : '#c9a882'}
-                      strokeWidth={0.3}
-                      opacity={0.99}
-                    />
-                  </>
-                )}
-                <SvgText
-                  x={nx}
-                  y={labelY}
-                  fill="#fffaf0"
-                  stroke="#120818"
-                  strokeWidth={0.45}
-                  strokeOpacity={0.75}
-                  fontSize="3.5"
-                  fontWeight="700"
-                  textAnchor="middle"
-                  opacity={0.98}
-                >
-                  {b.labelKo}
-                </SvgText>
-              </React.Fragment>
-            );
+            return <CelestialBodyMarker key={b.id} nx={nx} ny={ny} body={b} />;
           })}
       </G>
       <G transform={`rotate(${skyRotation}, 50, 50)`}>
-        <Path d={STELLARIUM_HILL_BASE} fill="#030308" opacity={0.98} />
-        <Path d={STELLARIUM_TREE_LINE} fill="#020205" />
+        <Path d={STELLARIUM_HILL_BASE} fill="#030308" opacity={skyBackdrop.hillOpacity} />
+        <Path d={STELLARIUM_TREE_LINE} fill="#020205" opacity={skyBackdrop.hillOpacity} />
         {STELLARIUM_BOKEH.map((b, i) => (
-          <Circle key={`bokeh-${i}`} cx={b.cx} cy={b.cy} r={b.r} fill="#ffe8c8" opacity={b.o} />
+          <Circle
+            key={`bokeh-${i}`}
+            cx={b.cx}
+            cy={b.cy}
+            r={b.r}
+            fill="#ffe8c8"
+            opacity={b.o * skyBackdrop.hillOpacity}
+          />
         ))}
       </G>
       {data.constellationLabels.map((lb, idx) => {
@@ -893,14 +1083,22 @@ export function SkyTabScreen({
             key={`${lb.con}-${idx}`}
             x={nx}
             y={ly}
-            fill="#ffdca8"
-            stroke="#1a0a20"
-            strokeWidth={0.35}
-            strokeOpacity={0.65}
-            fontSize="3.05"
-            fontWeight="600"
+            fill="#ffeccd"
+            stroke="#120818"
+            strokeWidth={0.22}
+            strokeOpacity={0.4}
+            fontSize={2.88}
+            fontWeight="500"
+            fontFamily={
+              Platform.OS === 'ios'
+                ? 'Helvetica Neue'
+                : Platform.OS === 'android'
+                  ? 'sans-serif'
+                  : undefined
+            }
+            letterSpacing={0.2}
             textAnchor="middle"
-            opacity={0.92}
+            opacity={skyBackdrop.labelOpacity}
             pointerEvents="none"
           >
             {label}
@@ -910,9 +1108,9 @@ export function SkyTabScreen({
     </Svg>
   ) : null;
 
-  /** SVG Text onPress는 기기별로 불안정해서, 동일 좌표에 RN Pressable 오버레이 */
+  /** SVG Text onPress는 기기별로 불안정해서, 동일 좌표에 RN Pressable 오버레이 — GL/SVG 공통 */
   const constellationHitOverlay =
-    data && !useGlView && skyVp.w > 0 && skyVp.h > 0 ? (
+    data && skyVp.w > 0 && skyVp.h > 0 ? (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none" collapsable={false}>
         {data.constellationLabels.map((lb, idx) => {
           const base = azAltToNorm(lb.azDeg, lb.altDeg);
@@ -925,8 +1123,26 @@ export function SkyTabScreen({
               key={`con-hit-${lb.con}-${idx}`}
               accessibilityRole="button"
               accessibilityLabel={`${labelKo} 별자리 운세`}
-              onPress={() => setConstellationSheet({ con: lb.con, labelKo: labelKo })}
+              onPress={() => setOverlaySheet({ kind: 'constellation', con: lb.con, labelKo })}
               style={{ position: 'absolute', left: x - 44, top: y - 14, width: 88, height: 30 }}
+            />
+          );
+        })}
+      </View>
+    ) : null;
+
+  const starHitOverlay =
+    data && skyVp.w > 0 && skyVp.h > 0 && starHitTargets.length > 0 ? (
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none" collapsable={false}>
+        {starHitTargets.map(({ star: s, left, top }) => {
+          const title = namedStarLabelKo(s.hip) ?? s.name ?? `HIP ${s.hip}`;
+          return (
+            <Pressable
+              key={`star-hit-${s.hip}`}
+              accessibilityRole="button"
+              accessibilityLabel={`별 정보 ${title}`}
+              onPress={() => setOverlaySheet({ kind: 'star', star: s })}
+              style={{ position: 'absolute', left, top, width: STAR_HIT_PX, height: STAR_HIT_PX }}
             />
           );
         })}
@@ -1097,6 +1313,27 @@ export function SkyTabScreen({
                   화면의 별자리 이름을 누르면 운세·이야기를 볼 수 있어요.
                 </Text>
               ) : null}
+              <View style={{ marginTop: 8 }}>
+                <Button
+                  label="시야 원위치 (좌우 패닝 초기화)"
+                  variant="outline"
+                  size="sm"
+                  disabled={Math.abs(viewAzPanDeg) < 0.25}
+                  onPress={() => setViewAzPanDeg(0)}
+                />
+                {Math.abs(viewAzPanDeg) >= 0.25 ? (
+                  <Text
+                    style={{
+                      color: theme.mutedForeground,
+                      fontSize: 9,
+                      marginTop: 6,
+                      lineHeight: 13,
+                    }}
+                  >
+                    가로로 드래그해 천구만 돌려 본 상태입니다. 버튼으로 처음 각도로 돌아갑니다.
+                  </Text>
+                ) : null}
+              </View>
               <View
                 style={[
                   styles.renderModeRow,
@@ -1190,9 +1427,8 @@ export function SkyTabScreen({
       </View>
     ) : null;
 
-  const constellationLoreOpen = constellationSheet
-    ? getConstellationLore(constellationSheet.con)
-    : null;
+  const constellationLoreOpen =
+    overlaySheet?.kind === 'constellation' ? getConstellationLore(overlaySheet.con) : null;
 
   return (
     <View
@@ -1281,13 +1517,42 @@ export function SkyTabScreen({
                   bodyMoonHex="#fff6dc"
                 />
               ) : !useGlView ? (
-                <View style={{ flex: 1, position: 'relative' }}>
-                  {skySvg}
-                  {constellationHitOverlay}
-                </View>
+                <View style={{ flex: 1, position: 'relative' }}>{skySvg}</View>
               ) : (
                 <View style={styles.glPlaceholder} />
               )}
+              {starHitOverlay}
+              {namedStarOverlayLayout.length > 0 ? (
+                <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                  {namedStarOverlayLayout.map(({ id, label, left, top }) => (
+                    <View
+                      key={`named-star-${id}`}
+                      style={{
+                        position: 'absolute',
+                        left,
+                        top,
+                        maxWidth: 240,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          textAlign: 'center',
+                          fontSize: 10,
+                          fontWeight: '600',
+                          color: '#ffeccd',
+                          opacity: skyBackdrop.labelOpacity * 0.95,
+                          textShadowColor: 'rgba(8,6,20,0.85)',
+                          textShadowOffset: { width: 0, height: 0.5 },
+                          textShadowRadius: 2,
+                        }}
+                      >
+                        {label}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              {constellationHitOverlay}
             </View>
           ) : null}
 
@@ -1297,18 +1562,18 @@ export function SkyTabScreen({
       {top3Floating}
 
       <Modal
-        visible={constellationSheet != null}
+        visible={overlaySheet != null}
         transparent
         animationType="slide"
-        onRequestClose={() => setConstellationSheet(null)}
+        onRequestClose={() => setOverlaySheet(null)}
       >
-        {constellationSheet ? (
+        {overlaySheet ? (
           <View style={styles.sheetOverlay}>
             <Pressable
               style={StyleSheet.absoluteFill}
               accessibilityRole="button"
               accessibilityLabel="닫기"
-              onPress={() => setConstellationSheet(null)}
+              onPress={() => setOverlaySheet(null)}
             />
             <View
               style={[
@@ -1321,30 +1586,88 @@ export function SkyTabScreen({
               ]}
             >
               <View style={[styles.sheetGrab, { backgroundColor: theme.borderSubtle }]} />
-              <Text style={[styles.sheetTitle, { color: theme.foreground }]}>
-                {constellationSheet.labelKo}
-              </Text>
-              <Text style={[styles.sheetSection, { color: theme.starGold }]}>별자리 운세</Text>
-              <ScrollView
-                style={styles.sheetScroll}
-                contentContainerStyle={styles.sheetScrollInner}
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={[styles.sheetBody, { color: theme.foreground }]}>
-                  {constellationLoreOpen?.fortune}
-                </Text>
-                <Text style={[styles.sheetSection, { color: theme.starGold, marginTop: 18 }]}>
-                  이야기
-                </Text>
-                <Text style={[styles.sheetStory, { color: theme.mutedForeground }]}>
-                  {constellationLoreOpen?.story}
-                </Text>
-              </ScrollView>
+              {overlaySheet.kind === 'constellation' ? (
+                <>
+                  <Text style={[styles.sheetTitle, { color: theme.foreground }]}>
+                    {overlaySheet.labelKo}
+                  </Text>
+                  <Text style={[styles.sheetSection, { color: theme.starGold }]}>별자리 운세</Text>
+                  <ScrollView
+                    style={styles.sheetScroll}
+                    contentContainerStyle={styles.sheetScrollInner}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <Text style={[styles.sheetBody, { color: theme.foreground }]}>
+                      {constellationLoreOpen?.fortune}
+                    </Text>
+                    <Text style={[styles.sheetSection, { color: theme.starGold, marginTop: 18 }]}>
+                      이야기
+                    </Text>
+                    <Text style={[styles.sheetStory, { color: theme.mutedForeground }]}>
+                      {constellationLoreOpen?.story}
+                    </Text>
+                  </ScrollView>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.sheetTitle, { color: theme.foreground }]}>
+                    {namedStarLabelKo(overlaySheet.star.hip) ??
+                      overlaySheet.star.name ??
+                      `HIP ${overlaySheet.star.hip}`}
+                  </Text>
+                  {overlaySheet.star.name ? (
+                    <Text
+                      style={{
+                        color: theme.mutedForeground,
+                        marginTop: 4,
+                        fontSize: 13,
+                        lineHeight: 18,
+                      }}
+                    >
+                      {overlaySheet.star.name}
+                    </Text>
+                  ) : null}
+                  <ScrollView
+                    style={styles.sheetScroll}
+                    contentContainerStyle={styles.sheetScrollInner}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <Text style={[styles.sheetSection, { color: theme.starGold, marginTop: 8 }]}>
+                      관측 정보
+                    </Text>
+                    <Text style={[styles.sheetBody, { color: theme.foreground }]}>
+                      별자리: {CON_LABEL_KO[overlaySheet.star.con] ?? overlaySheet.star.con}
+                      {'\n'}
+                      시각등급: {overlaySheet.star.mag.toFixed(2)} 등급
+                      {'\n'}
+                      방위·고도: {overlaySheet.star.azDeg.toFixed(1)}° ·{' '}
+                      {overlaySheet.star.altDeg.toFixed(1)}°
+                      {'\n'}
+                      HIP: {overlaySheet.star.hip}
+                    </Text>
+                    <Text style={[styles.sheetSection, { color: theme.starGold, marginTop: 18 }]}>
+                      거리
+                    </Text>
+                    <Text style={[styles.sheetBody, { color: theme.mutedForeground }]}>
+                      {formatStarDistanceLyAu(overlaySheet.star.distanceLy)}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.sheetStory,
+                        { color: theme.mutedForeground, marginTop: 12, fontSize: 11, lineHeight: 16 },
+                      ]}
+                    >
+                      거리는 밝은 별 목록에 넣은 정적 대표값(광년)입니다. AU 표기는 같은 시선 거리를
+                      태양–지구 거리로 나눈 스케일이며, 항성까지의 실제 물리 거리는 광년이 더 직관적입니다.
+                    </Text>
+                  </ScrollView>
+                </>
+              )}
               <Button
                 label="닫기"
                 variant="secondary"
                 fullWidth
-                onPress={() => setConstellationSheet(null)}
+                onPress={() => setOverlaySheet(null)}
               />
             </View>
           </View>

@@ -32,6 +32,48 @@ export class StarIndexController {
     private readonly spots: SpotRepository,
   ) {}
 
+  /** 지도 클러스터 목록용 — 요청 1회로 여러 UUID 점수 (쉼표 구분, 최대 40) */
+  @Throttle({ default: { ttl: 60000, limit: 20 } })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('spot-scores')
+  @ApiOperation({
+    summary: '등록된 명소 여러 곳의 현재 Star-Index 점수',
+  })
+  async getSpotScores(
+    @CurrentUser() user: JwtValidatedUser,
+    @Query('ids') idsRaw?: string,
+  ) {
+    const raw = idsRaw?.trim();
+    if (!raw) {
+      throw new BadRequestException('ids=uuid1,uuid2,... 형식이 필요합니다.');
+    }
+    const ids = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 40);
+
+    const items: { spotId: string; score: number }[] = [];
+
+    for (const id of ids) {
+      const spot = await this.spots.findById(id);
+      if (!spot) continue;
+      try {
+        const { score } =
+          await this.starIndexService.calculateForSpotFromCache(spot);
+        items.push({ spotId: spot.id, score });
+      } catch {
+        /* 개별 실패는 건너뜀 */
+      }
+    }
+
+    return {
+      items,
+      requestedBy: user.email,
+    };
+  }
+
   // 현재 위치 기반 Star-Index 조회 — 인증 필요 (JwtAuthGuard 샘플 적용)
   // 60초 내 10회 제한 (기상 API 비용 보호)
   @Throttle({ default: { ttl: 60000, limit: 10 } })
@@ -89,14 +131,15 @@ export class StarIndexController {
     const { score, weatherSnapshot, cacheKeys, nearestSpot, distanceKm } =
       await this.starIndexService.calculateForLatLngFromCache(lat, lng);
 
-    const nameSuffix =
+    const detailMsg =
       nearestSpot && distanceKm != null
-        ? ` — Bortle/고도: ${nearestSpot.name} (${distanceKm.toFixed(1)}km)`
-        : ' — Bortle/고도: 기본값(주변 명소 없음)';
+        ? `격자 기상 + 주변 참고: ${nearestSpot.name} (약 ${distanceKm.toFixed(1)}km) — 앱에서 행정구역 이름은 역지오코딩으로 표시합니다.`
+        : '격자 기상 + 기본 광공해·고도';
 
     return {
       spotId: nearestSpot?.id,
-      name: `현재 위치 격자${nameSuffix}`,
+      /** 표시용 짧은 이름 — 상세 지명은 클라이언트 역지오코딩 권장 */
+      name: '현재 좌표',
       lat,
       lng,
       elevationM: nearestSpot?.elevationM ?? 100,
@@ -104,8 +147,7 @@ export class StarIndexController {
       score,
       weatherSnapshot,
       cacheKeys,
-      message:
-        'GPS 좌표 격자 기상 + (가능 시) 가장 가까운 명소 광공해·해발·보정으로 계산',
+      message: detailMsg,
       requestedBy: user.email,
     };
   }
