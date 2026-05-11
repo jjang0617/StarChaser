@@ -6,9 +6,15 @@ import {
   ApiOkResponse,
   ApiConflictResponse,
   ApiUnauthorizedResponse,
+  ApiBadRequestResponse,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { RegisterDto } from './dto/register.dto';
+import { SendCodeDto } from './dto/send-code.dto';
+import { VerifyCodeDto } from './dto/verify-code.dto';
+import { CheckEmailDto } from './dto/check-email.dto';
+import { CheckNicknameDto } from './dto/check-nickname.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 @ApiTags('auth')
@@ -16,14 +22,47 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('check-email')
+  @ApiOperation({ summary: '이메일 중복 확인' })
+  @ApiOkResponse({ description: '{ available: boolean }' })
+  checkEmail(@Body() dto: CheckEmailDto) {
+    return this.authService.checkEmail(dto.email);
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('check-nickname')
+  @ApiOperation({ summary: '닉네임 중복 확인' })
+  @ApiOkResponse({ description: '{ available: boolean }' })
+  checkNickname(@Body() dto: CheckNicknameDto) {
+    return this.authService.checkNickname(dto.nickname);
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @Post('send-code')
+  @ApiOperation({ summary: '이메일 인증번호 발송' })
+  @ApiOkResponse({ description: '인증번호 발송 완료 메시지' })
+  sendCode(@Body() dto: SendCodeDto) {
+    return this.authService.sendCode(dto);
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Post('verify-code')
+  @ApiOperation({ summary: '이메일 인증번호 확인' })
+  @ApiOkResponse({ description: '{ verified: boolean }' })
+  verifyCode(@Body() dto: VerifyCodeDto) {
+    return this.authService.verifyCode(dto);
+  }
+
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('register')
-  @ApiOperation({ summary: '회원가입 — access·refresh JWT 발급' })
+  @ApiOperation({ summary: '회원가입 — 이메일 인증 완료 후 access·refresh JWT 발급' })
   @ApiOkResponse({
     description: 'access 1h, refresh 30d — refresh는 users.refresh_token에 저장',
   })
-  @ApiConflictResponse({ description: '이메일 중복' })
-  register(@Body() dto: AuthCredentialsDto) {
+  @ApiConflictResponse({ description: '이메일 또는 닉네임 중복' })
+  @ApiBadRequestResponse({ description: '이메일 인증 미완료' })
+  register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 

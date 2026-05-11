@@ -6,6 +6,7 @@ import { NotificationTokenEntity } from '../notifications/notification-token.ent
 import { PhotoEntity } from '../photos/photo.entity';
 import { SpotEntity } from '../spots/spot.entity';
 import { UserEntity } from '../users/user.entity';
+import { EmailVerificationEntity } from '../auth/email-verification.entity';
 import { config } from 'dotenv';
 
 // TypeORM CLI 실행 시에도 backend/.env를 자동 로드한다.
@@ -29,6 +30,7 @@ export default new DataSource({
     NotificationTokenEntity,
     NotificationPreferenceEntity,
     StarIndexCorrectionSubmissionEntity,
+    EmailVerificationEntity,
   ],
   migrations: ['src/migrations/*.ts'],
   synchronize: false,

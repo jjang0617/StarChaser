@@ -212,7 +212,9 @@ export async function authorizedPutJson<T>(
 
 export async function postAuthJson(
   path: '/auth/login' | '/auth/register',
-  payload: { email: string; password: string },
+  payload:
+    | { email: string; password: string }
+    | { email: string; password: string; nickname: string; verificationCode: string },
 ): Promise<AuthTokensResponseDto> {
   const res = await fetch(`${getApiBaseUrl()}${path}`, {
     method: 'POST',
@@ -236,6 +238,80 @@ export async function postAuthJson(
     throw new ApiRequestError('인증 응답 형식이 올바르지 않습니다.', res.status, body);
   }
   return data;
+}
+
+export async function checkEmail(email: string): Promise<{ available: boolean }> {
+  const res = await fetch(`${getApiBaseUrl()}/auth/check-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const body = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiRequestError(
+      messageFromErrorBody(body, '이메일 확인에 실패했습니다.'),
+      res.status,
+      body,
+    );
+  }
+  return body as { available: boolean };
+}
+
+export async function checkNickname(nickname: string): Promise<{ available: boolean }> {
+  const res = await fetch(`${getApiBaseUrl()}/auth/check-nickname`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nickname }),
+  });
+  const body = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiRequestError(
+      messageFromErrorBody(body, '닉네임 확인에 실패했습니다.'),
+      res.status,
+      body,
+    );
+  }
+  return body as { available: boolean };
+}
+
+export async function sendVerificationCode(
+  email: string,
+  purpose: 'register' | 'reset-password',
+): Promise<{ message: string }> {
+  const res = await fetch(`${getApiBaseUrl()}/auth/send-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, purpose }),
+  });
+  const body = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiRequestError(
+      messageFromErrorBody(body, '인증번호 발송에 실패했습니다.'),
+      res.status,
+      body,
+    );
+  }
+  return body as { message: string };
+}
+
+export async function verifyCode(
+  email: string,
+  code: string,
+): Promise<{ verified: boolean }> {
+  const res = await fetch(`${getApiBaseUrl()}/auth/verify-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  });
+  const body = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiRequestError(
+      messageFromErrorBody(body, '인증번호 확인에 실패했습니다.'),
+      res.status,
+      body,
+    );
+  }
+  return body as { verified: boolean };
 }
 
 /** 앱 기동 시 access 만료면 선제 갱신 */

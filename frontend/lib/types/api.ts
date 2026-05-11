@@ -44,7 +44,7 @@ export interface StarIndexResponseDto {
 }
 
 export interface AuthTokensResponseDto {
-  user: { id: string; email: string };
+  user: { id: string; email: string; nickname: string | null };
   accessToken: string;
   refreshToken: string;
 }
