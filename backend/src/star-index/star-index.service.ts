@@ -13,7 +13,26 @@ import {
 } from '../common/interfaces/spot.repository';
 import { MOON_ALTITUDE_MISSING_SENTINEL } from '../sky/kasi.mapper';
 import { moonStateAtObserver } from '../sky/moon-ephemeris.util';
-import { skyCodeToLabel } from '../cache-hydration/kma-forecast.util';
+import { sunAltitudeAtObserver } from '../sky/sun-ephemeris.util';
+import { sunAltitudeToObservationScore } from './sun-observation-score.util';
+import {
+  aggregateStarIndexScore,
+  calcCloudScore,
+  calcElevationScore,
+  calcHumidityHazeScore,
+  calcLightPollutionScore,
+  calcMoonEffectScore,
+  calcPm25Score,
+  calcPrecipitationScore,
+  calcTemperatureNeutralScore,
+  calcVisibilityScore,
+  calcWindSeeingScore,
+} from './star-index-scoring.util';
+import {
+  parseForecastNumbers,
+  skyCodeToLabel,
+  type VilageFcstItem,
+} from '../cache-hydration/kma-forecast.util';
 import type { WeatherSnapshot } from '../common/interfaces/weather-snapshot';
 import { normalizeWeatherSnapshotForStorage } from '../common/interfaces/weather-snapshot';
 import {
@@ -32,8 +51,10 @@ interface WeatherData {
   humidity: number;
   windSpeed: number;
   visibility: number;
+  visibilityKnown: boolean;
   temperature: number;
   pop: number;
+  pty: number;
 }
 
 interface DustData {
@@ -54,6 +75,10 @@ interface StarIndexInput {
   moon: MoonData;
   bortleClass: number; // 광공해 Bortle 등급 (1~9)
   elevationM: number; // 해발고도 (m) — GPS 고도 변수
+  lat: number;
+  lng: number;
+  /** 관측 시각(UTC). 없으면 요청 시각 */
+  atUtc?: Date;
   /** 제보 집계값; 없으면 100(중립) */
   correctionScore?: number;
 }
@@ -72,7 +97,10 @@ export class StarIndexService {
     private readonly cacheHydration: StarIndexCacheHydrationService,
   ) {}
 
-  async calculateForSpotFromCache(spot: Spot): Promise<{
+  async calculateForSpotFromCache(
+    spot: Spot,
+    atUtc?: Date,
+  ): Promise<{
     score: number;
     weatherSnapshot: WeatherSnapshot;
     cacheKeys: { weatherKey: string; dustKey: string; moonKey: string };
@@ -89,6 +117,7 @@ export class StarIndexService {
 
     const weather = this.readWeatherCache(
       await this.cache.get(weatherKey),
+      atUtc,
     );
     const dust = this.readDustCache(await this.cache.get(dustKey));
     const moonRaw = await this.cache.get<MoonData>(moonKey);
@@ -99,18 +128,24 @@ export class StarIndexService {
       );
     }
 
-    const moon = this.resolveMoonAt(spot.lat, spot.lng, moonRaw);
+    const moon = this.resolveMoonAt(spot.lat, spot.lng, moonRaw, atUtc);
     const correctionScore =
       await this.correctionsService.getAggregatedCorrectionScoreForSpot(spot.id);
 
-    const { score, weatherSnapshot } = await this.getStarIndexBySpotId(spot.id, {
-      weather,
-      dust,
-      moon,
-      bortleClass: spot.bortleClass,
-      elevationM: spot.elevationM,
-      correctionScore,
-    });
+    const { score, weatherSnapshot } = await this.getStarIndexBySpotId(
+      spot.id,
+      {
+        weather,
+        dust,
+        moon,
+        bortleClass: spot.bortleClass,
+        elevationM: spot.elevationM,
+        lat: spot.lat,
+        lng: spot.lng,
+        atUtc,
+        correctionScore,
+      },
+    );
 
     return {
       score,
@@ -123,7 +158,11 @@ export class StarIndexService {
    * GPS(또는 임의 좌표) 격자 기상 + 주변 명소 Bortle/고도/보정으로 Star-Index.
    * 명소 spotId 캐시는 쓰지 않고 매 요청 계산한다.
    */
-  async calculateForLatLngFromCache(lat: number, lng: number): Promise<{
+  async calculateForLatLngFromCache(
+    lat: number,
+    lng: number,
+    atUtc?: Date,
+  ): Promise<{
     score: number;
     weatherSnapshot: WeatherSnapshot;
     cacheKeys: { weatherKey: string; dustKey: string; moonKey: string };
@@ -139,6 +178,7 @@ export class StarIndexService {
 
     const weather = this.readWeatherCache(
       await this.cache.get(weatherKey),
+      atUtc,
     );
     const dust = this.readDustCache(await this.cache.get(dustKey));
     const moonRaw = await this.cache.get<MoonData>(moonKey);
@@ -149,7 +189,7 @@ export class StarIndexService {
       );
     }
 
-    const moon = this.resolveMoonAt(lat, lng, moonRaw);
+    const moon = this.resolveMoonAt(lat, lng, moonRaw, atUtc);
     const nearby = await this.spots.findNearby(lat, lng, 200_000);
     const nearest = this.pickNearestSpot(lat, lng, nearby);
     const distanceKm = nearest
@@ -170,6 +210,9 @@ export class StarIndexService {
       moon,
       bortleClass,
       elevationM,
+      lat,
+      lng,
+      atUtc,
       correctionScore,
     });
 
@@ -251,6 +294,8 @@ export class StarIndexService {
       moon,
       bortleClass: spot.bortleClass,
       elevationM: spot.elevationM,
+      lat: spot.lat,
+      lng: spot.lng,
       correctionScore,
     });
     return score;
@@ -286,17 +331,44 @@ export class StarIndexService {
     const weatherSnapshot = enrichWeatherSnapshotForDisplay(
       normalizeWeatherSnapshotForStorage(raw),
     );
-    const score = this.aggregateScoreFromSnapshot(
-      weatherSnapshot,
-      input.weather.pop,
+    const sunAltDeg = sunAltitudeAtObserver(
+      input.lat,
+      input.lng,
+      input.atUtc ?? new Date(),
     );
+    const score = aggregateStarIndexScore({
+      components: weatherSnapshot,
+      cloudPercent: input.weather.cloud,
+      sunAltitudeDeg: sunAltDeg,
+      pop: input.weather.pop,
+      pty: input.weather.pty,
+      visibilityKnown: input.weather.visibilityKnown,
+    });
     return { score, weatherSnapshot };
   }
 
-  private readWeatherCache(raw: unknown): WeatherData | null {
+  private readWeatherCache(raw: unknown, atUtc?: Date): WeatherData | null {
     const n = normalizeWeatherCacheEntry(raw);
     if (!n || n.cloud === undefined) return null;
     const w = raw as Record<string, unknown>;
+    const items = w.fcstItems;
+    if (Array.isArray(items) && items.length > 0) {
+      const nums = parseForecastNumbers(
+        items as VilageFcstItem[],
+        atUtc ?? new Date(),
+      );
+      return {
+        skyCode: nums.skyCode,
+        cloud: nums.cloud,
+        humidity: nums.humidity,
+        windSpeed: nums.windSpeed,
+        visibility: nums.visibility,
+        visibilityKnown: nums.visibilityKnown,
+        temperature: nums.temperature,
+        pop: nums.pop,
+        pty: nums.pty,
+      };
+    }
     const skyRaw = Number(w.skyCode);
     return {
       skyCode: Number.isFinite(skyRaw) ? skyRaw : (n.skyCode ?? 1),
@@ -304,8 +376,10 @@ export class StarIndexService {
       humidity: Number(w.humidity) || 70,
       windSpeed: Number(w.windSpeed) || 2,
       visibility: Number(w.visibility) || 10,
+      visibilityKnown: w.visibilityKnown === true,
       temperature: Number(w.temperature) || 12,
       pop: Number(w.pop) || 0,
+      pty: Number(w.pty) || 0,
     };
   }
 
@@ -319,8 +393,13 @@ export class StarIndexService {
     };
   }
 
-  private resolveMoonAt(lat: number, lng: number, cached: MoonData): MoonData {
-    const ephemeris = moonStateAtObserver(lat, lng);
+  private resolveMoonAt(
+    lat: number,
+    lng: number,
+    cached: MoonData,
+    atUtc?: Date,
+  ): MoonData {
+    const ephemeris = moonStateAtObserver(lat, lng, atUtc);
     return {
       phase: cached.phase > 0 ? cached.phase : ephemeris.phase,
       altitude: ephemeris.altitude,
@@ -329,25 +408,34 @@ export class StarIndexService {
   }
 
   private buildRawWeatherSnapshot(input: StarIndexInput): WeatherSnapshot {
-    const { weather, dust, moon, bortleClass, elevationM } = input;
+    const { weather, dust, moon, bortleClass, elevationM, lat, lng } = input;
     const skyCode = weather.skyCode;
+    const sunAltDeg = sunAltitudeAtObserver(lat, lng, input.atUtc ?? new Date());
+    const precipScore = calcPrecipitationScore(weather.pty, weather.pop);
 
     return {
-      cloud_score: this.calcCloudScore(weather.cloud),
-      pm25_score: this.calcPm25Score(dust.pm25),
-      light_pollution_score: this.calcLightPollutionScore(bortleClass),
-      moon_effect_score: this.calcMoonScore(
+      cloud_score: calcCloudScore(weather.cloud),
+      pm25_score: calcPm25Score(dust.pm25),
+      light_pollution_score: calcLightPollutionScore(bortleClass),
+      moon_effect_score: calcMoonEffectScore(
         moon.phase,
         moon.altitude,
         moon.moonAltitudeKnown,
+        MOON_ALTITUDE_MISSING_SENTINEL,
       ),
-      humidity_score: this.calcHumidityScore(weather.humidity),
-      elevation_score: this.calcElevationScore(elevationM),
-      wind_score: this.calcWindScore(weather.windSpeed),
-      visibility_score: this.calcVisibilityScore(weather.visibility),
-      temperature_score: this.calcTempScore(weather.temperature),
+      humidity_score: calcHumidityHazeScore(weather.humidity, dust.pm25),
+      elevation_score: calcElevationScore(elevationM),
+      wind_score: calcWindSeeingScore(weather.windSpeed),
+      visibility_score: calcVisibilityScore(
+        weather.visibility,
+        weather.visibilityKnown,
+      ),
+      temperature_score: calcTemperatureNeutralScore(),
       correction_score: input.correctionScore ?? 100,
       precipitation_probability: weather.pop,
+      precipitation_type: weather.pty,
+      precipitation_score: precipScore,
+      visibility_known: weather.visibilityKnown,
       moon_altitude_deg: moon.altitude,
       moon_altitude_known: moon.moonAltitudeKnown,
       lun_phase: moon.phase,
@@ -357,94 +445,9 @@ export class StarIndexService {
       pm25_ug_m3: dust.pm25,
       pm25_label: dust.pm25Label,
       pm25_station_name: dust.stationName,
+      sun_altitude_deg: sunAltDeg,
+      daylight_observation_score: sunAltitudeToObservationScore(sunAltDeg),
     };
-  }
-
-  private aggregateScoreFromSnapshot(
-    snap: WeatherSnapshot,
-    pop: number,
-  ): number {
-    let score =
-      snap.cloud_score * 0.28 +
-      snap.pm25_score * 0.17 +
-      snap.light_pollution_score * 0.17 +
-      snap.moon_effect_score * 0.12 +
-      snap.humidity_score * 0.1 +
-      snap.elevation_score * 0.06 +
-      snap.wind_score * 0.04 +
-      snap.visibility_score * 0.03 +
-      snap.temperature_score * 0.02 +
-      snap.correction_score * 0.01;
-
-    if (pop >= 60) {
-      score *= 0.4;
-    }
-
-    return Math.round(Math.min(100, Math.max(0, score)));
-  }
-
-  // ── 각 변수 점수 계산 함수들 ─────────────────────────────────
-
-  private calcCloudScore(cloud: number): number {
-    return Math.max(0, 100 - cloud);
-  }
-
-  private calcPm25Score(pm25: number): number {
-    if (pm25 <= 15) return 100;
-    if (pm25 <= 35) return 75;
-    if (pm25 <= 75) return 40;
-    return 0;
-  }
-
-  private calcLightPollutionScore(bortleClass: number): number {
-    return Math.max(0, Math.round(((9 - bortleClass) / 8) * 100));
-  }
-
-  /**
-   * RiseSet만 쓸 때 고도 필드 부재 → 센티넬(-10) + known=false → 달 감점 없음(100)
-   * 음수 고도는 지평선 아래 → 달 감점 없음(100)
-   */
-  private calcMoonScore(
-    phase: number,
-    altitudeDeg: number,
-    altitudeKnown?: boolean,
-  ): number {
-    const altitudeMissing =
-      altitudeKnown === false ||
-      (altitudeKnown === undefined &&
-        altitudeDeg === MOON_ALTITUDE_MISSING_SENTINEL);
-    if (altitudeMissing) return 100;
-    if (altitudeDeg < 0) return 100;
-    const moonEffect = phase * (altitudeDeg / 90);
-    return Math.round((1 - moonEffect) * 100);
-  }
-
-  private calcHumidityScore(humidity: number): number {
-    if (humidity <= 70) return 100;
-    if (humidity >= 90) return 0;
-    return Math.round(((90 - humidity) / 20) * 100);
-  }
-
-  private calcElevationScore(elevationM: number): number {
-    return Math.min(100, Math.round(elevationM / 5));
-  }
-
-  private calcWindScore(windSpeed: number): number {
-    if (windSpeed <= 5) return 100;
-    if (windSpeed >= 10) return 0;
-    return Math.round(((10 - windSpeed) / 5) * 100);
-  }
-
-  private calcVisibilityScore(visibilityKm: number): number {
-    if (visibilityKm >= 10) return 100;
-    if (visibilityKm < 5) return 0;
-    return Math.round(((visibilityKm - 5) / 5) * 100);
-  }
-
-  private calcTempScore(temp: number): number {
-    if (temp >= 5 && temp <= 20) return 100;
-    if (temp < -10 || temp > 35) return 20;
-    return 60;
   }
 
   // ── 기상청 격자 좌표 변환 (위도·경도 → nx, ny) ───────────────

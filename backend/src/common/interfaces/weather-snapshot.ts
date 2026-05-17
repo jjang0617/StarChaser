@@ -40,6 +40,18 @@ export interface WeatherSnapshot {
   pm25_ug_m3?: number;
   pm25_label?: string;
   pm25_station_name?: string;
+
+  /** 태양 고도(°) — 0 이상이면 주간, Star-Index에 강한 감점 */
+  sun_altitude_deg?: number;
+  /** 0~100, 100=완전한 밤 (태양 고도 기반) */
+  daylight_observation_score?: number;
+
+  /** KMA PTY 강수형태 (0=없음) */
+  precipitation_type?: number;
+  /** 강수·PTY 기반 0~100 (선택) */
+  precipitation_score?: number;
+  /** VVV 시정이 예보에 포함됐는지 */
+  visibility_known?: boolean;
 }
 
 /** DB CHECK 및 Observation 저장 시 반드시 존재해야 하는 10개 점수 키 */
@@ -145,6 +157,23 @@ export function normalizeWeatherSnapshotForStorage(
   }
   if (raw.pm25_station_name !== undefined) {
     base.pm25_station_name = raw.pm25_station_name;
+  }
+  if (raw.sun_altitude_deg !== undefined) {
+    base.sun_altitude_deg = raw.sun_altitude_deg;
+  }
+  if (raw.daylight_observation_score !== undefined) {
+    base.daylight_observation_score = clampScore0to100(
+      raw.daylight_observation_score,
+    );
+  }
+  if (raw.precipitation_type !== undefined) {
+    base.precipitation_type = raw.precipitation_type;
+  }
+  if (raw.precipitation_score !== undefined) {
+    base.precipitation_score = clampScore0to100(raw.precipitation_score);
+  }
+  if (raw.visibility_known !== undefined) {
+    base.visibility_known = raw.visibility_known;
   }
   return base;
 }

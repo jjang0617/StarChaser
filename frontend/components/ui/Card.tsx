@@ -14,6 +14,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
 import { useTheme } from '../../themes/ThemeContext';
 import { Badge } from './Badge';
 import { Button } from './Button';
@@ -183,14 +184,19 @@ export function StarIndexCard({
   showCircularGauge = true,
 }: StarIndexCardProps) {
   const { theme } = useTheme();
+  const scoreDisplay = getStarIndexScoreDisplay(score);
 
-  const status =
-    score >= 75 ? '관측 적합' :
-    score >= 50 ? '부분 관측' : '관측 불가';
+  const status = !scoreDisplay.measurable
+    ? '측정불가'
+    : score >= 75
+      ? '관측 적합'
+      : '부분 관측';
 
-  const scoreColor =
-    score >= 75 ? theme.starGold :
-    score >= 50 ? theme.moonlight : theme.mutedForeground;
+  const scoreColor = !scoreDisplay.measurable
+    ? theme.destructive
+    : score >= 75
+      ? theme.starGold
+      : theme.moonlight;
 
   const moonLabel =
     moonAltitudeKnown ? `${moonAltitude}°` : '미상';
@@ -203,7 +209,7 @@ export function StarIndexCard({
 
   const gaugeR = 36;
   const gaugeC = 2 * Math.PI * gaugeR;
-  const gaugeDash = (score / 100) * gaugeC;
+  const gaugeDash = (scoreDisplay.gaugePercent / 100) * gaugeC;
 
   const inner = (
     <>
@@ -238,16 +244,30 @@ export function StarIndexCard({
               STAR · INDEX
             </Text>
             <Text
-              style={[styles.siScore, { color: scoreColor, fontFamily: 'SpaceMono-Regular' }]}
+              style={[
+                styles.siScore,
+                {
+                  color: scoreColor,
+                  fontFamily: 'SpaceMono-Regular',
+                  fontSize: scoreDisplay.measurable ? 40 : 22,
+                  lineHeight: scoreDisplay.measurable ? 44 : 28,
+                },
+              ]}
             >
-              {score}
+              {scoreDisplay.label}
             </Text>
           </View>
         </View>
         <View style={styles.siRight}>
           <Badge
             label={status}
-            variant={score >= 75 ? 'gold' : score >= 50 ? 'steel' : 'muted'}
+            variant={
+              !scoreDisplay.measurable
+                ? 'red'
+                : score >= 75
+                  ? 'gold'
+                  : 'steel'
+            }
           />
           <Text style={[styles.siRefresh, { color: theme.mutedForeground }]}>
             1H REFRESH
@@ -313,6 +333,7 @@ export function SpotCard({
   bare = false,
 }: SpotCardProps) {
   const { theme } = useTheme();
+  const scoreDisplay = getStarIndexScoreDisplay(starIndex);
 
   const bortleVariant =
     bortleClass <= 3 ? 'gold' :
@@ -328,8 +349,18 @@ export function SpotCard({
           </Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[styles.spotScore, { color: theme.starGold, fontFamily: 'SpaceMono-Regular' }]}>
-            {starIndex}
+          <Text
+            style={[
+              styles.spotScore,
+              {
+                color: scoreDisplay.measurable ? theme.starGold : theme.destructive,
+                fontFamily: 'SpaceMono-Regular',
+                fontSize: scoreDisplay.measurable ? 22 : 13,
+                lineHeight: scoreDisplay.measurable ? 24 : 18,
+              },
+            ]}
+          >
+            {scoreDisplay.label}
           </Text>
           <Text style={[styles.spotScoreLabel, { color: theme.mutedForeground }]}>
             INDEX

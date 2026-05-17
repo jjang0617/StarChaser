@@ -17,6 +17,7 @@ import {
   SessionExpiredError,
 } from '../../lib/api-client';
 import type { ClusterSpotRnDto } from '../../lib/types/map-spot';
+import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
 import { useTheme } from '../../themes/ThemeContext';
 
 type Props = {
@@ -140,6 +141,8 @@ export function MapClusterSpotsSheet({
               const sub =
                 s.title && s.shortTitle && s.title.trim() !== s.shortTitle.trim() ? s.title : null;
               const sc = scoreById[s.id];
+              const scDisplay =
+                sc != null ? getStarIndexScoreDisplay(sc) : null;
               const isSelected = selectedId === s.id;
               return (
                 <Pressable
@@ -167,10 +170,22 @@ export function MapClusterSpotsSheet({
                       ) : null}
                     </View>
                     <Text
-                      style={[styles.scoreText, { color: theme.starGold }]}
+                      style={[
+                        styles.scoreText,
+                        {
+                          color: scDisplay?.measurable
+                            ? theme.starGold
+                            : theme.destructive,
+                          fontSize: scDisplay?.measurable ? 16 : 12,
+                        },
+                      ]}
                       numberOfLines={1}
                     >
-                      {scoresLoading ? '…' : sc != null ? `${sc}` : '—'}
+                      {scoresLoading
+                        ? '…'
+                        : scDisplay != null
+                          ? scDisplay.label
+                          : '—'}
                     </Text>
                   </View>
                 </Pressable>

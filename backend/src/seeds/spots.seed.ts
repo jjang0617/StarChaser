@@ -19,7 +19,7 @@ type SpotSeedRow = {
 const spotsSeedData: SpotSeedRow[] = [
   // ⚠️ elevation_m 반드시 입력 — Google Maps 위성 뷰 또는 국토지리정보원 확인
   {
-    name: '영월 별마로 천문대',
+    name: '강원 영월 별마로 천문대',
     // ST_MakePoint(경도, 위도) — 순서 주의!
     lng: 128.4870,
     lat: 37.1984,
@@ -521,11 +521,30 @@ const spotsSeedData: SpotSeedRow[] = [
   },
 ];
 
+/** 시드 이름 변경 시 DB 갱신 (INSERT만 하면 구 이름 행이 남음) */
+const SPOT_NAME_RENAMES: Array<{ from: string; to: string }> = [
+  { from: '영월 별마로 천문대', to: '강원 영월 별마로 천문대' },
+];
+
 async function seedSpots(): Promise<void> {
   const logger = new Logger('SpotsSeed');
   await dataSource.initialize();
 
   try {
+    for (const { from, to } of SPOT_NAME_RENAMES) {
+      const updated = (await dataSource.query(
+        `
+        UPDATE spots SET name = $2::varchar
+        WHERE name = $1::varchar
+        RETURNING id
+        `,
+        [from, to],
+      )) as Array<{ id: string }>;
+      if (updated.length > 0) {
+        logger.log(`spots 이름 변경: "${from}" → "${to}" (${updated.length}건)`);
+      }
+    }
+
     for (const spot of spotsSeedData) {
       await dataSource.query(
         `

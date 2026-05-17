@@ -46,6 +46,7 @@ import {
   type SkyViewStarDto,
 } from '../../lib/api-client';
 import type { StarIndexResponseDto } from '../../lib/types/api';
+import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
 import { fetchSpotById } from '../../lib/spots-api';
 import { getConstellationLore } from './constellation-lore';
 import { SkyGlCanvas } from './SkyGlCanvas';
@@ -581,7 +582,7 @@ export function SkyTabScreen({
     setLocSiErr(null);
     void (async () => {
       try {
-        const d = await fetchStarIndexAtLocation(obsLat, obsLng);
+        const d = await fetchStarIndexAtLocation(obsLat, obsLng, observeAtIso);
         if (!cancelled) setLocStarIndex(d);
       } catch (e) {
         if (e instanceof SessionExpiredError) {
@@ -607,7 +608,15 @@ export function SkyTabScreen({
     return () => {
       cancelled = true;
     };
-  }, [obsLat, obsLng, onSessionInvalidated]);
+  }, [obsLat, obsLng, observeAtIso, onSessionInvalidated]);
+
+  const locSiDisplay = useMemo(
+    () =>
+      locStarIndex != null
+        ? getStarIndexScoreDisplay(locStarIndex.score)
+        : null,
+    [locStarIndex],
+  );
 
   useEffect(() => {
     if (obsLat == null || obsLng == null) {
@@ -866,6 +875,7 @@ export function SkyTabScreen({
           top5Items.slice(0, 3).map((item) => {
             const selected = selectedSpotId === item.spotId;
             const displayName = spotNameWithoutRegionPrefix(item.spotName);
+            const topSi = getStarIndexScoreDisplay(item.avgStarIndex);
             return (
               <Pressable
                 key={item.id}
@@ -897,10 +907,16 @@ export function SkyTabScreen({
                     {item.rank}
                   </Text>
                   <Text
-                    style={[styles.top3Score, { color: theme.starGold }]}
+                    style={[
+                      styles.top3Score,
+                      {
+                        color: topSi.measurable ? theme.starGold : theme.destructive,
+                        fontSize: topSi.measurable ? undefined : 11,
+                      },
+                    ]}
                     numberOfLines={1}
                   >
-                    {item.avgStarIndexText ?? '—'}
+                    {topSi.label}
                   </Text>
                 </View>
                 <Text
@@ -1197,9 +1213,18 @@ export function SkyTabScreen({
                 <Text style={[styles.controlsCompactMeta, { color: theme.mutedForeground }]}>
                   SI …
                 </Text>
-              ) : locStarIndex != null ? (
-                <Text style={[styles.controlsCompactMeta, { color: theme.starGold }]}>
-                  SI {locStarIndex.score}
+              ) : locSiDisplay != null ? (
+                <Text
+                  style={[
+                    styles.controlsCompactMeta,
+                    {
+                      color: locSiDisplay.measurable
+                        ? theme.starGold
+                        : theme.destructive,
+                    },
+                  ]}
+                >
+                  SI {locSiDisplay.label}
                 </Text>
               ) : locSiErr ? (
                 <Text style={[styles.controlsCompactMeta, { color: theme.destructive }]} numberOfLines={1}>
@@ -1260,17 +1285,19 @@ export function SkyTabScreen({
                 >
                   {locSiErr}
                 </Text>
-              ) : locStarIndex ? (
+              ) : locSiDisplay ? (
                 <View style={{ marginTop: 4 }}>
                   <Text
                     style={{
-                      color: theme.starGold,
-                      fontSize: 22,
+                      color: locSiDisplay.measurable
+                        ? theme.starGold
+                        : theme.destructive,
+                      fontSize: locSiDisplay.measurable ? 22 : 16,
                       fontFamily: 'SpaceMono-Regular',
                       fontWeight: '700',
                     }}
                   >
-                    {locStarIndex.score}
+                    {locSiDisplay.label}
                   </Text>
                   <Text
                     style={{

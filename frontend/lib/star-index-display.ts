@@ -1,5 +1,26 @@
 import type { StarIndexResponseDto } from './types/api';
 
+/** 가중 합산 점수가 이 값 미만이면 UI에 숫자 대신 측정불가 */
+export const STAR_INDEX_DISPLAY_MIN_SCORE = 50;
+
+export type StarIndexScoreDisplay = {
+  measurable: boolean;
+  label: string;
+  gaugePercent: number;
+};
+
+export function getStarIndexScoreDisplay(score: number): StarIndexScoreDisplay {
+  const n = Math.round(score);
+  if (!Number.isFinite(n) || n < STAR_INDEX_DISPLAY_MIN_SCORE) {
+    return { measurable: false, label: '측정불가', gaugePercent: 0 };
+  }
+  return {
+    measurable: true,
+    label: String(n),
+    gaugePercent: Math.min(100, Math.max(0, n)),
+  };
+}
+
 const SKY_LABEL_KO: Record<number, string> = {
   1: '맑음',
   2: '구름조금',
