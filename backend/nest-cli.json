@@ -4,6 +4,7 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
+    "tsConfigPath": "tsconfig.build.json",
     "assets": [
       {
         "include": "sky/data/*.json",
@@ -11,6 +12,10 @@
       },
       {
         "include": "astronomy-events/data/*.json",
+        "watchAssets": true
+      },
+      {
+        "include": "cache-hydration/data/*.json",
         "watchAssets": true
       }
     ]

@@ -74,7 +74,7 @@ export class CronService {
     }
 
     try {
-      await this.hydration.fetchAndStoreDustSeoul();
+      await this.hydration.fetchAndStoreDustForAllSpots();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.warn(`dust 수집 실패(기존 캐시 유지): ${msg}`);
@@ -136,7 +136,7 @@ export class CronService {
   }> {
     const { nx, ny } = this.hydration.latLngToGrid(lat, lng);
     const weatherKey = `weather:${nx}:${ny}`;
-    const dustKey = 'dust:서울';
+    const dustKey = await this.hydration.resolveDustCacheKey(lat, lng);
     const moonKey = `moon:${getKstYmd().replace(/-/g, '')}`;
 
     const [weather, dust, moon] = await Promise.all([

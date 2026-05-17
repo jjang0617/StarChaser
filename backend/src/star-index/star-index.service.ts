@@ -12,24 +12,34 @@ import {
   type Spot,
 } from '../common/interfaces/spot.repository';
 import { MOON_ALTITUDE_MISSING_SENTINEL } from '../sky/kasi.mapper';
+import { moonStateAtObserver } from '../sky/moon-ephemeris.util';
+import { skyCodeToLabel } from '../cache-hydration/kma-forecast.util';
 import type { WeatherSnapshot } from '../common/interfaces/weather-snapshot';
 import { normalizeWeatherSnapshotForStorage } from '../common/interfaces/weather-snapshot';
+import {
+  enrichWeatherSnapshotForDisplay,
+  normalizeDustCacheEntry,
+  normalizeWeatherCacheEntry,
+} from '../common/weather-snapshot-display.util';
 import { CorrectionsService } from '../corrections/corrections.service';
 import { getKstYmd } from '../common/kst-date';
 import { StarIndexCacheHydrationService } from '../cache-hydration/star-index-cache-hydration.service';
 
 // ── 기상 데이터 타입 ─────────────────────────────────────────
 interface WeatherData {
-  cloud: number;       // 운량 (0~100%)
-  humidity: number;    // 습도 (%)
-  windSpeed: number;   // 풍속 (m/s)
-  visibility: number;  // 시정 (km)
-  temperature: number; // 기온 (℃)
-  pop: number;         // 강수확률 (%)
+  skyCode: number;
+  cloud: number;
+  humidity: number;
+  windSpeed: number;
+  visibility: number;
+  temperature: number;
+  pop: number;
 }
 
 interface DustData {
-  pm25: number;        // PM2.5 (㎍/㎥)
+  pm25: number;
+  pm25Label?: string;
+  stationName?: string;
 }
 
 interface MoonData {
@@ -71,19 +81,25 @@ export class StarIndexService {
 
     const { nx, ny } = this.latLngToGrid(spot.lat, spot.lng);
     const weatherKey = `weather:${nx}:${ny}`;
-    const dustKey = 'dust:서울';
+    const dustKey = await this.cacheHydration.resolveDustCacheKey(
+      spot.lat,
+      spot.lng,
+    );
     const moonKey = `moon:${getKstYmd().replace(/-/g, '')}`;
 
-    const weather = await this.cache.get<WeatherData>(weatherKey);
-    const dust = await this.cache.get<DustData>(dustKey);
-    const moon = await this.cache.get<MoonData>(moonKey);
+    const weather = this.readWeatherCache(
+      await this.cache.get(weatherKey),
+    );
+    const dust = this.readDustCache(await this.cache.get(dustKey));
+    const moonRaw = await this.cache.get<MoonData>(moonKey);
 
-    if (!weather || !dust || !moon) {
+    if (!weather || !dust || !moonRaw) {
       throw new ServiceUnavailableException(
-        '기상·미세먼지·달 데이터를 가져오지 못했습니다. KMA_API_KEY·AIRKOREA_API_KEY·KASI 키와 네트워크를 확인하세요.',
+        '기상·미세먼지·달 데이터를 가져오지 못했습니다. KMA_API_KEY·AIRKOREA_API_KEY와 네트워크를 확인하세요.',
       );
     }
 
+    const moon = this.resolveMoonAt(spot.lat, spot.lng, moonRaw);
     const correctionScore =
       await this.correctionsService.getAggregatedCorrectionScoreForSpot(spot.id);
 
@@ -118,19 +134,22 @@ export class StarIndexService {
 
     const { nx, ny } = this.latLngToGrid(lat, lng);
     const weatherKey = `weather:${nx}:${ny}`;
-    const dustKey = 'dust:서울';
+    const dustKey = await this.cacheHydration.resolveDustCacheKey(lat, lng);
     const moonKey = `moon:${getKstYmd().replace(/-/g, '')}`;
 
-    const weather = await this.cache.get<WeatherData>(weatherKey);
-    const dust = await this.cache.get<DustData>(dustKey);
-    const moon = await this.cache.get<MoonData>(moonKey);
+    const weather = this.readWeatherCache(
+      await this.cache.get(weatherKey),
+    );
+    const dust = this.readDustCache(await this.cache.get(dustKey));
+    const moonRaw = await this.cache.get<MoonData>(moonKey);
 
-    if (!weather || !dust || !moon) {
+    if (!weather || !dust || !moonRaw) {
       throw new ServiceUnavailableException(
-        '기상·미세먼지·달 데이터를 가져오지 못했습니다. KMA_API_KEY·AIRKOREA_API_KEY·KASI 키와 네트워크를 확인하세요.',
+        '기상·미세먼지·달 데이터를 가져오지 못했습니다. KMA_API_KEY·AIRKOREA_API_KEY와 네트워크를 확인하세요.',
       );
     }
 
+    const moon = this.resolveMoonAt(lat, lng, moonRaw);
     const nearby = await this.spots.findNearby(lat, lng, 200_000);
     const nearest = this.pickNearestSpot(lat, lng, nearby);
     const distanceKm = nearest
@@ -204,19 +223,25 @@ export class StarIndexService {
 
     const { nx, ny } = this.latLngToGrid(spot.lat, spot.lng);
     const weatherKey = `weather:${nx}:${ny}`;
-    const dustKey = 'dust:서울';
+    const dustKey = await this.cacheHydration.resolveDustCacheKey(
+      spot.lat,
+      spot.lng,
+    );
     const moonKey = `moon:${getKstYmd().replace(/-/g, '')}`;
 
-    const weather = await this.cache.get<WeatherData>(weatherKey);
-    const dust = await this.cache.get<DustData>(dustKey);
-    const moon = await this.cache.get<MoonData>(moonKey);
+    const weather = this.readWeatherCache(
+      await this.cache.get(weatherKey),
+    );
+    const dust = this.readDustCache(await this.cache.get(dustKey));
+    const moonRaw = await this.cache.get<MoonData>(moonKey);
 
-    if (!weather || !dust || !moon) {
+    if (!weather || !dust || !moonRaw) {
       throw new ServiceUnavailableException(
         '기상·미세먼지·달 데이터를 가져오지 못했습니다. API 키·네트워크를 확인하세요.',
       );
     }
 
+    const moon = this.resolveMoonAt(spot.lat, spot.lng, moonRaw);
     const correctionScore =
       await this.correctionsService.getAggregatedCorrectionScoreForSpot(spot.id);
 
@@ -240,28 +265,9 @@ export class StarIndexService {
     input: StarIndexInput,
   ): Promise<{ score: number; weatherSnapshot: WeatherSnapshot }> {
     const cacheKey = `star_index:${spotId}`;
-
-    const cached = await this.cache.get<number | StarIndexCachePayload>(cacheKey);
-
-    if (cached !== undefined && cached !== null) {
-      if (typeof cached === 'number') {
-        const fresh = this.calcStarIndexWithSnapshot(input);
-        await this.cache.set(cacheKey, fresh, 3600 * 1000);
-        this.logger.log(
-          `Star-Index 레거시 캐시 교체 — spot: ${spotId}, score: ${fresh.score}`,
-        );
-        return fresh;
-      }
-      return {
-        score: cached.score,
-        weatherSnapshot: cached.weatherSnapshot,
-      };
-    }
-
     const payload = this.calcStarIndexWithSnapshot(input);
     await this.cache.set(cacheKey, payload, 3600 * 1000);
     this.logger.log(`Star-Index 계산 완료 — spot: ${spotId}, score: ${payload.score}`);
-
     return payload;
   }
 
@@ -277,7 +283,9 @@ export class StarIndexService {
    */
   calcStarIndexWithSnapshot(input: StarIndexInput): StarIndexCachePayload {
     const raw = this.buildRawWeatherSnapshot(input);
-    const weatherSnapshot = normalizeWeatherSnapshotForStorage(raw);
+    const weatherSnapshot = enrichWeatherSnapshotForDisplay(
+      normalizeWeatherSnapshotForStorage(raw),
+    );
     const score = this.aggregateScoreFromSnapshot(
       weatherSnapshot,
       input.weather.pop,
@@ -285,8 +293,44 @@ export class StarIndexService {
     return { score, weatherSnapshot };
   }
 
+  private readWeatherCache(raw: unknown): WeatherData | null {
+    const n = normalizeWeatherCacheEntry(raw);
+    if (!n || n.cloud === undefined) return null;
+    const w = raw as Record<string, unknown>;
+    const skyRaw = Number(w.skyCode);
+    return {
+      skyCode: Number.isFinite(skyRaw) ? skyRaw : (n.skyCode ?? 1),
+      cloud: n.cloud,
+      humidity: Number(w.humidity) || 70,
+      windSpeed: Number(w.windSpeed) || 2,
+      visibility: Number(w.visibility) || 10,
+      temperature: Number(w.temperature) || 12,
+      pop: Number(w.pop) || 0,
+    };
+  }
+
+  private readDustCache(raw: unknown): DustData | null {
+    const n = normalizeDustCacheEntry(raw);
+    if (n?.pm25 === undefined || !Number.isFinite(n.pm25)) return null;
+    return {
+      pm25: n.pm25,
+      pm25Label: n.pm25Label,
+      stationName: n.stationName,
+    };
+  }
+
+  private resolveMoonAt(lat: number, lng: number, cached: MoonData): MoonData {
+    const ephemeris = moonStateAtObserver(lat, lng);
+    return {
+      phase: cached.phase > 0 ? cached.phase : ephemeris.phase,
+      altitude: ephemeris.altitude,
+      moonAltitudeKnown: true,
+    };
+  }
+
   private buildRawWeatherSnapshot(input: StarIndexInput): WeatherSnapshot {
     const { weather, dust, moon, bortleClass, elevationM } = input;
+    const skyCode = weather.skyCode;
 
     return {
       cloud_score: this.calcCloudScore(weather.cloud),
@@ -307,6 +351,12 @@ export class StarIndexService {
       moon_altitude_deg: moon.altitude,
       moon_altitude_known: moon.moonAltitudeKnown,
       lun_phase: moon.phase,
+      cloud_sky_code: skyCode,
+      cloud_sky_label: skyCodeToLabel(skyCode),
+      cloud_cover_pct: weather.cloud,
+      pm25_ug_m3: dust.pm25,
+      pm25_label: dust.pm25Label,
+      pm25_station_name: dust.stationName,
     };
   }
 

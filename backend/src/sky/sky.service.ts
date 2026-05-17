@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Injectable, Logger } from '@nestjs/common';
+import { resolveBundledAssetPath } from '../common/resolve-bundled-asset.util';
 import { ConfigService } from '@nestjs/config';
 import * as Astronomy from 'astronomy-engine';
 import axios from 'axios';
@@ -150,9 +151,8 @@ export class SkyService {
       const result = kasiToInternalMapper(moonData, phaseData);
 
       if (!result.moonAltitudeKnown) {
-        this.logger.warn(
-          `[KASI] RiseSet item에 고도 필드 없음 — moonAltitude=${result.moonAltitude}(센티넬). ` +
-            `실측 고도는 별도 API/필드 합의 후 kasi.mapper 확장 필요. date=${date}`,
+        this.logger.debug(
+          `[KASI] RiseSet 고도 필드 없음 — astronomy-engine으로 보정. date=${date}`,
         );
       } else {
         this.logger.log(
@@ -183,7 +183,9 @@ export class SkyService {
   private loadBrightCatalog(): CatalogRow[] {
     if (this.catalogCache) return this.catalogCache;
     try {
-      const p = path.join(__dirname, 'data', 'hip-bright-subset.json');
+      const p =
+        resolveBundledAssetPath(__dirname, 'sky', 'hip-bright-subset.json') ??
+        path.join(__dirname, 'data', 'hip-bright-subset.json');
       const raw = fs.readFileSync(p, 'utf8');
       const rows = JSON.parse(raw) as CatalogRow[];
       this.catalogCache = rows;
@@ -396,7 +398,12 @@ export class SkyService {
   getConstellationLines(): ConstellationLinesResponseDto {
     if (this.constellationLinesCache) return this.constellationLinesCache;
     try {
-      const p = path.join(__dirname, 'data', 'constellation-lines-mvp.json');
+      const p =
+        resolveBundledAssetPath(
+          __dirname,
+          'sky',
+          'constellation-lines-mvp.json',
+        ) ?? path.join(__dirname, 'data', 'constellation-lines-mvp.json');
       const raw = fs.readFileSync(p, 'utf8');
       const parsed = JSON.parse(raw) as ConstellationLinesResponseDto;
       this.constellationLinesCache = parsed;

@@ -14,6 +14,17 @@ export interface WeatherSnapshotDto {
   moon_altitude_deg?: number;
   moon_altitude_known?: boolean;
   lun_phase?: number;
+  cloud_sky_code?: number;
+  cloud_sky_label?: string;
+  cloud_cover_pct?: number;
+  pm25_ug_m3?: number;
+  pm25_label?: string;
+  pm25_station_name?: string;
+}
+
+export interface StarIndexCardDisplayDto {
+  cloud: string;
+  pm25: string;
 }
 
 export interface StarIndexResponseDto {
@@ -26,6 +37,7 @@ export interface StarIndexResponseDto {
   bortleClass: number;
   score: number;
   weatherSnapshot: WeatherSnapshotDto;
+  display?: StarIndexCardDisplayDto;
   cacheKeys: { weatherKey: string; dustKey: string; moonKey: string };
   message: string;
   requestedBy: string;

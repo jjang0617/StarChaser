@@ -1,0 +1,3756 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-17T05:03:13.598Z",
+  "stations": [
+    {
+      "stationName": "정릉로",
+      "sidoName": "서울",
+      "lat": 37.6040765,
+      "lng": 127.0308849
+    },
+    {
+      "stationName": "도봉구",
+      "sidoName": "서울",
+      "lat": 37.6686,
+      "lng": 127.0466
+    },
+    {
+      "stationName": "은평구",
+      "sidoName": "서울",
+      "lat": 37.6024,
+      "lng": 126.9293
+    },
+    {
+      "stationName": "서대문구",
+      "sidoName": "서울",
+      "lat": 37.5790747,
+      "lng": 126.9367861
+    },
+    {
+      "stationName": "마포구",
+      "sidoName": "서울",
+      "lat": 37.566571,
+      "lng": 126.9015317
+    },
+    {
+      "stationName": "신촌로",
+      "sidoName": "서울",
+      "lat": 37.5573744,
+      "lng": 126.9579806
+    },
+    {
+      "stationName": "강서구",
+      "sidoName": "서울",
+      "lat": 37.5509,
+      "lng": 126.8497
+    },
+    {
+      "stationName": "공항대로",
+      "sidoName": "서울",
+      "lat": 37.5552065,
+      "lng": 126.8848512
+    },
+    {
+      "stationName": "구로구",
+      "sidoName": "서울",
+      "lat": 37.4951999,
+      "lng": 126.8877
+    },
+    {
+      "stationName": "영등포구",
+      "sidoName": "서울",
+      "lat": 37.5262,
+      "lng": 126.8959
+    },
+    {
+      "stationName": "영등포로",
+      "sidoName": "서울",
+      "lat": 37.5185849,
+      "lng": 126.9148678
+    },
+    {
+      "stationName": "동작구",
+      "sidoName": "서울",
+      "lat": 37.5120999,
+      "lng": 126.9395
+    },
+    {
+      "stationName": "관악구",
+      "sidoName": "서울",
+      "lat": 37.4782,
+      "lng": 126.9518
+    },
+    {
+      "stationName": "강남구",
+      "sidoName": "서울",
+      "lat": 37.5177,
+      "lng": 127.0473
+    },
+    {
+      "stationName": "서초구",
+      "sidoName": "서울",
+      "lat": 37.4835,
+      "lng": 127.0322
+    },
+    {
+      "stationName": "도산대로",
+      "sidoName": "서울",
+      "lat": 37.5167677,
+      "lng": 127.0208986
+    },
+    {
+      "stationName": "강남대로",
+      "sidoName": "서울",
+      "lat": 37.5007544,
+      "lng": 127.0264297
+    },
+    {
+      "stationName": "송파구",
+      "sidoName": "서울",
+      "lat": 37.5145,
+      "lng": 127.1058
+    },
+    {
+      "stationName": "강동구",
+      "sidoName": "서울",
+      "lat": 37.53,
+      "lng": 127.1237
+    },
+    {
+      "stationName": "천호대로",
+      "sidoName": "서울",
+      "lat": 37.5734455,
+      "lng": 127.0399425
+    },
+    {
+      "stationName": "금천구",
+      "sidoName": "서울",
+      "lat": 37.4565,
+      "lng": 126.8954
+    },
+    {
+      "stationName": "시흥대로",
+      "sidoName": "서울",
+      "lat": 37.4393409,
+      "lng": 126.9030897
+    },
+    {
+      "stationName": "강북구",
+      "sidoName": "서울",
+      "lat": 37.6395,
+      "lng": 127.0255
+    },
+    {
+      "stationName": "양천구",
+      "sidoName": "서울",
+      "lat": 37.5171,
+      "lng": 126.8663
+    },
+    {
+      "stationName": "노원구",
+      "sidoName": "서울",
+      "lat": 37.654,
+      "lng": 127.0567
+    },
+    {
+      "stationName": "화랑로",
+      "sidoName": "서울",
+      "lat": 37.6176196,
+      "lng": 127.0734914
+    },
+    {
+      "stationName": "중구",
+      "sidoName": "서울",
+      "lat": 37.5636559,
+      "lng": 126.9975097
+    },
+    {
+      "stationName": "한강대로",
+      "sidoName": "서울",
+      "lat": 37.5304841,
+      "lng": 126.9689973
+    },
+    {
+      "stationName": "종로구",
+      "sidoName": "서울",
+      "lat": 37.5806949,
+      "lng": 126.9827989
+    },
+    {
+      "stationName": "청계천로",
+      "sidoName": "서울",
+      "lat": 37.5706385,
+      "lng": 127.0337149
+    },
+    {
+      "stationName": "종로",
+      "sidoName": "서울",
+      "lat": 37.5739193,
+      "lng": 127.0186266
+    },
+    {
+      "stationName": "용산구",
+      "sidoName": "서울",
+      "lat": 37.5323,
+      "lng": 126.99
+    },
+    {
+      "stationName": "광진구",
+      "sidoName": "서울",
+      "lat": 37.5362696,
+      "lng": 127.0879515
+    },
+    {
+      "stationName": "성동구",
+      "sidoName": "서울",
+      "lat": 37.5635,
+      "lng": 127.0365
+    },
+    {
+      "stationName": "강변북로",
+      "sidoName": "서울",
+      "lat": 37.5373896,
+      "lng": 127.0448427
+    },
+    {
+      "stationName": "중랑구",
+      "sidoName": "서울",
+      "lat": 37.6063,
+      "lng": 127.093
+    },
+    {
+      "stationName": "동대문구",
+      "sidoName": "서울",
+      "lat": 37.5741982,
+      "lng": 127.0395092
+    },
+    {
+      "stationName": "홍릉로",
+      "sidoName": "서울",
+      "lat": 37.5834824,
+      "lng": 127.0441365
+    },
+    {
+      "stationName": "성북구",
+      "sidoName": "서울",
+      "lat": 37.59,
+      "lng": 127.0165
+    },
+    {
+      "stationName": "광복동",
+      "sidoName": "부산",
+      "lat": 35.1003589,
+      "lng": 129.0306071
+    },
+    {
+      "stationName": "초량동",
+      "sidoName": "부산",
+      "lat": 35.1202009,
+      "lng": 129.037345
+    },
+    {
+      "stationName": "태종대",
+      "sidoName": "부산",
+      "lat": 35.05851,
+      "lng": 129.0876858
+    },
+    {
+      "stationName": "청학동",
+      "sidoName": "부산",
+      "lat": 35.09106,
+      "lng": 129.06497
+    },
+    {
+      "stationName": "전포동",
+      "sidoName": "부산",
+      "lat": 35.1572828,
+      "lng": 129.0745022
+    },
+    {
+      "stationName": "온천동",
+      "sidoName": "부산",
+      "lat": 35.2132323,
+      "lng": 129.0656907
+    },
+    {
+      "stationName": "명장동",
+      "sidoName": "부산",
+      "lat": 35.20755,
+      "lng": 129.10356
+    },
+    {
+      "stationName": "대연동",
+      "sidoName": "부산",
+      "lat": 35.1343823,
+      "lng": 129.0938404
+    },
+    {
+      "stationName": "용호동",
+      "sidoName": "부산",
+      "lat": 35.1132835,
+      "lng": 129.1167185
+    },
+    {
+      "stationName": "학장동",
+      "sidoName": "부산",
+      "lat": 35.1422194,
+      "lng": 128.9843177
+    },
+    {
+      "stationName": "덕천동",
+      "sidoName": "부산",
+      "lat": 35.2122143,
+      "lng": 129.0115542
+    },
+    {
+      "stationName": "화명동",
+      "sidoName": "부산",
+      "lat": 35.2385762,
+      "lng": 129.0257381
+    },
+    {
+      "stationName": "삼락동",
+      "sidoName": "부산",
+      "lat": 35.1837761,
+      "lng": 128.9791895
+    },
+    {
+      "stationName": "우동",
+      "sidoName": "부산",
+      "lat": 35.1769331,
+      "lng": 129.1485409
+    },
+    {
+      "stationName": "감천동",
+      "sidoName": "부산",
+      "lat": 35.0885858,
+      "lng": 129.004687
+    },
+    {
+      "stationName": "청룡동",
+      "sidoName": "부산",
+      "lat": 35.28324,
+      "lng": 129.07324
+    },
+    {
+      "stationName": "좌동",
+      "sidoName": "부산",
+      "lat": 35.1859071,
+      "lng": 129.1754505
+    },
+    {
+      "stationName": "재송동",
+      "sidoName": "부산",
+      "lat": 35.1843578,
+      "lng": 129.1277407
+    },
+    {
+      "stationName": "장림동",
+      "sidoName": "부산",
+      "lat": 35.0758278,
+      "lng": 128.9684803
+    },
+    {
+      "stationName": "대저동",
+      "sidoName": "부산",
+      "lat": 35.1586386,
+      "lng": 128.9535924
+    },
+    {
+      "stationName": "녹산동",
+      "sidoName": "부산",
+      "lat": 35.1116974,
+      "lng": 128.869001
+    },
+    {
+      "stationName": "명지동",
+      "sidoName": "부산",
+      "lat": 35.1071356,
+      "lng": 128.9179423
+    },
+    {
+      "stationName": "연산동",
+      "sidoName": "부산",
+      "lat": 35.1758928,
+      "lng": 129.0867411
+    },
+    {
+      "stationName": "기장읍",
+      "sidoName": "부산",
+      "lat": 35.2385796,
+      "lng": 129.2158159
+    },
+    {
+      "stationName": "용수리",
+      "sidoName": "부산",
+      "lat": 35.33662,
+      "lng": 129.17312
+    },
+    {
+      "stationName": "수정동",
+      "sidoName": "부산",
+      "lat": 35.1314847,
+      "lng": 129.0366427
+    },
+    {
+      "stationName": "회동동",
+      "sidoName": "부산",
+      "lat": 35.23105,
+      "lng": 129.12173
+    },
+    {
+      "stationName": "광안동",
+      "sidoName": "부산",
+      "lat": 35.1590134,
+      "lng": 129.113064
+    },
+    {
+      "stationName": "덕포동",
+      "sidoName": "부산",
+      "lat": 35.1754906,
+      "lng": 128.9854608
+    },
+    {
+      "stationName": "개금동",
+      "sidoName": "부산",
+      "lat": 35.1527311,
+      "lng": 129.0213975
+    },
+    {
+      "stationName": "당리동",
+      "sidoName": "부산",
+      "lat": 35.1071561,
+      "lng": 128.9768898
+    },
+    {
+      "stationName": "부산항",
+      "sidoName": "부산",
+      "lat": 35.1026,
+      "lng": 129.0405108
+    },
+    {
+      "stationName": "부산신항",
+      "sidoName": "부산",
+      "lat": 35.1178873,
+      "lng": 128.8467054
+    },
+    {
+      "stationName": "시지동",
+      "sidoName": "대구",
+      "lat": 35.84276,
+      "lng": 128.69352
+    },
+    {
+      "stationName": "진천동",
+      "sidoName": "대구",
+      "lat": 35.8107208,
+      "lng": 128.5212715
+    },
+    {
+      "stationName": "다사읍",
+      "sidoName": "대구",
+      "lat": 35.8622907,
+      "lng": 128.4620011
+    },
+    {
+      "stationName": "본동",
+      "sidoName": "대구",
+      "lat": 35.8354002,
+      "lng": 128.5397293
+    },
+    {
+      "stationName": "내당동",
+      "sidoName": "대구",
+      "lat": 35.8625618,
+      "lng": 128.5618878
+    },
+    {
+      "stationName": "침산동",
+      "sidoName": "대구",
+      "lat": 35.8920401,
+      "lng": 128.5878923
+    },
+    {
+      "stationName": "화원읍",
+      "sidoName": "대구",
+      "lat": 35.8024072,
+      "lng": 128.4964134
+    },
+    {
+      "stationName": "충혼탑",
+      "sidoName": "대구",
+      "lat": 36.2315523,
+      "lng": 128.571324
+    },
+    {
+      "stationName": "군위읍",
+      "sidoName": "대구",
+      "lat": 36.2399401,
+      "lng": 128.568785
+    },
+    {
+      "stationName": "남산1동",
+      "sidoName": "대구",
+      "lat": 35.8595505,
+      "lng": 128.5928209
+    },
+    {
+      "stationName": "수창동",
+      "sidoName": "대구",
+      "lat": 35.87504,
+      "lng": 128.58662
+    },
+    {
+      "stationName": "지산동",
+      "sidoName": "대구",
+      "lat": 35.8239902,
+      "lng": 128.6345138
+    },
+    {
+      "stationName": "서호동",
+      "sidoName": "대구",
+      "lat": 35.86495,
+      "lng": 128.70906
+    },
+    {
+      "stationName": "용계동",
+      "sidoName": "대구",
+      "lat": 35.87377,
+      "lng": 128.68835
+    },
+    {
+      "stationName": "이현동",
+      "sidoName": "대구",
+      "lat": 35.87628,
+      "lng": 128.53886
+    },
+    {
+      "stationName": "평리동",
+      "sidoName": "대구",
+      "lat": 35.8732984,
+      "lng": 128.5569201
+    },
+    {
+      "stationName": "대명동",
+      "sidoName": "대구",
+      "lat": 35.8355675,
+      "lng": 128.5717849
+    },
+    {
+      "stationName": "신암동",
+      "sidoName": "대구",
+      "lat": 35.88399,
+      "lng": 128.62359
+    },
+    {
+      "stationName": "태전동",
+      "sidoName": "대구",
+      "lat": 35.9214358,
+      "lng": 128.5461523
+    },
+    {
+      "stationName": "산격동",
+      "sidoName": "대구",
+      "lat": 35.90163,
+      "lng": 128.60464
+    },
+    {
+      "stationName": "서변동",
+      "sidoName": "대구",
+      "lat": 35.9235922,
+      "lng": 128.5955669
+    },
+    {
+      "stationName": "연호동",
+      "sidoName": "대구",
+      "lat": 35.84173,
+      "lng": 128.6723
+    },
+    {
+      "stationName": "만촌동",
+      "sidoName": "대구",
+      "lat": 35.8598791,
+      "lng": 128.6484485
+    },
+    {
+      "stationName": "호림동",
+      "sidoName": "대구",
+      "lat": 35.83568,
+      "lng": 128.48178
+    },
+    {
+      "stationName": "유가읍",
+      "sidoName": "대구",
+      "lat": 35.6940422,
+      "lng": 128.4597255
+    },
+    {
+      "stationName": "이곡동",
+      "sidoName": "대구",
+      "lat": 35.85409,
+      "lng": 128.50764
+    },
+    {
+      "stationName": "신흥",
+      "sidoName": "인천",
+      "lat": 37.46593,
+      "lng": 126.63732
+    },
+    {
+      "stationName": "서해",
+      "sidoName": "인천",
+      "lat": 37.4239194,
+      "lng": 126.6517561
+    },
+    {
+      "stationName": "영종",
+      "sidoName": "인천",
+      "lat": 37.5118887,
+      "lng": 126.524599
+    },
+    {
+      "stationName": "구월동",
+      "sidoName": "인천",
+      "lat": 37.4473875,
+      "lng": 126.706289
+    },
+    {
+      "stationName": "숭의",
+      "sidoName": "인천",
+      "lat": 37.4607927,
+      "lng": 126.6382349
+    },
+    {
+      "stationName": "석바위",
+      "sidoName": "인천",
+      "lat": 37.458094,
+      "lng": 126.6883289
+    },
+    {
+      "stationName": "부평역",
+      "sidoName": "인천",
+      "lat": 37.4927528,
+      "lng": 126.7231341
+    },
+    {
+      "stationName": "남동",
+      "sidoName": "인천",
+      "lat": 37.4336291,
+      "lng": 126.7093944
+    },
+    {
+      "stationName": "주안",
+      "sidoName": "인천",
+      "lat": 37.4650814,
+      "lng": 126.6806313
+    },
+    {
+      "stationName": "부평",
+      "sidoName": "인천",
+      "lat": 37.489454,
+      "lng": 126.7245591
+    },
+    {
+      "stationName": "연희",
+      "sidoName": "인천",
+      "lat": 37.5486392,
+      "lng": 126.6826642
+    },
+    {
+      "stationName": "검단",
+      "sidoName": "인천",
+      "lat": 37.6059295,
+      "lng": 126.6660333
+    },
+    {
+      "stationName": "중봉",
+      "sidoName": "인천",
+      "lat": 37.5182794,
+      "lng": 126.6489698
+    },
+    {
+      "stationName": "계산",
+      "sidoName": "인천",
+      "lat": 37.543336,
+      "lng": 126.7278571
+    },
+    {
+      "stationName": "효성",
+      "sidoName": "인천",
+      "lat": 37.5330069,
+      "lng": 126.6911487
+    },
+    {
+      "stationName": "임학",
+      "sidoName": "인천",
+      "lat": 37.5451309,
+      "lng": 126.7387234
+    },
+    {
+      "stationName": "고잔",
+      "sidoName": "인천",
+      "lat": 37.3941796,
+      "lng": 126.6966863
+    },
+    {
+      "stationName": "서창",
+      "sidoName": "인천",
+      "lat": 37.4321061,
+      "lng": 126.7491895
+    },
+    {
+      "stationName": "석남",
+      "sidoName": "인천",
+      "lat": 37.5062862,
+      "lng": 126.6746369
+    },
+    {
+      "stationName": "송해",
+      "sidoName": "인천",
+      "lat": 37.7697134,
+      "lng": 126.4606061
+    },
+    {
+      "stationName": "동춘",
+      "sidoName": "인천",
+      "lat": 37.4048204,
+      "lng": 126.6802706
+    },
+    {
+      "stationName": "운서",
+      "sidoName": "인천",
+      "lat": 37.4928006,
+      "lng": 126.4937678
+    },
+    {
+      "stationName": "송현",
+      "sidoName": "인천",
+      "lat": 37.2529119,
+      "lng": 126.4752337
+    },
+    {
+      "stationName": "논현",
+      "sidoName": "인천",
+      "lat": 37.4006866,
+      "lng": 126.7225648
+    },
+    {
+      "stationName": "청라",
+      "sidoName": "인천",
+      "lat": 37.5702484,
+      "lng": 126.6705968
+    },
+    {
+      "stationName": "송도",
+      "sidoName": "인천",
+      "lat": 37.4299382,
+      "lng": 126.6547155
+    },
+    {
+      "stationName": "아암",
+      "sidoName": "인천",
+      "lat": 37.3898221,
+      "lng": 126.6713601
+    },
+    {
+      "stationName": "동막",
+      "sidoName": "인천",
+      "lat": 37.3986231,
+      "lng": 126.6735412
+    },
+    {
+      "stationName": "원당",
+      "sidoName": "인천",
+      "lat": 37.5932591,
+      "lng": 126.724256
+    },
+    {
+      "stationName": "길상",
+      "sidoName": "인천",
+      "lat": 37.63804,
+      "lng": 126.490488
+    },
+    {
+      "stationName": "삼산",
+      "sidoName": "인천",
+      "lat": 37.507666,
+      "lng": 126.7376184
+    },
+    {
+      "stationName": "경인항",
+      "sidoName": "인천",
+      "lat": 37.5618583,
+      "lng": 126.610139
+    },
+    {
+      "stationName": "인천항",
+      "sidoName": "인천",
+      "lat": 37.4600226,
+      "lng": 126.5937709
+    },
+    {
+      "stationName": "석모리",
+      "sidoName": "인천",
+      "lat": 37.7053498,
+      "lng": 126.3176717
+    },
+    {
+      "stationName": "덕적도",
+      "sidoName": "인천",
+      "lat": 37.241879,
+      "lng": 126.1155925
+    },
+    {
+      "stationName": "백령도",
+      "sidoName": "인천",
+      "lat": 37.9498034,
+      "lng": 124.6724295
+    },
+    {
+      "stationName": "영흥",
+      "sidoName": "인천",
+      "lat": 37.2424686,
+      "lng": 126.4384467
+    },
+    {
+      "stationName": "연평도",
+      "sidoName": "인천",
+      "lat": 37.9324569,
+      "lng": 124.6826506
+    },
+    {
+      "stationName": "울도",
+      "sidoName": "인천",
+      "lat": 37.0289379,
+      "lng": 125.9883866
+    },
+    {
+      "stationName": "서석동",
+      "sidoName": "광주",
+      "lat": 35.1425263,
+      "lng": 126.928997
+    },
+    {
+      "stationName": "농성동",
+      "sidoName": "광주",
+      "lat": 35.1541526,
+      "lng": 126.8884127
+    },
+    {
+      "stationName": "치평동",
+      "sidoName": "광주",
+      "lat": 35.152758,
+      "lng": 126.8449919
+    },
+    {
+      "stationName": "노대동",
+      "sidoName": "광주",
+      "lat": 35.1013144,
+      "lng": 126.9064869
+    },
+    {
+      "stationName": "유촌동",
+      "sidoName": "광주",
+      "lat": 35.1643042,
+      "lng": 126.851776
+    },
+    {
+      "stationName": "두암동",
+      "sidoName": "광주",
+      "lat": 35.1705473,
+      "lng": 126.9358089
+    },
+    {
+      "stationName": "운암동",
+      "sidoName": "광주",
+      "lat": 35.177893,
+      "lng": 126.8784333
+    },
+    {
+      "stationName": "건국동",
+      "sidoName": "광주",
+      "lat": 35.2229306,
+      "lng": 126.8816214
+    },
+    {
+      "stationName": "일곡동",
+      "sidoName": "광주",
+      "lat": 35.2093565,
+      "lng": 126.8950292
+    },
+    {
+      "stationName": "오선동",
+      "sidoName": "광주",
+      "lat": 35.2026696,
+      "lng": 126.7997842
+    },
+    {
+      "stationName": "우산동(광주)",
+      "sidoName": "광주",
+      "lat": 35.1542122,
+      "lng": 126.8152185
+    },
+    {
+      "stationName": "평동",
+      "sidoName": "광주",
+      "lat": 35.1248086,
+      "lng": 126.7695968
+    },
+    {
+      "stationName": "주월동",
+      "sidoName": "광주",
+      "lat": 35.1308326,
+      "lng": 126.8973416
+    },
+    {
+      "stationName": "읍내동",
+      "sidoName": "대전",
+      "lat": 36.3779187,
+      "lng": 127.4251848
+    },
+    {
+      "stationName": "문평동",
+      "sidoName": "대전",
+      "lat": 36.4456518,
+      "lng": 127.399871
+    },
+    {
+      "stationName": "문창동",
+      "sidoName": "대전",
+      "lat": 36.3179965,
+      "lng": 127.4358892
+    },
+    {
+      "stationName": "구성동",
+      "sidoName": "대전",
+      "lat": 36.3710748,
+      "lng": 127.3684842
+    },
+    {
+      "stationName": "노은동",
+      "sidoName": "대전",
+      "lat": 36.369181,
+      "lng": 127.3188784
+    },
+    {
+      "stationName": "상대동(대전)",
+      "sidoName": "대전",
+      "lat": 36.3407026,
+      "lng": 127.3294688
+    },
+    {
+      "stationName": "관평동",
+      "sidoName": "대전",
+      "lat": 36.4226991,
+      "lng": 127.3983671
+    },
+    {
+      "stationName": "지족동",
+      "sidoName": "대전",
+      "lat": 36.3802428,
+      "lng": 127.3075849
+    },
+    {
+      "stationName": "대성동",
+      "sidoName": "대전",
+      "lat": 36.2951648,
+      "lng": 127.4711093
+    },
+    {
+      "stationName": "정림동",
+      "sidoName": "대전",
+      "lat": 36.3041554,
+      "lng": 127.3660345
+    },
+    {
+      "stationName": "둔산동",
+      "sidoName": "대전",
+      "lat": 36.3560702,
+      "lng": 127.390656
+    },
+    {
+      "stationName": "월평동",
+      "sidoName": "대전",
+      "lat": 36.3514451,
+      "lng": 127.3571242
+    },
+    {
+      "stationName": "비래동",
+      "sidoName": "대전",
+      "lat": 36.3614197,
+      "lng": 127.4544419
+    },
+    {
+      "stationName": "화산리",
+      "sidoName": "울산",
+      "lat": 35.36733,
+      "lng": 129.2794
+    },
+    {
+      "stationName": "상남리",
+      "sidoName": "울산",
+      "lat": 35.47977,
+      "lng": 129.30882
+    },
+    {
+      "stationName": "삼남읍",
+      "sidoName": "울산",
+      "lat": 35.53088,
+      "lng": 129.10267
+    },
+    {
+      "stationName": "약사동",
+      "sidoName": "울산",
+      "lat": 35.570425,
+      "lng": 129.337294
+    },
+    {
+      "stationName": "웅촌면",
+      "sidoName": "울산",
+      "lat": 35.46545,
+      "lng": 129.20291
+    },
+    {
+      "stationName": "범서읍",
+      "sidoName": "울산",
+      "lat": 35.58914,
+      "lng": 129.24011
+    },
+    {
+      "stationName": "북부순환도로",
+      "sidoName": "울산",
+      "lat": 35.5554938,
+      "lng": 129.2755286
+    },
+    {
+      "stationName": "송정동",
+      "sidoName": "울산",
+      "lat": 35.6019215,
+      "lng": 129.3668462
+    },
+    {
+      "stationName": "산업로",
+      "sidoName": "울산",
+      "lat": 35.5418056,
+      "lng": 129.3538829
+    },
+    {
+      "stationName": "방어진순환도로",
+      "sidoName": "울산",
+      "lat": 35.5177085,
+      "lng": 129.3981211
+    },
+    {
+      "stationName": "울산항",
+      "sidoName": "울산",
+      "lat": 35.5105765,
+      "lng": 129.3749085
+    },
+    {
+      "stationName": "대송동",
+      "sidoName": "울산",
+      "lat": 35.5031757,
+      "lng": 129.4184443
+    },
+    {
+      "stationName": "성남동",
+      "sidoName": "울산",
+      "lat": 35.5528383,
+      "lng": 129.3182264
+    },
+    {
+      "stationName": "부곡동(울산)",
+      "sidoName": "울산",
+      "lat": 35.49979,
+      "lng": 129.33824
+    },
+    {
+      "stationName": "여천동(울산)",
+      "sidoName": "울산",
+      "lat": 35.5234259,
+      "lng": 129.3544862
+    },
+    {
+      "stationName": "선암동",
+      "sidoName": "울산",
+      "lat": 35.5157131,
+      "lng": 129.3243602
+    },
+    {
+      "stationName": "삼산동",
+      "sidoName": "울산",
+      "lat": 35.54126,
+      "lng": 129.34388
+    },
+    {
+      "stationName": "신정로",
+      "sidoName": "울산",
+      "lat": 35.54753,
+      "lng": 129.3172561
+    },
+    {
+      "stationName": "신정동",
+      "sidoName": "울산",
+      "lat": 35.53487,
+      "lng": 129.31199
+    },
+    {
+      "stationName": "덕신리",
+      "sidoName": "울산",
+      "lat": 35.4339806,
+      "lng": 129.3104539
+    },
+    {
+      "stationName": "무거동",
+      "sidoName": "울산",
+      "lat": 35.5430751,
+      "lng": 129.2549052
+    },
+    {
+      "stationName": "효문동",
+      "sidoName": "울산",
+      "lat": 35.57469,
+      "lng": 129.37727
+    },
+    {
+      "stationName": "조치원읍",
+      "sidoName": "세종",
+      "lat": 36.601795,
+      "lng": 127.2944592
+    },
+    {
+      "stationName": "아름동",
+      "sidoName": "세종",
+      "lat": 36.5175411,
+      "lng": 127.247467
+    },
+    {
+      "stationName": "한솔동",
+      "sidoName": "세종",
+      "lat": 36.4733355,
+      "lng": 127.2481655
+    },
+    {
+      "stationName": "부강면",
+      "sidoName": "세종",
+      "lat": 36.5287437,
+      "lng": 127.3790174
+    },
+    {
+      "stationName": "보람동",
+      "sidoName": "세종",
+      "lat": 36.4775742,
+      "lng": 127.2896146
+    },
+    {
+      "stationName": "전의면",
+      "sidoName": "세종",
+      "lat": 36.6814123,
+      "lng": 127.1957059
+    },
+    {
+      "stationName": "소사본동",
+      "sidoName": "경기",
+      "lat": 37.4734085,
+      "lng": 126.7947805
+    },
+    {
+      "stationName": "내동",
+      "sidoName": "경기",
+      "lat": 37.52041,
+      "lng": 126.77972
+    },
+    {
+      "stationName": "오정동",
+      "sidoName": "경기",
+      "lat": 37.5340894,
+      "lng": 126.7833694
+    },
+    {
+      "stationName": "송내대로(중동)",
+      "sidoName": "경기",
+      "lat": 37.5004329,
+      "lng": 126.7569355
+    },
+    {
+      "stationName": "백석읍",
+      "sidoName": "경기",
+      "lat": 37.7948404,
+      "lng": 126.9855291
+    },
+    {
+      "stationName": "고읍",
+      "sidoName": "경기",
+      "lat": 37.7883686,
+      "lng": 127.0771008
+    },
+    {
+      "stationName": "보산동",
+      "sidoName": "경기",
+      "lat": 37.9176604,
+      "lng": 127.0609443
+    },
+    {
+      "stationName": "봉산동",
+      "sidoName": "경기",
+      "lat": 37.0070947,
+      "lng": 127.2792156
+    },
+    {
+      "stationName": "공도읍",
+      "sidoName": "경기",
+      "lat": 36.9915,
+      "lng": 127.17214
+    },
+    {
+      "stationName": "죽산면",
+      "sidoName": "경기",
+      "lat": 37.0677159,
+      "lng": 127.418343
+    },
+    {
+      "stationName": "중앙동(경기)",
+      "sidoName": "경기",
+      "lat": 37.43887,
+      "lng": 127.15254
+    },
+    {
+      "stationName": "대신면",
+      "sidoName": "경기",
+      "lat": 37.38293,
+      "lng": 127.59799
+    },
+    {
+      "stationName": "가남읍",
+      "sidoName": "경기",
+      "lat": 37.21286,
+      "lng": 127.57724
+    },
+    {
+      "stationName": "연천",
+      "sidoName": "경기",
+      "lat": 38.1007279,
+      "lng": 127.0737179
+    },
+    {
+      "stationName": "전곡",
+      "sidoName": "경기",
+      "lat": 38.0245987,
+      "lng": 127.0718642
+    },
+    {
+      "stationName": "가평",
+      "sidoName": "경기",
+      "lat": 37.8146553,
+      "lng": 127.5107101
+    },
+    {
+      "stationName": "설악면",
+      "sidoName": "경기",
+      "lat": 37.6575,
+      "lng": 127.5031
+    },
+    {
+      "stationName": "용문면",
+      "sidoName": "경기",
+      "lat": 37.5022823,
+      "lng": 127.5915757
+    },
+    {
+      "stationName": "양평읍",
+      "sidoName": "경기",
+      "lat": 37.4868673,
+      "lng": 127.493973
+    },
+    {
+      "stationName": "신풍동",
+      "sidoName": "경기",
+      "lat": 37.28401,
+      "lng": 127.01292
+    },
+    {
+      "stationName": "인계동",
+      "sidoName": "경기",
+      "lat": 37.268208,
+      "lng": 127.0293802
+    },
+    {
+      "stationName": "광교동",
+      "sidoName": "경기",
+      "lat": 37.2842296,
+      "lng": 127.0521977
+    },
+    {
+      "stationName": "영통동",
+      "sidoName": "경기",
+      "lat": 37.2547147,
+      "lng": 127.0719349
+    },
+    {
+      "stationName": "천천동",
+      "sidoName": "경기",
+      "lat": 37.2958836,
+      "lng": 126.9789152
+    },
+    {
+      "stationName": "고색동",
+      "sidoName": "경기",
+      "lat": 37.2516324,
+      "lng": 126.9830331
+    },
+    {
+      "stationName": "호매실",
+      "sidoName": "경기",
+      "lat": 37.2596445,
+      "lng": 126.948709
+    },
+    {
+      "stationName": "대왕판교로(백현동)",
+      "sidoName": "경기",
+      "lat": 37.3854942,
+      "lng": 127.1024062
+    },
+    {
+      "stationName": "단대동",
+      "sidoName": "경기",
+      "lat": 37.45482,
+      "lng": 127.15767
+    },
+    {
+      "stationName": "정자동",
+      "sidoName": "경기",
+      "lat": 37.2966073,
+      "lng": 126.9928359
+    },
+    {
+      "stationName": "수내동",
+      "sidoName": "경기",
+      "lat": 37.37244,
+      "lng": 127.12236
+    },
+    {
+      "stationName": "복정동",
+      "sidoName": "경기",
+      "lat": 37.45896,
+      "lng": 127.1334
+    },
+    {
+      "stationName": "운중동",
+      "sidoName": "경기",
+      "lat": 37.3944345,
+      "lng": 127.074534
+    },
+    {
+      "stationName": "상대원동",
+      "sidoName": "경기",
+      "lat": 37.44211,
+      "lng": 127.17404
+    },
+    {
+      "stationName": "의정부동",
+      "sidoName": "경기",
+      "lat": 37.7393544,
+      "lng": 127.0464579
+    },
+    {
+      "stationName": "의정부1동",
+      "sidoName": "경기",
+      "lat": 37.7424836,
+      "lng": 127.0499686
+    },
+    {
+      "stationName": "송산3동",
+      "sidoName": "경기",
+      "lat": 37.755416,
+      "lng": 127.1118563
+    },
+    {
+      "stationName": "안양8동",
+      "sidoName": "경기",
+      "lat": 37.3841594,
+      "lng": 126.9319965
+    },
+    {
+      "stationName": "부림동",
+      "sidoName": "경기",
+      "lat": 37.3987517,
+      "lng": 126.9594554
+    },
+    {
+      "stationName": "호계3동",
+      "sidoName": "경기",
+      "lat": 37.3676428,
+      "lng": 126.9586821
+    },
+    {
+      "stationName": "안양2동",
+      "sidoName": "경기",
+      "lat": 37.4050333,
+      "lng": 126.9177988
+    },
+    {
+      "stationName": "철산동",
+      "sidoName": "경기",
+      "lat": 37.480209,
+      "lng": 126.8678124
+    },
+    {
+      "stationName": "소하동",
+      "sidoName": "경기",
+      "lat": 37.4432784,
+      "lng": 126.8823406
+    },
+    {
+      "stationName": "고잔동",
+      "sidoName": "경기",
+      "lat": 37.3157805,
+      "lng": 126.831162
+    },
+    {
+      "stationName": "초지동",
+      "sidoName": "경기",
+      "lat": 37.3134845,
+      "lng": 126.8115434
+    },
+    {
+      "stationName": "본오동",
+      "sidoName": "경기",
+      "lat": 37.2928744,
+      "lng": 126.8668397
+    },
+    {
+      "stationName": "원곡동",
+      "sidoName": "경기",
+      "lat": 37.3304454,
+      "lng": 126.7959133
+    },
+    {
+      "stationName": "대부동",
+      "sidoName": "경기",
+      "lat": 37.1987754,
+      "lng": 126.5772581
+    },
+    {
+      "stationName": "호수동",
+      "sidoName": "경기",
+      "lat": 37.3094921,
+      "lng": 126.8313312
+    },
+    {
+      "stationName": "중앙대로(고잔동)",
+      "sidoName": "경기",
+      "lat": 37.3173817,
+      "lng": 126.8242875
+    },
+    {
+      "stationName": "별양동",
+      "sidoName": "경기",
+      "lat": 37.4276861,
+      "lng": 126.9958682
+    },
+    {
+      "stationName": "과천동",
+      "sidoName": "경기",
+      "lat": 37.4497001,
+      "lng": 127.0008925
+    },
+    {
+      "stationName": "교문동",
+      "sidoName": "경기",
+      "lat": 37.5875737,
+      "lng": 127.1275277
+    },
+    {
+      "stationName": "동구동",
+      "sidoName": "경기",
+      "lat": 37.6117004,
+      "lng": 127.1393514
+    },
+    {
+      "stationName": "고천동",
+      "sidoName": "경기",
+      "lat": 37.3414144,
+      "lng": 126.9872221
+    },
+    {
+      "stationName": "정왕동",
+      "sidoName": "경기",
+      "lat": 37.343924,
+      "lng": 126.7308801
+    },
+    {
+      "stationName": "대야동",
+      "sidoName": "경기",
+      "lat": 37.3303161,
+      "lng": 126.9153537
+    },
+    {
+      "stationName": "목감동",
+      "sidoName": "경기",
+      "lat": 37.3820885,
+      "lng": 126.8516086
+    },
+    {
+      "stationName": "장현동",
+      "sidoName": "경기",
+      "lat": 37.3800041,
+      "lng": 126.7992337
+    },
+    {
+      "stationName": "서해안로",
+      "sidoName": "경기",
+      "lat": 37.4638221,
+      "lng": 126.8095091
+    },
+    {
+      "stationName": "배곧동",
+      "sidoName": "경기",
+      "lat": 37.3675747,
+      "lng": 126.7218267
+    },
+    {
+      "stationName": "금곡동",
+      "sidoName": "경기",
+      "lat": 37.63349,
+      "lng": 127.21651
+    },
+    {
+      "stationName": "오남읍",
+      "sidoName": "경기",
+      "lat": 37.6938801,
+      "lng": 127.2230356
+    },
+    {
+      "stationName": "별내동",
+      "sidoName": "경기",
+      "lat": 37.6565148,
+      "lng": 127.1216627
+    },
+    {
+      "stationName": "화도읍",
+      "sidoName": "경기",
+      "lat": 37.6538308,
+      "lng": 127.3196785
+    },
+    {
+      "stationName": "경춘로",
+      "sidoName": "경기",
+      "lat": 37.652725,
+      "lng": 127.2463321
+    },
+    {
+      "stationName": "와부읍",
+      "sidoName": "경기",
+      "lat": 37.5946765,
+      "lng": 127.2374641
+    },
+    {
+      "stationName": "진접읍",
+      "sidoName": "경기",
+      "lat": 37.7228358,
+      "lng": 127.1976354
+    },
+    {
+      "stationName": "비전동",
+      "sidoName": "경기",
+      "lat": 37.0008941,
+      "lng": 127.100778
+    },
+    {
+      "stationName": "안중",
+      "sidoName": "경기",
+      "lat": 36.9719691,
+      "lng": 126.9385092
+    },
+    {
+      "stationName": "평택항",
+      "sidoName": "경기",
+      "lat": 36.9700991,
+      "lng": 126.8474051
+    },
+    {
+      "stationName": "송북동",
+      "sidoName": "경기",
+      "lat": 37.0816418,
+      "lng": 127.0602516
+    },
+    {
+      "stationName": "청북읍",
+      "sidoName": "경기",
+      "lat": 37.0392736,
+      "lng": 126.9330358
+    },
+    {
+      "stationName": "고덕동",
+      "sidoName": "경기",
+      "lat": 37.0480854,
+      "lng": 127.0363555
+    },
+    {
+      "stationName": "금촌동",
+      "sidoName": "경기",
+      "lat": 37.7584627,
+      "lng": 126.7697535
+    },
+    {
+      "stationName": "운정",
+      "sidoName": "경기",
+      "lat": 37.725329,
+      "lng": 126.7670452
+    },
+    {
+      "stationName": "파주",
+      "sidoName": "경기",
+      "lat": 37.8150577,
+      "lng": 126.7924283
+    },
+    {
+      "stationName": "파주읍",
+      "sidoName": "경기",
+      "lat": 37.8306704,
+      "lng": 126.819981
+    },
+    {
+      "stationName": "행신동",
+      "sidoName": "경기",
+      "lat": 37.6194469,
+      "lng": 126.8372169
+    },
+    {
+      "stationName": "식사동",
+      "sidoName": "경기",
+      "lat": 37.6778734,
+      "lng": 126.8133169
+    },
+    {
+      "stationName": "신원동",
+      "sidoName": "경기",
+      "lat": 37.6704756,
+      "lng": 126.8820584
+    },
+    {
+      "stationName": "주엽동",
+      "sidoName": "경기",
+      "lat": 37.6712292,
+      "lng": 126.7618004
+    },
+    {
+      "stationName": "경안동",
+      "sidoName": "경기",
+      "lat": 37.41126,
+      "lng": 127.25393
+    },
+    {
+      "stationName": "오포1동",
+      "sidoName": "경기",
+      "lat": 37.3569168,
+      "lng": 127.2081261
+    },
+    {
+      "stationName": "곤지암",
+      "sidoName": "경기",
+      "lat": 37.3505063,
+      "lng": 127.346279
+    },
+    {
+      "stationName": "김량장동",
+      "sidoName": "경기",
+      "lat": 37.2339949,
+      "lng": 127.2029827
+    },
+    {
+      "stationName": "수지",
+      "sidoName": "경기",
+      "lat": 37.3307192,
+      "lng": 127.0920536
+    },
+    {
+      "stationName": "기흥",
+      "sidoName": "경기",
+      "lat": 37.2755132,
+      "lng": 127.1160129
+    },
+    {
+      "stationName": "중부대로(구갈동)",
+      "sidoName": "경기",
+      "lat": 37.2723009,
+      "lng": 127.1239925
+    },
+    {
+      "stationName": "모현읍",
+      "sidoName": "경기",
+      "lat": 37.3297,
+      "lng": 127.21703
+    },
+    {
+      "stationName": "이동읍",
+      "sidoName": "경기",
+      "lat": 37.141088,
+      "lng": 127.1958565
+    },
+    {
+      "stationName": "백암면",
+      "sidoName": "경기",
+      "lat": 37.1613883,
+      "lng": 127.3742911
+    },
+    {
+      "stationName": "설성면",
+      "sidoName": "경기",
+      "lat": 37.14012,
+      "lng": 127.52471
+    },
+    {
+      "stationName": "창전동",
+      "sidoName": "경기",
+      "lat": 37.2830213,
+      "lng": 127.447383
+    },
+    {
+      "stationName": "장호원읍",
+      "sidoName": "경기",
+      "lat": 37.13181,
+      "lng": 127.59698
+    },
+    {
+      "stationName": "부발읍",
+      "sidoName": "경기",
+      "lat": 37.283401,
+      "lng": 127.4872796
+    },
+    {
+      "stationName": "관인면",
+      "sidoName": "경기",
+      "lat": 38.13706,
+      "lng": 127.23977
+    },
+    {
+      "stationName": "선단동",
+      "sidoName": "경기",
+      "lat": 37.8642666,
+      "lng": 127.1466017
+    },
+    {
+      "stationName": "일동면",
+      "sidoName": "경기",
+      "lat": 37.9599732,
+      "lng": 127.3215602
+    },
+    {
+      "stationName": "사우동",
+      "sidoName": "경기",
+      "lat": 37.6199671,
+      "lng": 126.726365
+    },
+    {
+      "stationName": "고촌읍",
+      "sidoName": "경기",
+      "lat": 37.60599,
+      "lng": 126.76195
+    },
+    {
+      "stationName": "월곶면",
+      "sidoName": "경기",
+      "lat": 37.718175,
+      "lng": 126.5500645
+    },
+    {
+      "stationName": "한강신도시",
+      "sidoName": "경기",
+      "lat": 37.6535413,
+      "lng": 126.6726809
+    },
+    {
+      "stationName": "당동",
+      "sidoName": "경기",
+      "lat": 37.3473986,
+      "lng": 126.9425754
+    },
+    {
+      "stationName": "산본동",
+      "sidoName": "경기",
+      "lat": 37.3704501,
+      "lng": 126.9299906
+    },
+    {
+      "stationName": "오산동",
+      "sidoName": "경기",
+      "lat": 37.14782,
+      "lng": 127.06665
+    },
+    {
+      "stationName": "신장동",
+      "sidoName": "경기",
+      "lat": 37.08163,
+      "lng": 127.04957
+    },
+    {
+      "stationName": "미사",
+      "sidoName": "경기",
+      "lat": 37.5630546,
+      "lng": 127.192822
+    },
+    {
+      "stationName": "감일",
+      "sidoName": "경기",
+      "lat": 37.5000585,
+      "lng": 127.1683507
+    },
+    {
+      "stationName": "남양읍",
+      "sidoName": "경기",
+      "lat": 37.2098661,
+      "lng": 126.821926
+    },
+    {
+      "stationName": "향남읍",
+      "sidoName": "경기",
+      "lat": 37.129402,
+      "lng": 126.9325167
+    },
+    {
+      "stationName": "동탄",
+      "sidoName": "경기",
+      "lat": 37.2003594,
+      "lng": 127.0955764
+    },
+    {
+      "stationName": "우정읍",
+      "sidoName": "경기",
+      "lat": 37.0893354,
+      "lng": 126.8164031
+    },
+    {
+      "stationName": "청계동",
+      "sidoName": "경기",
+      "lat": 37.3843639,
+      "lng": 127.0117299
+    },
+    {
+      "stationName": "새솔동",
+      "sidoName": "경기",
+      "lat": 37.281408,
+      "lng": 126.8189116
+    },
+    {
+      "stationName": "봉담읍",
+      "sidoName": "경기",
+      "lat": 37.19482,
+      "lng": 126.94288
+    },
+    {
+      "stationName": "서신면",
+      "sidoName": "경기",
+      "lat": 37.1690451,
+      "lng": 126.7114352
+    },
+    {
+      "stationName": "중앙동(강원)",
+      "sidoName": "강원",
+      "lat": 37.7529663,
+      "lng": 128.8953507
+    },
+    {
+      "stationName": "문막읍",
+      "sidoName": "강원",
+      "lat": 37.3126434,
+      "lng": 127.8171631
+    },
+    {
+      "stationName": "지정면",
+      "sidoName": "강원",
+      "lat": 37.3654993,
+      "lng": 127.8383792
+    },
+    {
+      "stationName": "주문진읍",
+      "sidoName": "강원",
+      "lat": 37.8953624,
+      "lng": 128.831436
+    },
+    {
+      "stationName": "옥천동",
+      "sidoName": "강원",
+      "lat": 37.7606262,
+      "lng": 128.9035826
+    },
+    {
+      "stationName": "초당동",
+      "sidoName": "강원",
+      "lat": 37.7975733,
+      "lng": 128.9286885
+    },
+    {
+      "stationName": "천곡동",
+      "sidoName": "강원",
+      "lat": 37.5246248,
+      "lng": 129.1168709
+    },
+    {
+      "stationName": "평창읍",
+      "sidoName": "강원",
+      "lat": 37.3687653,
+      "lng": 128.3973536
+    },
+    {
+      "stationName": "북평면",
+      "sidoName": "강원",
+      "lat": 37.4605156,
+      "lng": 128.652297
+    },
+    {
+      "stationName": "정선읍",
+      "sidoName": "강원",
+      "lat": 37.3796216,
+      "lng": 128.6618047
+    },
+    {
+      "stationName": "간성읍",
+      "sidoName": "강원",
+      "lat": 38.3783535,
+      "lng": 128.4671265
+    },
+    {
+      "stationName": "치악산",
+      "sidoName": "강원",
+      "lat": 37.3651455,
+      "lng": 128.0556322
+    },
+    {
+      "stationName": "횡성읍",
+      "sidoName": "강원",
+      "lat": 37.492267,
+      "lng": 127.9926086
+    },
+    {
+      "stationName": "상리",
+      "sidoName": "강원",
+      "lat": 38.1132324,
+      "lng": 127.6914108
+    },
+    {
+      "stationName": "양양읍",
+      "sidoName": "강원",
+      "lat": 38.0805652,
+      "lng": 128.6240684
+    },
+    {
+      "stationName": "금호동",
+      "sidoName": "강원",
+      "lat": 38.21071,
+      "lng": 128.57933
+    },
+    {
+      "stationName": "갈말읍",
+      "sidoName": "강원",
+      "lat": 38.1455055,
+      "lng": 127.3082796
+    },
+    {
+      "stationName": "홍천읍",
+      "sidoName": "강원",
+      "lat": 37.6894014,
+      "lng": 127.8843043
+    },
+    {
+      "stationName": "영월읍",
+      "sidoName": "강원",
+      "lat": 37.1872797,
+      "lng": 128.465992
+    },
+    {
+      "stationName": "화천읍",
+      "sidoName": "강원",
+      "lat": 38.1042329,
+      "lng": 127.7073657
+    },
+    {
+      "stationName": "황지동",
+      "sidoName": "강원",
+      "lat": 37.1649855,
+      "lng": 128.9854495
+    },
+    {
+      "stationName": "인제읍",
+      "sidoName": "강원",
+      "lat": 38.070295,
+      "lng": 128.1723584
+    },
+    {
+      "stationName": "우천면",
+      "sidoName": "강원",
+      "lat": 37.47065,
+      "lng": 128.07702
+    },
+    {
+      "stationName": "중앙로",
+      "sidoName": "강원",
+      "lat": 37.8798707,
+      "lng": 127.7270908
+    },
+    {
+      "stationName": "퇴계동",
+      "sidoName": "강원",
+      "lat": 37.8548266,
+      "lng": 127.7287788
+    },
+    {
+      "stationName": "신사우동",
+      "sidoName": "강원",
+      "lat": 37.9201405,
+      "lng": 127.7298428
+    },
+    {
+      "stationName": "온의동",
+      "sidoName": "강원",
+      "lat": 37.8596868,
+      "lng": 127.7166353
+    },
+    {
+      "stationName": "방산면",
+      "sidoName": "강원",
+      "lat": 38.2239197,
+      "lng": 127.9497885
+    },
+    {
+      "stationName": "양구읍",
+      "sidoName": "강원",
+      "lat": 38.1079916,
+      "lng": 127.9904953
+    },
+    {
+      "stationName": "동해항",
+      "sidoName": "강원",
+      "lat": 37.4890308,
+      "lng": 129.1246058
+    },
+    {
+      "stationName": "묵호항",
+      "sidoName": "강원",
+      "lat": 37.539852,
+      "lng": 129.112032
+    },
+    {
+      "stationName": "삼척항",
+      "sidoName": "강원",
+      "lat": 37.4358828,
+      "lng": 129.1917402
+    },
+    {
+      "stationName": "봉명동",
+      "sidoName": "충북",
+      "lat": 36.6471584,
+      "lng": 127.4585429
+    },
+    {
+      "stationName": "사천동",
+      "sidoName": "충북",
+      "lat": 36.6707518,
+      "lng": 127.4735432
+    },
+    {
+      "stationName": "용담동",
+      "sidoName": "충북",
+      "lat": 36.6366461,
+      "lng": 127.5078315
+    },
+    {
+      "stationName": "용암동",
+      "sidoName": "충북",
+      "lat": 36.6139324,
+      "lng": 127.5127559
+    },
+    {
+      "stationName": "복대동",
+      "sidoName": "충북",
+      "lat": 36.6360473,
+      "lng": 127.4405923
+    },
+    {
+      "stationName": "호암동",
+      "sidoName": "충북",
+      "lat": 36.9515835,
+      "lng": 127.9320309
+    },
+    {
+      "stationName": "칠금동",
+      "sidoName": "충북",
+      "lat": 36.9841724,
+      "lng": 127.9119085
+    },
+    {
+      "stationName": "중앙탑면",
+      "sidoName": "충북",
+      "lat": 37.0319399,
+      "lng": 127.8531312
+    },
+    {
+      "stationName": "살미면",
+      "sidoName": "충북",
+      "lat": 36.9115864,
+      "lng": 127.9931536
+    },
+    {
+      "stationName": "장락동",
+      "sidoName": "충북",
+      "lat": 37.1509037,
+      "lng": 128.2265529
+    },
+    {
+      "stationName": "영천동",
+      "sidoName": "충북",
+      "lat": 37.1275137,
+      "lng": 128.2029241
+    },
+    {
+      "stationName": "청풍면",
+      "sidoName": "충북",
+      "lat": 37.00768,
+      "lng": 128.13983
+    },
+    {
+      "stationName": "송학면",
+      "sidoName": "충북",
+      "lat": 37.1999015,
+      "lng": 128.255838
+    },
+    {
+      "stationName": "오창읍",
+      "sidoName": "충북",
+      "lat": 36.7314494,
+      "lng": 127.4354605
+    },
+    {
+      "stationName": "산남동",
+      "sidoName": "충북",
+      "lat": 36.613772,
+      "lng": 127.468107
+    },
+    {
+      "stationName": "오송읍",
+      "sidoName": "충북",
+      "lat": 36.62874,
+      "lng": 127.32436
+    },
+    {
+      "stationName": "가덕면",
+      "sidoName": "충북",
+      "lat": 36.5578847,
+      "lng": 127.5611382
+    },
+    {
+      "stationName": "매포읍",
+      "sidoName": "충북",
+      "lat": 37.0466958,
+      "lng": 128.2979531
+    },
+    {
+      "stationName": "단성면",
+      "sidoName": "충북",
+      "lat": 36.9369817,
+      "lng": 128.3236696
+    },
+    {
+      "stationName": "단양읍",
+      "sidoName": "충북",
+      "lat": 36.9864257,
+      "lng": 128.3682432
+    },
+    {
+      "stationName": "청천면",
+      "sidoName": "충북",
+      "lat": 36.684251,
+      "lng": 127.8077291
+    },
+    {
+      "stationName": "괴산읍",
+      "sidoName": "충북",
+      "lat": 36.8128301,
+      "lng": 127.7978613
+    },
+    {
+      "stationName": "감물면",
+      "sidoName": "충북",
+      "lat": 36.8424379,
+      "lng": 127.876388
+    },
+    {
+      "stationName": "진천읍",
+      "sidoName": "충북",
+      "lat": 36.8548027,
+      "lng": 127.4414303
+    },
+    {
+      "stationName": "덕산읍",
+      "sidoName": "충북",
+      "lat": 36.8968631,
+      "lng": 127.5060402
+    },
+    {
+      "stationName": "금왕",
+      "sidoName": "충북",
+      "lat": 36.9862352,
+      "lng": 127.5716381
+    },
+    {
+      "stationName": "음성읍",
+      "sidoName": "충북",
+      "lat": 36.9306754,
+      "lng": 127.6796887
+    },
+    {
+      "stationName": "소이면",
+      "sidoName": "충북",
+      "lat": 36.9103281,
+      "lng": 127.7551869
+    },
+    {
+      "stationName": "영동읍",
+      "sidoName": "충북",
+      "lat": 36.1710097,
+      "lng": 127.7757737
+    },
+    {
+      "stationName": "황간면",
+      "sidoName": "충북",
+      "lat": 36.236126,
+      "lng": 127.897015
+    },
+    {
+      "stationName": "도안면",
+      "sidoName": "충북",
+      "lat": 36.8265842,
+      "lng": 127.6127442
+    },
+    {
+      "stationName": "증평읍",
+      "sidoName": "충북",
+      "lat": 36.7850497,
+      "lng": 127.5812194
+    },
+    {
+      "stationName": "보은읍",
+      "sidoName": "충북",
+      "lat": 36.4833355,
+      "lng": 127.7170924
+    },
+    {
+      "stationName": "옥천읍",
+      "sidoName": "충북",
+      "lat": 36.3070087,
+      "lng": 127.5747772
+    },
+    {
+      "stationName": "성황동",
+      "sidoName": "충남",
+      "lat": 36.8138633,
+      "lng": 127.1533872
+    },
+    {
+      "stationName": "백석동",
+      "sidoName": "충남",
+      "lat": 36.8242631,
+      "lng": 127.1178826
+    },
+    {
+      "stationName": "모종동",
+      "sidoName": "충남",
+      "lat": 36.7848603,
+      "lng": 127.0203644
+    },
+    {
+      "stationName": "배방읍",
+      "sidoName": "충남",
+      "lat": 36.76563,
+      "lng": 127.0662549
+    },
+    {
+      "stationName": "도고면",
+      "sidoName": "충남",
+      "lat": 36.7573924,
+      "lng": 126.8895814
+    },
+    {
+      "stationName": "둔포면",
+      "sidoName": "충남",
+      "lat": 36.9158923,
+      "lng": 127.0383651
+    },
+    {
+      "stationName": "인주면",
+      "sidoName": "충남",
+      "lat": 36.8637,
+      "lng": 126.89235
+    },
+    {
+      "stationName": "장재리",
+      "sidoName": "충남",
+      "lat": 36.7918624,
+      "lng": 127.1002598
+    },
+    {
+      "stationName": "송악면",
+      "sidoName": "충남",
+      "lat": 36.7305737,
+      "lng": 127.0097967
+    },
+    {
+      "stationName": "논산",
+      "sidoName": "충남",
+      "lat": 36.2069077,
+      "lng": 127.0928492
+    },
+    {
+      "stationName": "연무읍",
+      "sidoName": "충남",
+      "lat": 36.116767,
+      "lng": 127.0971567
+    },
+    {
+      "stationName": "성동면",
+      "sidoName": "충남",
+      "lat": 36.2037619,
+      "lng": 127.033264
+    },
+    {
+      "stationName": "파도리",
+      "sidoName": "충남",
+      "lat": 36.7379188,
+      "lng": 126.1385559
+    },
+    {
+      "stationName": "이원면",
+      "sidoName": "충남",
+      "lat": 36.88365,
+      "lng": 126.28795
+    },
+    {
+      "stationName": "태안읍",
+      "sidoName": "충남",
+      "lat": 36.757905,
+      "lng": 126.2965246
+    },
+    {
+      "stationName": "격렬비열도",
+      "sidoName": "충남",
+      "lat": 36.6172206,
+      "lng": 125.5744342
+    },
+    {
+      "stationName": "원북면",
+      "sidoName": "충남",
+      "lat": 36.8263,
+      "lng": 126.23819
+    },
+    {
+      "stationName": "예산군",
+      "sidoName": "충남",
+      "lat": 36.6808989,
+      "lng": 126.8448742
+    },
+    {
+      "stationName": "삽교읍",
+      "sidoName": "충남",
+      "lat": 36.687991,
+      "lng": 126.7393728
+    },
+    {
+      "stationName": "고덕면(충남)",
+      "sidoName": "충남",
+      "lat": 36.75549,
+      "lng": 126.72461
+    },
+    {
+      "stationName": "대천2동",
+      "sidoName": "충남",
+      "lat": 36.3533976,
+      "lng": 126.5897679
+    },
+    {
+      "stationName": "주교면",
+      "sidoName": "충남",
+      "lat": 36.38281,
+      "lng": 126.54718
+    },
+    {
+      "stationName": "외연도",
+      "sidoName": "충남",
+      "lat": 36.2285007,
+      "lng": 126.0851571
+    },
+    {
+      "stationName": "홍성읍",
+      "sidoName": "충남",
+      "lat": 36.5969032,
+      "lng": 126.6629617
+    },
+    {
+      "stationName": "내포",
+      "sidoName": "충남",
+      "lat": 36.6867805,
+      "lng": 126.7221982
+    },
+    {
+      "stationName": "금산읍",
+      "sidoName": "충남",
+      "lat": 36.1071141,
+      "lng": 127.490569
+    },
+    {
+      "stationName": "청양읍",
+      "sidoName": "충남",
+      "lat": 36.4531893,
+      "lng": 126.8067285
+    },
+    {
+      "stationName": "정산면",
+      "sidoName": "충남",
+      "lat": 36.4190556,
+      "lng": 126.9429941
+    },
+    {
+      "stationName": "엄사면",
+      "sidoName": "충남",
+      "lat": 36.2811419,
+      "lng": 127.2257159
+    },
+    {
+      "stationName": "대산항",
+      "sidoName": "충남",
+      "lat": 37.0131322,
+      "lng": 126.4243191
+    },
+    {
+      "stationName": "장항항",
+      "sidoName": "충남",
+      "lat": 36.0077641,
+      "lng": 126.6858027
+    },
+    {
+      "stationName": "서천읍",
+      "sidoName": "충남",
+      "lat": 36.0777327,
+      "lng": 126.6897534
+    },
+    {
+      "stationName": "서면",
+      "sidoName": "충남",
+      "lat": 36.1563227,
+      "lng": 126.5558596
+    },
+    {
+      "stationName": "장항읍",
+      "sidoName": "충남",
+      "lat": 36.0240164,
+      "lng": 126.6915659
+    },
+    {
+      "stationName": "성성동",
+      "sidoName": "충남",
+      "lat": 36.8417281,
+      "lng": 127.1307614
+    },
+    {
+      "stationName": "성거읍",
+      "sidoName": "충남",
+      "lat": 36.8780677,
+      "lng": 127.197568
+    },
+    {
+      "stationName": "신방동",
+      "sidoName": "충남",
+      "lat": 36.7840779,
+      "lng": 127.1253344
+    },
+    {
+      "stationName": "수신면",
+      "sidoName": "충남",
+      "lat": 36.72564,
+      "lng": 127.28376
+    },
+    {
+      "stationName": "사곡면",
+      "sidoName": "충남",
+      "lat": 36.5359891,
+      "lng": 127.0324459
+    },
+    {
+      "stationName": "공주",
+      "sidoName": "충남",
+      "lat": 36.3322371,
+      "lng": 127.0966368
+    },
+    {
+      "stationName": "탄천면",
+      "sidoName": "충남",
+      "lat": 36.3190188,
+      "lng": 127.0303035
+    },
+    {
+      "stationName": "부여읍",
+      "sidoName": "충남",
+      "lat": 36.2756729,
+      "lng": 126.9110693
+    },
+    {
+      "stationName": "독곶리",
+      "sidoName": "충남",
+      "lat": 36.9891273,
+      "lng": 126.371338
+    },
+    {
+      "stationName": "동문동",
+      "sidoName": "충남",
+      "lat": 36.7861432,
+      "lng": 126.4589307
+    },
+    {
+      "stationName": "대산리",
+      "sidoName": "충남",
+      "lat": 36.6185463,
+      "lng": 127.1026016
+    },
+    {
+      "stationName": "성연면",
+      "sidoName": "충남",
+      "lat": 36.83493,
+      "lng": 126.46189
+    },
+    {
+      "stationName": "송산면",
+      "sidoName": "충남",
+      "lat": 36.9430325,
+      "lng": 126.6782302
+    },
+    {
+      "stationName": "합덕읍",
+      "sidoName": "충남",
+      "lat": 36.7977632,
+      "lng": 126.7692259
+    },
+    {
+      "stationName": "복운리",
+      "sidoName": "충남",
+      "lat": 36.9341327,
+      "lng": 126.7761355
+    },
+    {
+      "stationName": "노송동",
+      "sidoName": "전북",
+      "lat": 35.8244307,
+      "lng": 127.1583728
+    },
+    {
+      "stationName": "군산항",
+      "sidoName": "전북",
+      "lat": 35.9719471,
+      "lng": 126.5597569
+    },
+    {
+      "stationName": "삼천동",
+      "sidoName": "전북",
+      "lat": 35.7917789,
+      "lng": 127.1173802
+    },
+    {
+      "stationName": "팔복동",
+      "sidoName": "전북",
+      "lat": 35.8536596,
+      "lng": 127.1062727
+    },
+    {
+      "stationName": "송천동",
+      "sidoName": "전북",
+      "lat": 35.8671684,
+      "lng": 127.1132245
+    },
+    {
+      "stationName": "서신동",
+      "sidoName": "전북",
+      "lat": 35.8338729,
+      "lng": 127.1150449
+    },
+    {
+      "stationName": "혁신동",
+      "sidoName": "전북",
+      "lat": 35.8376191,
+      "lng": 127.0613158
+    },
+    {
+      "stationName": "여의동",
+      "sidoName": "전북",
+      "lat": 35.8603478,
+      "lng": 127.0739209
+    },
+    {
+      "stationName": "효자동",
+      "sidoName": "전북",
+      "lat": 35.80455,
+      "lng": 127.1122589
+    },
+    {
+      "stationName": "신풍동(군산)",
+      "sidoName": "전북",
+      "lat": 35.9799905,
+      "lng": 126.7034977
+    },
+    {
+      "stationName": "소룡동",
+      "sidoName": "전북",
+      "lat": 35.9751154,
+      "lng": 126.6819351
+    },
+    {
+      "stationName": "사정동",
+      "sidoName": "전북",
+      "lat": 35.9614354,
+      "lng": 126.7502766
+    },
+    {
+      "stationName": "옥산면",
+      "sidoName": "전북",
+      "lat": 35.9418228,
+      "lng": 126.7481306
+    },
+    {
+      "stationName": "비응도동",
+      "sidoName": "전북",
+      "lat": 35.940018,
+      "lng": 126.5314323
+    },
+    {
+      "stationName": "말도",
+      "sidoName": "전북",
+      "lat": 35.855591,
+      "lng": 126.3227167
+    },
+    {
+      "stationName": "삼기면",
+      "sidoName": "전북",
+      "lat": 36.0200398,
+      "lng": 126.9912718
+    },
+    {
+      "stationName": "팔봉동",
+      "sidoName": "전북",
+      "lat": 35.9604508,
+      "lng": 127.011535
+    },
+    {
+      "stationName": "모현동",
+      "sidoName": "전북",
+      "lat": 35.9481772,
+      "lng": 126.9454257
+    },
+    {
+      "stationName": "용동면",
+      "sidoName": "전북",
+      "lat": 36.1056188,
+      "lng": 126.997189
+    },
+    {
+      "stationName": "함열읍",
+      "sidoName": "전북",
+      "lat": 36.0620914,
+      "lng": 126.9638923
+    },
+    {
+      "stationName": "춘포면",
+      "sidoName": "전북",
+      "lat": 35.927274,
+      "lng": 127.023882
+    },
+    {
+      "stationName": "여산면",
+      "sidoName": "전북",
+      "lat": 36.0475896,
+      "lng": 127.0908811
+    },
+    {
+      "stationName": "금마면",
+      "sidoName": "전북",
+      "lat": 36.0065883,
+      "lng": 127.0392656
+    },
+    {
+      "stationName": "연지동",
+      "sidoName": "전북",
+      "lat": 35.5719552,
+      "lng": 126.8441176
+    },
+    {
+      "stationName": "신태인",
+      "sidoName": "전북",
+      "lat": 35.6877264,
+      "lng": 126.8841325
+    },
+    {
+      "stationName": "영파동",
+      "sidoName": "전북",
+      "lat": 35.6081431,
+      "lng": 126.8516984
+    },
+    {
+      "stationName": "죽항동",
+      "sidoName": "전북",
+      "lat": 35.4084484,
+      "lng": 127.3889864
+    },
+    {
+      "stationName": "운봉읍",
+      "sidoName": "전북",
+      "lat": 35.437098,
+      "lng": 127.5328914
+    },
+    {
+      "stationName": "고창읍",
+      "sidoName": "전북",
+      "lat": 35.4315147,
+      "lng": 126.6972448
+    },
+    {
+      "stationName": "심원면",
+      "sidoName": "전북",
+      "lat": 35.51498,
+      "lng": 126.54444
+    },
+    {
+      "stationName": "부안읍",
+      "sidoName": "전북",
+      "lat": 35.7264518,
+      "lng": 126.7322134
+    },
+    {
+      "stationName": "새만금",
+      "sidoName": "전북",
+      "lat": 35.8531387,
+      "lng": 126.7059728
+    },
+    {
+      "stationName": "계화면",
+      "sidoName": "전북",
+      "lat": 35.7617797,
+      "lng": 126.6982798
+    },
+    {
+      "stationName": "요촌동",
+      "sidoName": "전북",
+      "lat": 35.8032071,
+      "lng": 126.8889287
+    },
+    {
+      "stationName": "광활면",
+      "sidoName": "전북",
+      "lat": 35.8333369,
+      "lng": 126.7412548
+    },
+    {
+      "stationName": "고산면",
+      "sidoName": "전북",
+      "lat": 35.9727722,
+      "lng": 127.2281284
+    },
+    {
+      "stationName": "봉동읍",
+      "sidoName": "전북",
+      "lat": 35.9508612,
+      "lng": 127.1440026
+    },
+    {
+      "stationName": "구이면",
+      "sidoName": "전북",
+      "lat": 35.71526,
+      "lng": 127.12113
+    },
+    {
+      "stationName": "진안읍",
+      "sidoName": "전북",
+      "lat": 35.77698,
+      "lng": 127.44458
+    },
+    {
+      "stationName": "운암면",
+      "sidoName": "전북",
+      "lat": 35.61409,
+      "lng": 127.14761
+    },
+    {
+      "stationName": "임실읍",
+      "sidoName": "전북",
+      "lat": 35.6078976,
+      "lng": 127.2828102
+    },
+    {
+      "stationName": "관촌면",
+      "sidoName": "전북",
+      "lat": 35.68868,
+      "lng": 127.28206
+    },
+    {
+      "stationName": "무주읍",
+      "sidoName": "전북",
+      "lat": 36.0121049,
+      "lng": 127.6692373
+    },
+    {
+      "stationName": "안성면",
+      "sidoName": "전북",
+      "lat": 35.85238,
+      "lng": 127.67152
+    },
+    {
+      "stationName": "순창읍",
+      "sidoName": "전북",
+      "lat": 35.37085,
+      "lng": 127.1378
+    },
+    {
+      "stationName": "장수읍",
+      "sidoName": "전북",
+      "lat": 35.62911,
+      "lng": 127.51364
+    },
+    {
+      "stationName": "장계면",
+      "sidoName": "전북",
+      "lat": 35.73123,
+      "lng": 127.60322
+    },
+    {
+      "stationName": "송단리",
+      "sidoName": "전남",
+      "lat": 35.18288,
+      "lng": 127.17394
+    },
+    {
+      "stationName": "화순읍",
+      "sidoName": "전남",
+      "lat": 35.05945,
+      "lng": 126.97312
+    },
+    {
+      "stationName": "영광읍",
+      "sidoName": "전남",
+      "lat": 35.2764376,
+      "lng": 126.5100626
+    },
+    {
+      "stationName": "안마도",
+      "sidoName": "전남",
+      "lat": 35.347871,
+      "lng": 126.0292628
+    },
+    {
+      "stationName": "장흥읍",
+      "sidoName": "전남",
+      "lat": 34.6791016,
+      "lng": 126.9031578
+    },
+    {
+      "stationName": "진도읍",
+      "sidoName": "전남",
+      "lat": 34.4826255,
+      "lng": 126.2649899
+    },
+    {
+      "stationName": "신지면",
+      "sidoName": "전남",
+      "lat": 34.33436,
+      "lng": 126.84281
+    },
+    {
+      "stationName": "함평읍",
+      "sidoName": "전남",
+      "lat": 35.06643,
+      "lng": 126.49242
+    },
+    {
+      "stationName": "고흥읍",
+      "sidoName": "전남",
+      "lat": 34.60741,
+      "lng": 127.27048
+    },
+    {
+      "stationName": "신안군",
+      "sidoName": "전남",
+      "lat": 34.8331095,
+      "lng": 126.3522531
+    },
+    {
+      "stationName": "홍도",
+      "sidoName": "전남",
+      "lat": 34.6913934,
+      "lng": 125.2003143
+    },
+    {
+      "stationName": "가거도",
+      "sidoName": "전남",
+      "lat": 34.0719678,
+      "lng": 125.1071352
+    },
+    {
+      "stationName": "무안읍",
+      "sidoName": "전남",
+      "lat": 34.99148,
+      "lng": 126.47
+    },
+    {
+      "stationName": "강진읍",
+      "sidoName": "전남",
+      "lat": 34.63266,
+      "lng": 126.75378
+    },
+    {
+      "stationName": "곡성읍",
+      "sidoName": "전남",
+      "lat": 35.28015,
+      "lng": 127.28443
+    },
+    {
+      "stationName": "구례읍",
+      "sidoName": "전남",
+      "lat": 35.2085428,
+      "lng": 127.4633373
+    },
+    {
+      "stationName": "벌교읍",
+      "sidoName": "전남",
+      "lat": 34.84372,
+      "lng": 127.33979
+    },
+    {
+      "stationName": "보성읍",
+      "sidoName": "전남",
+      "lat": 34.7686929,
+      "lng": 127.07984
+    },
+    {
+      "stationName": "목포항",
+      "sidoName": "전남",
+      "lat": 34.8029157,
+      "lng": 126.3571611
+    },
+    {
+      "stationName": "광양항",
+      "sidoName": "전남",
+      "lat": 34.9230008,
+      "lng": 127.6857364
+    },
+    {
+      "stationName": "여수항",
+      "sidoName": "전남",
+      "lat": 34.7391461,
+      "lng": 127.7511844
+    },
+    {
+      "stationName": "광양 중마",
+      "sidoName": "전남",
+      "lat": 34.9360093,
+      "lng": 127.6994814
+    },
+    {
+      "stationName": "용당동",
+      "sidoName": "전남",
+      "lat": 34.972136,
+      "lng": 127.4972758
+    },
+    {
+      "stationName": "부흥동",
+      "sidoName": "전남",
+      "lat": 34.8042975,
+      "lng": 126.4345396
+    },
+    {
+      "stationName": "서강동",
+      "sidoName": "전남",
+      "lat": 34.7411506,
+      "lng": 127.7258884
+    },
+    {
+      "stationName": "월내동",
+      "sidoName": "전남",
+      "lat": 34.8481132,
+      "lng": 127.7281086
+    },
+    {
+      "stationName": "여천동(여수)",
+      "sidoName": "전남",
+      "lat": 34.7769625,
+      "lng": 127.6675869
+    },
+    {
+      "stationName": "덕충동",
+      "sidoName": "전남",
+      "lat": 34.7572654,
+      "lng": 127.742328
+    },
+    {
+      "stationName": "장천동",
+      "sidoName": "전남",
+      "lat": 34.9495792,
+      "lng": 127.4893804
+    },
+    {
+      "stationName": "연향동",
+      "sidoName": "전남",
+      "lat": 34.9420457,
+      "lng": 127.5216039
+    },
+    {
+      "stationName": "순천만",
+      "sidoName": "전남",
+      "lat": 34.8773032,
+      "lng": 127.5162133
+    },
+    {
+      "stationName": "호두리",
+      "sidoName": "전남",
+      "lat": 34.8958,
+      "lng": 127.57048
+    },
+    {
+      "stationName": "신대",
+      "sidoName": "전남",
+      "lat": 34.9335823,
+      "lng": 127.5601744
+    },
+    {
+      "stationName": "빛가람동",
+      "sidoName": "전남",
+      "lat": 35.0199894,
+      "lng": 126.7894723
+    },
+    {
+      "stationName": "담양읍",
+      "sidoName": "전남",
+      "lat": 35.31819,
+      "lng": 126.98236
+    },
+    {
+      "stationName": "장성읍",
+      "sidoName": "전남",
+      "lat": 35.33415,
+      "lng": 126.81244
+    },
+    {
+      "stationName": "화양면",
+      "sidoName": "전남",
+      "lat": 34.69456,
+      "lng": 127.59725
+    },
+    {
+      "stationName": "율촌면",
+      "sidoName": "전남",
+      "lat": 34.84934,
+      "lng": 127.57213
+    },
+    {
+      "stationName": "삼일동",
+      "sidoName": "전남",
+      "lat": 34.8240093,
+      "lng": 127.712727
+    },
+    {
+      "stationName": "중동",
+      "sidoName": "전남",
+      "lat": 34.9379939,
+      "lng": 127.6923994
+    },
+    {
+      "stationName": "태인동",
+      "sidoName": "전남",
+      "lat": 34.9447526,
+      "lng": 127.7558823
+    },
+    {
+      "stationName": "광양읍",
+      "sidoName": "전남",
+      "lat": 34.9732493,
+      "lng": 127.5810068
+    },
+    {
+      "stationName": "봉강면",
+      "sidoName": "전남",
+      "lat": 35.02673,
+      "lng": 127.57056
+    },
+    {
+      "stationName": "진월면",
+      "sidoName": "전남",
+      "lat": 35.0009,
+      "lng": 127.75334
+    },
+    {
+      "stationName": "해남읍",
+      "sidoName": "전남",
+      "lat": 34.5721308,
+      "lng": 126.5984155
+    },
+    {
+      "stationName": "대불",
+      "sidoName": "전남",
+      "lat": 34.7736968,
+      "lng": 126.4188335
+    },
+    {
+      "stationName": "영암읍",
+      "sidoName": "전남",
+      "lat": 34.79441,
+      "lng": 126.71277
+    },
+    {
+      "stationName": "우현동",
+      "sidoName": "경북",
+      "lat": 36.05889,
+      "lng": 129.35545
+    },
+    {
+      "stationName": "장흥동",
+      "sidoName": "경북",
+      "lat": 35.98134,
+      "lng": 129.37512
+    },
+    {
+      "stationName": "장량동",
+      "sidoName": "경북",
+      "lat": 36.0811357,
+      "lng": 129.3847334
+    },
+    {
+      "stationName": "대도동",
+      "sidoName": "경북",
+      "lat": 36.0167,
+      "lng": 129.36265
+    },
+    {
+      "stationName": "대송면",
+      "sidoName": "경북",
+      "lat": 35.9681745,
+      "lng": 129.3627856
+    },
+    {
+      "stationName": "3공단",
+      "sidoName": "경북",
+      "lat": 36.1082444,
+      "lng": 128.4022931
+    },
+    {
+      "stationName": "송도동",
+      "sidoName": "경북",
+      "lat": 36.03623,
+      "lng": 129.37521
+    },
+    {
+      "stationName": "오천읍",
+      "sidoName": "경북",
+      "lat": 35.9631562,
+      "lng": 129.4147285
+    },
+    {
+      "stationName": "청림동",
+      "sidoName": "경북",
+      "lat": 36.00265,
+      "lng": 129.41235
+    },
+    {
+      "stationName": "연일읍",
+      "sidoName": "경북",
+      "lat": 35.9916279,
+      "lng": 129.3441331
+    },
+    {
+      "stationName": "제철동",
+      "sidoName": "경북",
+      "lat": 36.0064836,
+      "lng": 129.3885036
+    },
+    {
+      "stationName": "성건동",
+      "sidoName": "경북",
+      "lat": 35.8557092,
+      "lng": 129.1936629
+    },
+    {
+      "stationName": "보덕동",
+      "sidoName": "경북",
+      "lat": 35.8490481,
+      "lng": 129.3167056
+    },
+    {
+      "stationName": "안강읍",
+      "sidoName": "경북",
+      "lat": 35.9910535,
+      "lng": 129.2205418
+    },
+    {
+      "stationName": "외동읍",
+      "sidoName": "경북",
+      "lat": 35.7123241,
+      "lng": 129.3248572
+    },
+    {
+      "stationName": "양덕동",
+      "sidoName": "경북",
+      "lat": 36.0867807,
+      "lng": 129.3987415
+    },
+    {
+      "stationName": "평화남산동",
+      "sidoName": "경북",
+      "lat": 36.1205964,
+      "lng": 128.1161363
+    },
+    {
+      "stationName": "대광동",
+      "sidoName": "경북",
+      "lat": 36.1455382,
+      "lng": 128.1428019
+    },
+    {
+      "stationName": "율곡동",
+      "sidoName": "경북",
+      "lat": 36.1244755,
+      "lng": 128.1862108
+    },
+    {
+      "stationName": "명륜동",
+      "sidoName": "경북",
+      "lat": 36.57282,
+      "lng": 128.73457
+    },
+    {
+      "stationName": "공단동",
+      "sidoName": "경북",
+      "lat": 36.09788,
+      "lng": 128.38148
+    },
+    {
+      "stationName": "원평동",
+      "sidoName": "경북",
+      "lat": 36.12686,
+      "lng": 128.34196
+    },
+    {
+      "stationName": "형곡동",
+      "sidoName": "경북",
+      "lat": 36.10584,
+      "lng": 128.33474
+    },
+    {
+      "stationName": "4공단",
+      "sidoName": "경북",
+      "lat": 36.1418503,
+      "lng": 128.4463936
+    },
+    {
+      "stationName": "진미동",
+      "sidoName": "경북",
+      "lat": 36.1060429,
+      "lng": 128.4187493
+    },
+    {
+      "stationName": "가흥동",
+      "sidoName": "경북",
+      "lat": 36.82641,
+      "lng": 128.59634
+    },
+    {
+      "stationName": "영주동",
+      "sidoName": "경북",
+      "lat": 36.82851,
+      "lng": 128.62089
+    },
+    {
+      "stationName": "중방동",
+      "sidoName": "경북",
+      "lat": 35.8293127,
+      "lng": 128.7348543
+    },
+    {
+      "stationName": "하양읍",
+      "sidoName": "경북",
+      "lat": 35.9166162,
+      "lng": 128.8066711
+    },
+    {
+      "stationName": "진량읍",
+      "sidoName": "경북",
+      "lat": 35.87092,
+      "lng": 128.83302
+    },
+    {
+      "stationName": "상주시",
+      "sidoName": "경북",
+      "lat": 36.4104478,
+      "lng": 128.1590614
+    },
+    {
+      "stationName": "칠곡군",
+      "sidoName": "경북",
+      "lat": 35.995,
+      "lng": 128.4017
+    },
+    {
+      "stationName": "영덕읍",
+      "sidoName": "경북",
+      "lat": 36.42963,
+      "lng": 129.39175
+    },
+    {
+      "stationName": "강구면",
+      "sidoName": "경북",
+      "lat": 36.37562,
+      "lng": 129.37399
+    },
+    {
+      "stationName": "영해면",
+      "sidoName": "경북",
+      "lat": 36.53718,
+      "lng": 129.38777
+    },
+    {
+      "stationName": "문경시",
+      "sidoName": "경북",
+      "lat": 36.5858541,
+      "lng": 128.1870612
+    },
+    {
+      "stationName": "성주군",
+      "sidoName": "경북",
+      "lat": 35.9190065,
+      "lng": 128.283486
+    },
+    {
+      "stationName": "화북면",
+      "sidoName": "경북",
+      "lat": 36.13107,
+      "lng": 128.93835
+    },
+    {
+      "stationName": "영천시",
+      "sidoName": "경북",
+      "lat": 35.98842,
+      "lng": 128.942
+    },
+    {
+      "stationName": "의성읍",
+      "sidoName": "경북",
+      "lat": 36.34389,
+      "lng": 128.70155
+    },
+    {
+      "stationName": "안계면",
+      "sidoName": "경북",
+      "lat": 36.39097,
+      "lng": 128.46185
+    },
+    {
+      "stationName": "울진군",
+      "sidoName": "경북",
+      "lat": 36.993,
+      "lng": 129.4006
+    },
+    {
+      "stationName": "석포면",
+      "sidoName": "경북",
+      "lat": 37.04191,
+      "lng": 129.05038
+    },
+    {
+      "stationName": "봉화군청",
+      "sidoName": "경북",
+      "lat": 36.8931284,
+      "lng": 128.732492
+    },
+    {
+      "stationName": "태하리",
+      "sidoName": "경북",
+      "lat": 37.5066649,
+      "lng": 130.8234273
+    },
+    {
+      "stationName": "울릉읍",
+      "sidoName": "경북",
+      "lat": 37.4848739,
+      "lng": 130.9036484
+    },
+    {
+      "stationName": "대가야읍",
+      "sidoName": "경북",
+      "lat": 35.73209,
+      "lng": 128.25741
+    },
+    {
+      "stationName": "영양군",
+      "sidoName": "경북",
+      "lat": 36.666404,
+      "lng": 129.1127454
+    },
+    {
+      "stationName": "예천군",
+      "sidoName": "경북",
+      "lat": 36.6462999,
+      "lng": 128.4376
+    },
+    {
+      "stationName": "화양읍",
+      "sidoName": "경북",
+      "lat": 35.66089,
+      "lng": 128.71693
+    },
+    {
+      "stationName": "청송읍",
+      "sidoName": "경북",
+      "lat": 36.41994,
+      "lng": 129.09199
+    },
+    {
+      "stationName": "경화동",
+      "sidoName": "경남",
+      "lat": 35.15998,
+      "lng": 128.69073
+    },
+    {
+      "stationName": "월영동",
+      "sidoName": "경남",
+      "lat": 35.17524,
+      "lng": 128.5572
+    },
+    {
+      "stationName": "하동읍",
+      "sidoName": "경남",
+      "lat": 35.0762976,
+      "lng": 127.7456884
+    },
+    {
+      "stationName": "금성면",
+      "sidoName": "경남",
+      "lat": 34.96354,
+      "lng": 127.79293
+    },
+    {
+      "stationName": "동상동",
+      "sidoName": "경남",
+      "lat": 35.2432584,
+      "lng": 128.8869575
+    },
+    {
+      "stationName": "삼방동",
+      "sidoName": "경남",
+      "lat": 35.25167,
+      "lng": 128.90759
+    },
+    {
+      "stationName": "장유동",
+      "sidoName": "경남",
+      "lat": 35.1661,
+      "lng": 128.83287
+    },
+    {
+      "stationName": "진영읍",
+      "sidoName": "경남",
+      "lat": 35.3043216,
+      "lng": 128.7331206
+    },
+    {
+      "stationName": "김해대로",
+      "sidoName": "경남",
+      "lat": 35.2214105,
+      "lng": 128.9291446
+    },
+    {
+      "stationName": "진례면",
+      "sidoName": "경남",
+      "lat": 35.2468733,
+      "lng": 128.7545126
+    },
+    {
+      "stationName": "저구리",
+      "sidoName": "경남",
+      "lat": 34.7323975,
+      "lng": 128.6049042
+    },
+    {
+      "stationName": "아주동",
+      "sidoName": "경남",
+      "lat": 34.8686293,
+      "lng": 128.6917003
+    },
+    {
+      "stationName": "고현동",
+      "sidoName": "경남",
+      "lat": 34.889942,
+      "lng": 128.623477
+    },
+    {
+      "stationName": "사천읍",
+      "sidoName": "경남",
+      "lat": 35.08741,
+      "lng": 128.1029
+    },
+    {
+      "stationName": "향촌동",
+      "sidoName": "경남",
+      "lat": 34.9398592,
+      "lng": 128.1074036
+    },
+    {
+      "stationName": "대산면",
+      "sidoName": "경남",
+      "lat": 35.3358032,
+      "lng": 128.7076259
+    },
+    {
+      "stationName": "북부동",
+      "sidoName": "경남",
+      "lat": 35.3476186,
+      "lng": 129.0376504
+    },
+    {
+      "stationName": "삼호동",
+      "sidoName": "경남",
+      "lat": 35.4061769,
+      "lng": 129.1808571
+    },
+    {
+      "stationName": "물금읍",
+      "sidoName": "경남",
+      "lat": 35.31521,
+      "lng": 128.99928
+    },
+    {
+      "stationName": "내일동",
+      "sidoName": "경남",
+      "lat": 35.4936883,
+      "lng": 128.7542349
+    },
+    {
+      "stationName": "무전동",
+      "sidoName": "경남",
+      "lat": 34.8604366,
+      "lng": 128.4311316
+    },
+    {
+      "stationName": "고성읍",
+      "sidoName": "경남",
+      "lat": 34.977565,
+      "lng": 128.320239
+    },
+    {
+      "stationName": "거창읍",
+      "sidoName": "경남",
+      "lat": 35.6863036,
+      "lng": 127.9100451
+    },
+    {
+      "stationName": "가야읍",
+      "sidoName": "경남",
+      "lat": 35.27122,
+      "lng": 128.39564
+    },
+    {
+      "stationName": "함양읍",
+      "sidoName": "경남",
+      "lat": 35.5144,
+      "lng": 127.7199
+    },
+    {
+      "stationName": "남해읍",
+      "sidoName": "경남",
+      "lat": 34.838547,
+      "lng": 127.8936556
+    },
+    {
+      "stationName": "산청읍",
+      "sidoName": "경남",
+      "lat": 35.4135,
+      "lng": 127.90275
+    },
+    {
+      "stationName": "남상면",
+      "sidoName": "경남",
+      "lat": 35.62008,
+      "lng": 127.90981
+    },
+    {
+      "stationName": "의령읍",
+      "sidoName": "경남",
+      "lat": 35.30761,
+      "lng": 128.26817
+    },
+    {
+      "stationName": "창녕읍",
+      "sidoName": "경남",
+      "lat": 35.52993,
+      "lng": 128.49609
+    },
+    {
+      "stationName": "합천읍",
+      "sidoName": "경남",
+      "lat": 35.60789,
+      "lng": 128.14465
+    },
+    {
+      "stationName": "진해항",
+      "sidoName": "경남",
+      "lat": 35.1325296,
+      "lng": 128.6948898
+    },
+    {
+      "stationName": "회원동",
+      "sidoName": "경남",
+      "lat": 35.21944,
+      "lng": 128.55842
+    },
+    {
+      "stationName": "봉암동",
+      "sidoName": "경남",
+      "lat": 35.22655,
+      "lng": 128.60664
+    },
+    {
+      "stationName": "내서읍",
+      "sidoName": "경남",
+      "lat": 35.24015,
+      "lng": 128.51617
+    },
+    {
+      "stationName": "상봉동",
+      "sidoName": "경남",
+      "lat": 35.2034966,
+      "lng": 128.0719185
+    },
+    {
+      "stationName": "대안동",
+      "sidoName": "경남",
+      "lat": 35.1945806,
+      "lng": 128.0841113
+    },
+    {
+      "stationName": "상대동(진주)",
+      "sidoName": "경남",
+      "lat": 35.1853221,
+      "lng": 128.1116932
+    },
+    {
+      "stationName": "정촌면",
+      "sidoName": "경남",
+      "lat": 35.12398,
+      "lng": 128.11082
+    },
+    {
+      "stationName": "명서동",
+      "sidoName": "경남",
+      "lat": 35.24834,
+      "lng": 128.64666
+    },
+    {
+      "stationName": "웅남동",
+      "sidoName": "경남",
+      "lat": 35.21189,
+      "lng": 128.65585
+    },
+    {
+      "stationName": "성주동",
+      "sidoName": "경남",
+      "lat": 35.18931,
+      "lng": 128.71324
+    },
+    {
+      "stationName": "용지동",
+      "sidoName": "경남",
+      "lat": 35.236458,
+      "lng": 128.6786065
+    },
+    {
+      "stationName": "반송로",
+      "sidoName": "경남",
+      "lat": 35.2409986,
+      "lng": 128.6624394
+    },
+    {
+      "stationName": "사파동",
+      "sidoName": "경남",
+      "lat": 35.22476,
+      "lng": 128.70799
+    },
+    {
+      "stationName": "연동",
+      "sidoName": "제주",
+      "lat": 33.47575,
+      "lng": 126.49418
+    },
+    {
+      "stationName": "조천읍",
+      "sidoName": "제주",
+      "lat": 33.50888,
+      "lng": 126.66305
+    },
+    {
+      "stationName": "한림읍",
+      "sidoName": "제주",
+      "lat": 33.39344,
+      "lng": 126.26684
+    },
+    {
+      "stationName": "화북동",
+      "sidoName": "제주",
+      "lat": 33.5142719,
+      "lng": 126.5651174
+    },
+    {
+      "stationName": "애월읍",
+      "sidoName": "제주",
+      "lat": 33.45079,
+      "lng": 126.3752
+    },
+    {
+      "stationName": "동홍동",
+      "sidoName": "제주",
+      "lat": 33.26184,
+      "lng": 126.56804
+    },
+    {
+      "stationName": "성산읍",
+      "sidoName": "제주",
+      "lat": 33.41805,
+      "lng": 126.88147
+    },
+    {
+      "stationName": "남원읍",
+      "sidoName": "제주",
+      "lat": 33.3076683,
+      "lng": 126.6907475
+    },
+    {
+      "stationName": "강정동",
+      "sidoName": "제주",
+      "lat": 33.24695,
+      "lng": 126.48927
+    },
+    {
+      "stationName": "대정읍",
+      "sidoName": "제주",
+      "lat": 33.2330247,
+      "lng": 126.2495988
+    },
+    {
+      "stationName": "노형로",
+      "sidoName": "제주",
+      "lat": 33.4790135,
+      "lng": 126.4697556
+    },
+    {
+      "stationName": "고산리",
+      "sidoName": "제주",
+      "lat": 33.2912148,
+      "lng": 126.1692498
+    },
+    {
+      "stationName": "제주항",
+      "sidoName": "제주",
+      "lat": 33.524473,
+      "lng": 126.5448742
+    }
+  ]
+}

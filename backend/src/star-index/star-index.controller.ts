@@ -21,6 +21,7 @@ import {
   SPOT_REPOSITORY,
   type SpotRepository,
 } from '../common/interfaces/spot.repository';
+import { buildStarIndexCardDisplay } from '../common/weather-snapshot-display.util';
 import { StarIndexService } from './star-index.service';
 
 @ApiTags('star-index')
@@ -99,6 +100,7 @@ export class StarIndexController {
       }
       const { score, weatherSnapshot, cacheKeys } =
         await this.starIndexService.calculateForSpotFromCache(spot);
+      const display = buildStarIndexCardDisplay(weatherSnapshot);
       return {
         spotId: spot.id,
         name: spot.name,
@@ -108,6 +110,7 @@ export class StarIndexController {
         bortleClass: spot.bortleClass,
         score,
         weatherSnapshot,
+        display,
         cacheKeys,
         message:
           '캐시(weather/dust/moon) 기반 Star-Index 계산 완료 — weather_snapshot 10키 합의 스키마',
@@ -130,6 +133,7 @@ export class StarIndexController {
 
     const { score, weatherSnapshot, cacheKeys, nearestSpot, distanceKm } =
       await this.starIndexService.calculateForLatLngFromCache(lat, lng);
+    const display = buildStarIndexCardDisplay(weatherSnapshot);
 
     const detailMsg =
       nearestSpot && distanceKm != null
@@ -146,6 +150,7 @@ export class StarIndexController {
       bortleClass: nearestSpot?.bortleClass ?? 5,
       score,
       weatherSnapshot,
+      display,
       cacheKeys,
       message: detailMsg,
       requestedBy: user.email,
