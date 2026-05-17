@@ -33,17 +33,18 @@ export type StarIndexAggregateInput = {
   visibilityKnown: boolean;
 };
 
+/** blend 합계 = 1.0 (시정 미수신 시 visibility → cloud로 이전) */
 const BLEND_WEIGHTS = {
-  cloud: 0.3,
-  light: 0.26,
-  moon: 0.16,
-  pm25: 0.11,
-  precip: 0.08,
-  wind: 0.04,
-  elevation: 0.03,
-  humidity: 0.02,
-  visibility: 0.02,
-  correction: 0.08,
+  cloud: 0.273,
+  light: 0.236,
+  moon: 0.145,
+  pm25: 0.1,
+  precip: 0.073,
+  wind: 0.036,
+  elevation: 0.027,
+  humidity: 0.018,
+  visibility: 0.018,
+  correction: 0.074,
 } as const;
 
 function clamp0to100(n: number): number {
