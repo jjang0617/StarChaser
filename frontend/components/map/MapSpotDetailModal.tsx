@@ -108,7 +108,7 @@ export function MapSpotDetailModal({
                   <StarIndexCard
                     bare
                     score={starProps.score}
-                    cloudCover={starProps.cloudCover}
+                    cloudLabel={starProps.cloudLabel}
                     pm25Level={starProps.pm25Level}
                     moonAltitude={starProps.moonAltitude}
                     moonAltitudeKnown={starProps.moonAltitudeKnown}

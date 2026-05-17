@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { SkyModule } from '../sky/sky.module';
+import { SpotsModule } from '../spots/spots.module';
 import { StarIndexCacheHydrationService } from './star-index-cache-hydration.service';
 
 @Module({
-  imports: [SkyModule],
+  imports: [SpotsModule],
   providers: [StarIndexCacheHydrationService],
   exports: [StarIndexCacheHydrationService],
 })

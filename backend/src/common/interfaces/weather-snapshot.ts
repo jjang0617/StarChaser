@@ -32,6 +32,14 @@ export interface WeatherSnapshot {
   moon_altitude_known?: boolean;
   /** 달 위상 0~1 — DB 필수 키 아님 */
   lun_phase?: number;
+
+  /** UI·카드 표시용 선택 필드(DB 제약 비대상) */
+  cloud_sky_code?: number;
+  cloud_sky_label?: string;
+  cloud_cover_pct?: number;
+  pm25_ug_m3?: number;
+  pm25_label?: string;
+  pm25_station_name?: string;
 }
 
 /** DB CHECK 및 Observation 저장 시 반드시 존재해야 하는 10개 점수 키 */
@@ -119,6 +127,24 @@ export function normalizeWeatherSnapshotForStorage(
   }
   if (raw.lun_phase !== undefined) {
     base.lun_phase = raw.lun_phase;
+  }
+  if (raw.cloud_sky_code !== undefined) {
+    base.cloud_sky_code = raw.cloud_sky_code;
+  }
+  if (raw.cloud_sky_label !== undefined) {
+    base.cloud_sky_label = raw.cloud_sky_label;
+  }
+  if (raw.cloud_cover_pct !== undefined) {
+    base.cloud_cover_pct = raw.cloud_cover_pct;
+  }
+  if (raw.pm25_ug_m3 !== undefined) {
+    base.pm25_ug_m3 = raw.pm25_ug_m3;
+  }
+  if (raw.pm25_label !== undefined) {
+    base.pm25_label = raw.pm25_label;
+  }
+  if (raw.pm25_station_name !== undefined) {
+    base.pm25_station_name = raw.pm25_station_name;
   }
   return base;
 }

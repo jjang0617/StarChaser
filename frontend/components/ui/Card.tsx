@@ -160,8 +160,8 @@ export function StatefulCard({
 // ── Star-Index 숫자 카드 ──
 interface StarIndexCardProps {
   score:        number;
-  cloudCover:   number;   // % 운량
-  pm25Level:    string;   // '좋음' | '보통' | '나쁨'
+  cloudLabel:   string;   // 맑음·구름조금·구름많음·흐림
+  pm25Level:    string;   // 예: 12㎍/㎥·칠곡군
   moonAltitude: number;   // 달 고도 (도) — unknown이면 표시만 생략
   /** false면 KASI 고도 미수신 등 — MOON 칸에 미상 */
   moonAltitudeKnown?: boolean;
@@ -174,7 +174,7 @@ interface StarIndexCardProps {
 
 export function StarIndexCard({
   score,
-  cloudCover,
+  cloudLabel,
   pm25Level,
   moonAltitude,
   moonAltitudeKnown = true,
@@ -196,7 +196,7 @@ export function StarIndexCard({
     moonAltitudeKnown ? `${moonAltitude}°` : '미상';
 
   const dataItems = [
-    { key: 'CLOUD', value: `${cloudCover}%` },
+    { key: 'CLOUD', value: cloudLabel },
     { key: 'PM2.5', value: pm25Level },
     { key: 'MOON',  value: moonLabel },
   ];
