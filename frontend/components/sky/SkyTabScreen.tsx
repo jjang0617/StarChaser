@@ -1285,7 +1285,7 @@ export function SkyTabScreen({
                 >
                   {locSiErr}
                 </Text>
-              ) : locSiDisplay ? (
+              ) : locSiDisplay && locStarIndex != null ? (
                 <View style={{ marginTop: 4 }}>
                   <Text
                     style={{

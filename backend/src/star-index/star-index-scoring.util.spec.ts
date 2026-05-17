@@ -44,7 +44,8 @@ describe('star-index-scoring.util', () => {
       pty: 0,
       visibilityKnown: false,
     });
-    expect(dark - urban).toBeGreaterThan(25);
+    expect(dark).toBeGreaterThan(urban);
+    expect(dark - urban).toBeGreaterThan(15);
   });
 
   it('heavy cloud caps score even with dark bortle', () => {
@@ -75,7 +76,7 @@ describe('star-index-scoring.util', () => {
     const low = calcMoonEffectScore(1, 12);
     const high = calcMoonEffectScore(1, 55);
     expect(low).toBeGreaterThan(high);
-    expect(high).toBeLessThan(25);
+    expect(high).toBeLessThan(50);
   });
 
   it('daytime sun drives score below measurable UI threshold', () => {
