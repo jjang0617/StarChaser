@@ -170,14 +170,24 @@ export function parseForecastNumbers(
   humidity: number;
   windSpeed: number;
   visibility: number;
+  visibilityKnown: boolean;
   temperature: number;
   pop: number;
+  pty: number;
 } {
+  const readRaw = (category: string): string | undefined =>
+    pickNearestForecastValue(items, category, now);
+
   const read = (category: string, fallback: number): number => {
-    const raw = pickNearestForecastValue(items, category, now);
-    const parsed = raw ? Number(raw) : NaN;
+    const raw = readRaw(category);
+    const parsed = raw !== undefined && raw !== '' ? Number(raw) : NaN;
     return Number.isFinite(parsed) ? parsed : fallback;
   };
+
+  const vvvRaw = readRaw('VVV');
+  const visibilityKnown =
+    vvvRaw !== undefined && vvvRaw !== '' && Number.isFinite(Number(vvvRaw));
+  const visibility = visibilityKnown ? Number(vvvRaw) : 10;
 
   const sky = read('SKY', 1);
   return {
@@ -185,8 +195,10 @@ export function parseForecastNumbers(
     cloud: skyCodeToCloudPercent(sky),
     humidity: read('REH', 70),
     windSpeed: read('WSD', 2),
-    visibility: read('VVV', 10),
+    visibility,
+    visibilityKnown,
     temperature: read('TMP', 12),
     pop: read('POP', 0),
+    pty: read('PTY', 0),
   };
 }

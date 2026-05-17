@@ -20,6 +20,7 @@ import {
   type ObservationRowDto,
 } from '../../lib/api-client';
 import type { StarIndexResponseDto } from '../../lib/types/api';
+import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
 
 const RESULT_LABEL_KO: Record<'success' | 'partial' | 'fail', string> = {
   success: '성공',
@@ -278,9 +279,20 @@ export function RecordsTabScreen({
             <Text style={{ color: theme.destructive }}>{siErr}</Text>
           ) : siData ? (
             <View>
-              <Text style={{ color: theme.foreground, fontSize: 28 }}>
-                {siData.score}
-              </Text>
+              {(() => {
+                const si = getStarIndexScoreDisplay(siData.score);
+                return (
+                  <Text
+                    style={{
+                      color: si.measurable ? theme.foreground : theme.destructive,
+                      fontSize: si.measurable ? 28 : 20,
+                      fontWeight: '700',
+                    }}
+                  >
+                    {si.label}
+                  </Text>
+                );
+              })()}
               <Text style={{ color: theme.mutedForeground, fontSize: 12, marginTop: 6 }}>
                 {(siPlaceLabel ?? siData.name) +
                   ` · 구름 ${siData.weatherSnapshot.cloud_score}`}

@@ -10,8 +10,10 @@ export type LegacyWeatherCache = {
   humidity?: number;
   windSpeed?: number;
   visibility?: number;
+  visibilityKnown?: boolean;
   temperature?: number;
   pop?: number;
+  pty?: number;
 };
 export type NormalizedWeatherCache = {
   skyCode: number;

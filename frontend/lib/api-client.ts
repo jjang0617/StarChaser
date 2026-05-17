@@ -272,8 +272,10 @@ export function fetchStarIndex(spotId: string): Promise<StarIndexResponseDto> {
 export function fetchStarIndexAtLocation(
   lat: number,
   lng: number,
+  atIso?: string,
 ): Promise<StarIndexResponseDto> {
   const q = new URLSearchParams({ lat: String(lat), lng: String(lng) });
+  if (atIso?.trim()) q.set('at', atIso.trim());
   return authorizedGetJson<StarIndexResponseDto>(`/star-index?${q.toString()}`);
 }
 

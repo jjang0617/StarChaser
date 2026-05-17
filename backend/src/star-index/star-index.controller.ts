@@ -23,6 +23,7 @@ import {
 } from '../common/interfaces/spot.repository';
 import { buildStarIndexCardDisplay } from '../common/weather-snapshot-display.util';
 import { StarIndexService } from './star-index.service';
+import { parseObservationTime } from './star-index-scoring.util';
 
 @ApiTags('star-index')
 @Controller('star-index')
@@ -91,7 +92,15 @@ export class StarIndexController {
     @Query('spotId') spotId?: string,
     @Query('lat') latRaw?: string,
     @Query('lng') lngRaw?: string,
+    @Query('at') atRaw?: string,
   ) {
+    const atUtc = parseObservationTime(atRaw);
+    if (atRaw?.trim() && !atUtc) {
+      throw new BadRequestException(
+        'at은 ISO 8601 시각(예: 2026-05-17T14:30:00.000Z)이어야 합니다.',
+      );
+    }
+
     const sid = spotId?.trim();
     if (sid) {
       const spot = await this.spots.findById(sid);
@@ -99,7 +108,7 @@ export class StarIndexController {
         throw new NotFoundException('해당 spotId의 명소가 없습니다.');
       }
       const { score, weatherSnapshot, cacheKeys } =
-        await this.starIndexService.calculateForSpotFromCache(spot);
+        await this.starIndexService.calculateForSpotFromCache(spot, atUtc);
       const display = buildStarIndexCardDisplay(weatherSnapshot);
       return {
         spotId: spot.id,
@@ -132,7 +141,7 @@ export class StarIndexController {
     }
 
     const { score, weatherSnapshot, cacheKeys, nearestSpot, distanceKm } =
-      await this.starIndexService.calculateForLatLngFromCache(lat, lng);
+      await this.starIndexService.calculateForLatLngFromCache(lat, lng, atUtc);
     const display = buildStarIndexCardDisplay(weatherSnapshot);
 
     const detailMsg =
