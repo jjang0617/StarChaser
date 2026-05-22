@@ -111,11 +111,11 @@ export function OnboardingFlow({
         <View style={styles.top}>
           <Text style={[styles.title, { color: theme.foreground }]}>알림 설정</Text>
           <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>
-            받고 싶은 소식만 골라 주세요. 마이페이지(ME)에서 언제든 바꿀 수 있어요.
+            마이페이지(ME)에서 언제든 바꿀 수 있어요.
           </Text>
         </View>
 
-        <Card title="알림" description="받을 알림만 골라요">
+        <Card>
           <View style={styles.cardInner}>
             <View style={styles.toggleList}>
               {NOTIF_ITEMS.map(item => {
