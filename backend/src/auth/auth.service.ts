@@ -21,6 +21,7 @@ import { SendCodeDto } from './dto/send-code.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { maskEmail } from './mask-email';
 
 type VerificationPurpose = 'register' | 'reset-password';
 
@@ -64,6 +65,16 @@ export class AuthService {
       where: { nickname },
     });
     return { available: !existing };
+  }
+
+  /** 닉네임으로 가입 이메일 조회 — 마스킹된 주소만 반환 */
+  async findEmailByNickname(nickname: string) {
+    const trimmed = nickname.trim();
+    const user = await this.usersRepo.findOne({ where: { nickname: trimmed } });
+    if (!user) {
+      throw new NotFoundException('가입되지 않은 닉네임입니다.');
+    }
+    return { maskedEmail: maskEmail(user.email) };
   }
 
   /* ───── 인증번호 발송 ───── */

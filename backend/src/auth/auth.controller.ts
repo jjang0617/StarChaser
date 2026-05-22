@@ -40,6 +40,15 @@ export class AuthController {
     return this.authService.checkNickname(dto.nickname);
   }
 
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('find-email')
+  @ApiOperation({ summary: '이메일 찾기 — 닉네임으로 마스킹된 로그인 이메일 조회' })
+  @ApiOkResponse({ description: '{ maskedEmail: string }' })
+  @ApiNotFoundResponse({ description: '가입되지 않은 닉네임' })
+  findEmail(@Body() dto: CheckNicknameDto) {
+    return this.authService.findEmailByNickname(dto.nickname);
+  }
+
   @Throttle({ default: { ttl: 60000, limit: 3 } })
   @Post('send-code')
   @ApiOperation({ summary: '이메일 인증번호 발송' })

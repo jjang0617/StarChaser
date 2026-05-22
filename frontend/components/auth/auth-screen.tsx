@@ -14,12 +14,13 @@ import { Button, Input, Screen } from '../ui';
 import {
   ApiRequestError,
   checkNickname,
+  findEmailByNickname,
   resetPassword,
   sendVerificationCode,
   verifyCode,
 } from '../../lib/api-client';
 
-type Mode = 'login' | 'register' | 'resetPassword';
+type Mode = 'login' | 'register' | 'resetPassword' | 'findEmail';
 type FieldStatus = 'idle' | 'checking' | 'success' | 'error';
 
 function isValidEmail(email: string): boolean {
@@ -51,6 +52,14 @@ function passwordValidationError(password: string): string | null {
 function codeValidationError(code: string): string | null {
   if (!code) return '인증번호를 입력해 주세요.';
   if (code.length !== 6) return '인증번호는 6자리여야 합니다.';
+  return null;
+}
+
+function nicknameValidationError(nickname: string): string | null {
+  const trimmed = nickname.trim();
+  if (!trimmed) return '닉네임을 입력해 주세요.';
+  if (trimmed.length < 2) return '닉네임은 2자 이상이어야 합니다.';
+  if (trimmed.length > 30) return '닉네임은 30자 이하여야 합니다.';
   return null;
 }
 
@@ -156,6 +165,13 @@ export function AuthScreen() {
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetDone, setResetDone] = useState(false);
 
+  // --- find email state ---
+  const [findNickname, setFindNickname] = useState('');
+  const [findNicknameError, setFindNicknameError] = useState<string | null>(null);
+  const [findLoading, setFindLoading] = useState(false);
+  const [findError, setFindError] = useState<string | null>(null);
+  const [findMaskedEmail, setFindMaskedEmail] = useState<string | null>(null);
+
   useEffect(() => {
     return () => {
       if (cooldownRef.current) clearInterval(cooldownRef.current);
@@ -217,14 +233,25 @@ export function AuthScreen() {
     setResetDone(false);
   }, []);
 
+  const resetFindEmailForm = useCallback(() => {
+    setFindNickname('');
+    setFindNicknameError(null);
+    setFindLoading(false);
+    setFindError(null);
+    setFindMaskedEmail(null);
+  }, []);
+
   const goToLogin = useCallback(
     (email?: string) => {
       resetResetForm();
+      resetFindEmailForm();
       setMode('login');
       setLoginError(null);
+      setLoginEmailError(null);
+      setLoginPasswordError(null);
       if (email) setLoginEmail(email);
     },
-    [resetResetForm],
+    [resetResetForm, resetFindEmailForm],
   );
 
   const applyEmailFieldError = useCallback(
@@ -472,6 +499,26 @@ export function AuthScreen() {
     applyEmailFieldError,
   ]);
 
+  const onFindEmailSubmit = async () => {
+    setFindError(null);
+    const err = nicknameValidationError(findNickname);
+    setFindNicknameError(err);
+    if (err) return;
+
+    setFindLoading(true);
+    try {
+      const { maskedEmail } = await findEmailByNickname(findNickname.trim());
+      setFindMaskedEmail(maskedEmail);
+    } catch (e) {
+      setFindMaskedEmail(null);
+      setFindError(
+        e instanceof ApiRequestError ? e.message : '이메일 찾기에 실패했습니다.',
+      );
+    } finally {
+      setFindLoading(false);
+    }
+  };
+
   const onResetSubmit = async () => {
     setResetError(null);
     if (!validateResetForm()) return;
@@ -690,7 +737,11 @@ export function AuthScreen() {
       ? '로그인'
       : mode === 'register'
         ? '회원가입'
-        : '비밀번호 찾기';
+        : mode === 'findEmail'
+          ? '이메일 찾기'
+          : '비밀번호 찾기';
+
+  const findEmailDone = findMaskedEmail !== null;
 
   return (
     <Screen>
@@ -707,8 +758,8 @@ export function AuthScreen() {
             {subTitle}
           </Text>
 
-          {mode === 'resetPassword' ? (
-            !resetDone && (
+          {mode === 'resetPassword' || mode === 'findEmail' ? (
+            (mode === 'resetPassword' ? !resetDone : !findEmailDone) && (
               <Pressable onPress={() => goToLogin()} hitSlop={8}>
                 <Text style={[styles.backLink, { color: theme.mutedForeground }]}>
                   ← 로그인으로 돌아가기
@@ -789,18 +840,87 @@ export function AuthScreen() {
                 loading={loginLoading}
                 onPress={() => void onLoginSubmit()}
               />
-              <Pressable
-                onPress={() => {
-                  resetResetForm();
-                  setMode('resetPassword');
-                }}
-                hitSlop={8}
-                style={styles.forgotLinkWrap}
-              >
-                <Text style={[styles.forgotLink, { color: theme.mutedForeground }]}>
-                  비밀번호 찾기
+              <View style={styles.forgotLinksRow}>
+                <Pressable
+                  onPress={() => {
+                    resetFindEmailForm();
+                    setMode('findEmail');
+                  }}
+                  hitSlop={8}
+                >
+                  <Text style={[styles.forgotLink, { color: theme.mutedForeground }]}>
+                    이메일 찾기
+                  </Text>
+                </Pressable>
+                <Text style={[styles.forgotLinkSep, { color: theme.mutedForeground }]}>
+                  ·
                 </Text>
-              </Pressable>
+                <Pressable
+                  onPress={() => {
+                    resetResetForm();
+                    setMode('resetPassword');
+                  }}
+                  hitSlop={8}
+                >
+                  <Text style={[styles.forgotLink, { color: theme.mutedForeground }]}>
+                    비밀번호 찾기
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : mode === 'findEmail' ? (
+            <View style={styles.form}>
+              {findEmailDone ? (
+                <>
+                  <Text style={[styles.doneText, { color: theme.foreground }]}>
+                    가입 시 사용한 로그인 이메일입니다.
+                  </Text>
+                  <Text style={[styles.maskedEmail, { color: theme.starGold }]}>
+                    {findMaskedEmail}
+                  </Text>
+                  <Button
+                    label="로그인하기"
+                    fullWidth
+                    onPress={() => goToLogin()}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.hintBlock, { color: theme.mutedForeground }]}>
+                    가입 시 설정한 닉네임으로 로그인 이메일을 확인할 수 있습니다.
+                  </Text>
+                  <Input
+                    label="닉네임"
+                    monoLabel
+                    value={findNickname}
+                    onChangeText={(text) => {
+                      setFindNickname(text);
+                      setFindNicknameError(null);
+                      setFindError(null);
+                    }}
+                    onBlur={() => {
+                      const blurErr = nicknameValidationError(findNickname);
+                      setFindNicknameError(blurErr);
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholder="2~30자"
+                    maxLength={30}
+                    errorMessage={findNicknameError ?? undefined}
+                  />
+                  {findError && (
+                    <Text style={[styles.err, { color: theme.dimRedFg }]}>
+                      {findError}
+                    </Text>
+                  )}
+                  <Button
+                    label="이메일 확인"
+                    fullWidth
+                    loading={findLoading}
+                    onPress={() => void onFindEmailSubmit()}
+                  />
+                </>
+              )}
             </View>
           ) : mode === 'resetPassword' ? (
             <View style={styles.form}>
@@ -1164,13 +1284,29 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontFamily: 'SpaceMono-Regular',
   },
-  forgotLinkWrap: {
-    alignSelf: 'center',
+  forgotLinksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     marginTop: 4,
   },
   forgotLink: {
     fontSize: 12,
     textDecorationLine: 'underline',
+  },
+  forgotLinkSep: {
+    fontSize: 12,
+  },
+  hintBlock: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  maskedEmail: {
+    fontSize: 18,
+    fontFamily: 'SpaceMono-Regular',
+    letterSpacing: 0.5,
+    marginBottom: 8,
   },
   backLink: {
     fontSize: 12,

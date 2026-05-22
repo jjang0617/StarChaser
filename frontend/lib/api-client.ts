@@ -257,6 +257,25 @@ export async function checkEmail(email: string): Promise<{ available: boolean }>
   return body as { available: boolean };
 }
 
+export async function findEmailByNickname(
+  nickname: string,
+): Promise<{ maskedEmail: string }> {
+  const res = await fetch(`${getApiBaseUrl()}/auth/find-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nickname }),
+  });
+  const body = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiRequestError(
+      messageFromErrorBody(body, '이메일 찾기에 실패했습니다.'),
+      res.status,
+      body,
+    );
+  }
+  return body as { maskedEmail: string };
+}
+
 export async function checkNickname(nickname: string): Promise<{ available: boolean }> {
   const res = await fetch(`${getApiBaseUrl()}/auth/check-nickname`, {
     method: 'POST',
