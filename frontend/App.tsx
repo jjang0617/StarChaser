@@ -454,19 +454,13 @@ function AppGate() {
   const resetOnboarding = useCallback(async () => {
     const userId = user?.id;
     const keys: string[] = [
-      // legacy (앱 전체 1회)
       'starChaser:onboardingCompleted',
-      'starChaser:onboardingRegion',
       'starChaser:notificationPrefs',
-      'starChaser:onboardInterests',
     ];
     if (userId) {
-      // user-scoped (user별 1회)
       keys.push(
         `starChaser:onboardingCompleted:${userId}`,
-        `starChaser:onboardingRegion:${userId}`,
         `starChaser:notificationPrefs:${userId}`,
-        `starChaser:onboardInterests:${userId}`,
       );
     }
     await AsyncStorage.multiRemove(keys);
@@ -481,35 +475,19 @@ function AppGate() {
     (async () => {
       try {
         const completedKey = `starChaser:onboardingCompleted:${user.id}`;
-        const regionKey = `starChaser:onboardingRegion:${user.id}`;
-        const notifKey = `starChaser:notificationPrefs:${user.id}`;
-        const interestsKey = `starChaser:onboardInterests:${user.id}`;
-        const legacyKeys = [
+        const staleGlobalKeys = [
           'starChaser:onboardingCompleted',
-          'starChaser:onboardingRegion',
           'starChaser:notificationPrefs',
-          'starChaser:onboardInterests',
         ];
 
-        // 유저별 키만 신뢰 (legacy는 새 계정에 잘못 적용될 수 있어 정리만 수행)
-        const [completed, region, notif, interests] = await AsyncStorage.multiGet([
-          completedKey,
-          regionKey,
-          notifKey,
-          interestsKey,
-        ]).then((rows) => rows.map(([, v]) => v));
+        const completed = await AsyncStorage.getItem(completedKey);
         if (!mounted) return;
 
-        // 안전장치: 과거 마이그레이션/테스트로 completedKey만 잘못 남은 경우 → 온보딩으로 복구
-        if (completed === 'true' && (region || notif || interests)) {
+        if (completed === 'true') {
           setRoute('ready');
           return;
         }
-        if (completed === 'true' && !region && !notif && !interests) {
-          void AsyncStorage.removeItem(completedKey);
-        }
-        // legacy 키가 남아있으면 1회 정리
-        void AsyncStorage.multiRemove(legacyKeys);
+        void AsyncStorage.multiRemove(staleGlobalKeys);
         setRoute('onboarding');
       } catch {
         if (!mounted) return;
