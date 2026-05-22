@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -18,7 +19,10 @@ import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { RegisterDto } from './dto/register.dto';
 import { SendCodeDto } from './dto/send-code.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+
+type VerificationPurpose = 'register' | 'reset-password';
 
 type RefreshPayload = { sub: string; type?: string };
 
@@ -74,6 +78,13 @@ export class AuthService {
       }
     }
 
+    if (dto.purpose === 'reset-password') {
+      const user = await this.usersRepo.findOne({ where: { email } });
+      if (!user) {
+        throw new NotFoundException('가입되지 않은 이메일입니다.');
+      }
+    }
+
     const code = crypto.randomInt(100000, 999999).toString();
 
     await this.verificationsRepo.delete({ email, purpose: dto.purpose });
@@ -87,7 +98,7 @@ export class AuthService {
     });
     await this.verificationsRepo.save(verification);
 
-    await this.sendEmail(email, code);
+    await this.sendEmail(email, code, dto.purpose);
 
     return { message: '인증번호가 발송되었습니다.' };
   }
@@ -100,6 +111,7 @@ export class AuthService {
     const verification = await this.verificationsRepo.findOne({
       where: {
         email,
+        purpose: dto.purpose,
         verified: false,
         expiresAt: MoreThan(new Date()),
       },
@@ -158,6 +170,40 @@ export class AuthService {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     };
+  }
+
+  /** 비밀번호 재설정 — reset-password 인증 완료 후 비밀번호 변경 및 세션 무효화 */
+  async resetPassword(dto: ResetPasswordDto) {
+    const email = dto.email.toLowerCase();
+
+    const verification = await this.verificationsRepo.findOne({
+      where: {
+        email,
+        purpose: 'reset-password',
+        verified: true,
+        code: dto.verificationCode,
+      },
+      order: { createdAt: 'DESC' },
+    });
+    if (!verification || verification.expiresAt <= new Date()) {
+      throw new BadRequestException('이메일 인증이 완료되지 않았습니다.');
+    }
+
+    const user = await this.usersRepo.findOne({ where: { email } });
+    if (!user) {
+      throw new NotFoundException('가입되지 않은 이메일입니다.');
+    }
+
+    const passwordHash = await this.hashPassword(dto.password);
+    await this.usersRepo.update(user.id, {
+      passwordHash,
+      refreshToken: null,
+    });
+    await this.verificationsRepo.delete({ email, purpose: 'reset-password' });
+
+    this.logger.log(`비밀번호 재설정 완료: ${email}`);
+
+    return { message: '비밀번호가 변경되었습니다.' };
   }
 
   /** 로그인 성공 시 토큰 쌍 재발급(기존 refresh 무효화 후 갱신) */
@@ -266,7 +312,11 @@ export class AuthService {
   }
 
   /** SMTP 설정 시 실제 메일 발송, 미설정 시 콘솔 출력 (개발용) */
-  private async sendEmail(to: string, code: string): Promise<void> {
+  private async sendEmail(
+    to: string,
+    code: string,
+    purpose: VerificationPurpose,
+  ): Promise<void> {
     const host = this.config.get<string>('SMTP_HOST');
     const port = this.config.get<number>('SMTP_PORT');
     const user = this.config.get<string>('SMTP_USER');
@@ -288,12 +338,20 @@ export class AuthService {
       auth: { user, pass },
     });
 
+    const isReset = purpose === 'reset-password';
+    const subject = isReset
+      ? '[StarChaser] 비밀번호 재설정 인증번호'
+      : '[StarChaser] 이메일 인증번호';
+    const intro = isReset
+      ? '비밀번호 재설정을 위한 인증번호입니다.'
+      : '이메일 인증을 위한 인증번호입니다.';
+
     await transporter.sendMail({
       from,
       to,
-      subject: '[StarChaser] 이메일 인증번호',
-      text: `인증번호: ${code}\n\n이 인증번호는 10분간 유효합니다.`,
-      html: `<h2>인증번호: <strong>${code}</strong></h2><p>이 인증번호는 10분간 유효합니다.</p>`,
+      subject,
+      text: `${intro}\n\n인증번호: ${code}\n\n이 인증번호는 10분간 유효합니다.`,
+      html: `<p>${intro}</p><h2>인증번호: <strong>${code}</strong></h2><p>이 인증번호는 10분간 유효합니다.</p>`,
     });
 
     this.logger.log(`인증 메일 발송 완료: ${to}`);

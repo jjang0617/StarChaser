@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, Length } from 'class-validator';
+import { IsEmail, IsIn, IsString, Length } from 'class-validator';
 
 export class VerifyCodeDto {
   @ApiProperty({ example: 'user@example.com' })
@@ -10,4 +10,10 @@ export class VerifyCodeDto {
   @IsString({ message: '인증번호를 입력해 주세요.' })
   @Length(6, 6, { message: '인증번호는 6자리여야 합니다.' })
   code: string;
+
+  @ApiProperty({ enum: ['register', 'reset-password'] })
+  @IsIn(['register', 'reset-password'], {
+    message: 'purpose는 register 또는 reset-password여야 합니다.',
+  })
+  purpose: 'register' | 'reset-password';
 }

@@ -297,11 +297,12 @@ export async function sendVerificationCode(
 export async function verifyCode(
   email: string,
   code: string,
+  purpose: 'register' | 'reset-password',
 ): Promise<{ verified: boolean }> {
   const res = await fetch(`${getApiBaseUrl()}/auth/verify-code`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, code }),
+    body: JSON.stringify({ email, code, purpose }),
   });
   const body = await parseJsonSafe(res);
   if (!res.ok) {
@@ -312,6 +313,27 @@ export async function verifyCode(
     );
   }
   return body as { verified: boolean };
+}
+
+export async function resetPassword(
+  email: string,
+  verificationCode: string,
+  password: string,
+): Promise<{ message: string }> {
+  const res = await fetch(`${getApiBaseUrl()}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, verificationCode, password }),
+  });
+  const body = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiRequestError(
+      messageFromErrorBody(body, '비밀번호 변경에 실패했습니다.'),
+      res.status,
+      body,
+    );
+  }
+  return body as { message: string };
 }
 
 /** 앱 기동 시 access 만료면 선제 갱신 */

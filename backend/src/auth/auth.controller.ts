@@ -7,6 +7,7 @@ import {
   ApiConflictResponse,
   ApiUnauthorizedResponse,
   ApiBadRequestResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
@@ -16,6 +17,7 @@ import { VerifyCodeDto } from './dto/verify-code.dto';
 import { CheckEmailDto } from './dto/check-email.dto';
 import { CheckNicknameDto } from './dto/check-nickname.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -52,6 +54,16 @@ export class AuthController {
   @ApiOkResponse({ description: '{ verified: boolean }' })
   verifyCode(@Body() dto: VerifyCodeDto) {
     return this.authService.verifyCode(dto);
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Post('reset-password')
+  @ApiOperation({ summary: '비밀번호 재설정 — reset-password 인증 완료 후 변경' })
+  @ApiOkResponse({ description: '비밀번호 변경 완료 메시지' })
+  @ApiBadRequestResponse({ description: '이메일 인증 미완료' })
+  @ApiNotFoundResponse({ description: '가입되지 않은 이메일' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 
   @Throttle({ default: { ttl: 60000, limit: 5 } })
