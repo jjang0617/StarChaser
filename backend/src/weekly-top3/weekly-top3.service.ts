@@ -1,37 +1,36 @@
 import { Injectable, Inject } from '@nestjs/common';
 import {
-  WEEKLY_TOP5_REPOSITORY,
-  type WeeklyTop5Entry,
-  type WeeklyTop5Repository,
-} from '../common/interfaces/weekly-top5.repository';
+  WEEKLY_TOP3_REPOSITORY,
+  type WeeklyTop3Entry,
+  type WeeklyTop3Repository,
+} from '../common/interfaces/weekly-top3.repository';
 import {
   SPOT_REPOSITORY,
   type SpotRepository,
 } from '../common/interfaces/spot.repository';
 import { requireQueryYmd } from '../common/kst-week-start';
-import { WeeklyTop5ItemDto } from './dto/weekly-top5-item.dto';
+import { WeeklyTop3ItemDto } from './dto/weekly-top3-item.dto';
 
 @Injectable()
-export class WeeklyTop5Service {
+export class WeeklyTop3Service {
   constructor(
-    @Inject(WEEKLY_TOP5_REPOSITORY)
-    private readonly weeklyTop5Repo: WeeklyTop5Repository,
+    @Inject(WEEKLY_TOP3_REPOSITORY)
+    private readonly weeklyTop3Repo: WeeklyTop3Repository,
     @Inject(SPOT_REPOSITORY)
     private readonly spots: SpotRepository,
   ) {}
 
-  /** `weekStart` 생략 시 `MAX(week_start)` 주차. */
-  async getWeekly(weekStart?: string): Promise<WeeklyTop5ItemDto[]> {
+  async getWeekly(weekStart?: string): Promise<WeeklyTop3ItemDto[]> {
     const resolved =
       weekStart != null && weekStart.trim() !== ''
         ? requireQueryYmd(weekStart)
-        : await this.weeklyTop5Repo.findLatestWeekStart();
+        : await this.weeklyTop3Repo.findLatestWeekStart();
 
     if (resolved == null) {
       return [];
     }
 
-    const rows = await this.weeklyTop5Repo.findByWeekStart(resolved);
+    const rows = await this.weeklyTop3Repo.findByWeekStart(resolved);
     if (!rows.length) {
       return [];
     }
@@ -39,7 +38,7 @@ export class WeeklyTop5Service {
     return Promise.all(rows.map((r) => this.toDto(r)));
   }
 
-  private async toDto(row: WeeklyTop5Entry): Promise<WeeklyTop5ItemDto> {
+  private async toDto(row: WeeklyTop3Entry): Promise<WeeklyTop3ItemDto> {
     const spot = await this.spots.findById(row.spotId);
     return {
       id: row.id,

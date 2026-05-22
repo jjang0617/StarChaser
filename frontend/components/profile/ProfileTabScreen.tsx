@@ -122,7 +122,7 @@ export function ProfileTabScreen({
             alertsEnabled: next.alertsEnabled,
             starIndexAlertEnabled: next.starIndexAlertEnabled,
             astronomyEventAlertEnabled: next.astronomyEventAlertEnabled,
-            top5AlertEnabled: next.top5AlertEnabled,
+            top3AlertEnabled: next.top3AlertEnabled,
             alertSpotId: next.alertSpotId ?? null,
           },
         );
@@ -150,7 +150,7 @@ export function ProfileTabScreen({
         | 'alertsEnabled'
         | 'starIndexAlertEnabled'
         | 'astronomyEventAlertEnabled'
-        | 'top5AlertEnabled'
+        | 'top3AlertEnabled'
       >,
       value: boolean,
     ) => {
@@ -159,7 +159,7 @@ export function ProfileTabScreen({
       if (key === 'alertsEnabled' && value === false) {
         next.starIndexAlertEnabled = false;
         next.astronomyEventAlertEnabled = false;
-        next.top5AlertEnabled = false;
+        next.top3AlertEnabled = false;
         next.alertSpotId = null;
       }
       setPrefs(next);
@@ -239,12 +239,12 @@ export function ProfileTabScreen({
               onValueChange={(v) => toggleField('astronomyEventAlertEnabled', v)}
             />
             <Row
-              label="주간 TOP5"
+              label="주간 TOP3"
               description="주간 추천 명소 요약"
-              value={prefs.top5AlertEnabled}
+              value={prefs.top3AlertEnabled}
               disabled={prefsSaving || !prefs.alertsEnabled}
               theme={theme}
-              onValueChange={(v) => toggleField('top5AlertEnabled', v)}
+              onValueChange={(v) => toggleField('top3AlertEnabled', v)}
             />
           </View>
         ) : (

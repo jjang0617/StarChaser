@@ -1,6 +1,6 @@
 /**
  * StarChaser — App.tsx
- * 메인: 천구 + TOP5 · 지도 마커: Star-Index 상세 시트
+ * 메인: 천구 + TOP3 · 지도 마커: Star-Index 상세 시트
  */
 
 import { StatusBar } from 'expo-status-bar';
@@ -33,11 +33,11 @@ import { AuthScreen } from './components/auth/auth-screen';
 import { getDefaultSpotId } from './lib/config';
 import {
   ApiRequestError,
-  fetchWeeklyTop5,
+  fetchWeeklyTop3,
   fetchStarIndex,
   SessionExpiredError,
 } from './lib/api-client';
-import type { StarIndexResponseDto, WeeklyTop5ItemDto } from './lib/types/api';
+import type { StarIndexResponseDto, WeeklyTop3ItemDto } from './lib/types/api';
 import type { ClusterSpotRnDto } from './lib/types/map-spot';
 
 function starIndexErrorFromApi(e: ApiRequestError): StatefulCardError {
@@ -87,7 +87,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [mapSiData, setMapSiData] = useState<StarIndexResponseDto | null>(null);
 
   const defaultSpotId = getDefaultSpotId();
-  /** TOP5·관측 로그 기준 명소 — 지도 선택과 별개로 유지 */
+  /** TOP3·관측 로그 기준 명소 — 지도 선택과 별개로 유지 */
   const [focusSpotId, setFocusSpotId] = useState<string | null>(() => getDefaultSpotId() ?? null);
 
   useEffect(() => {
@@ -157,9 +157,9 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     }
   }, []);
 
-  const [top5Loading, setTop5Loading] = useState(false);
-  const [top5Error, setTop5Error] = useState<string | null>(null);
-  const [top5Items, setTop5Items] = useState<WeeklyTop5ItemDto[] | null>(null);
+  const [top3Loading, setTop3Loading] = useState(false);
+  const [top3Error, setTop3Error] = useState<string | null>(null);
+  const [top3Items, setTop3Items] = useState<WeeklyTop3ItemDto[] | null>(null);
 
   /** 가상 밤하늘 — UI는 한국 시각 기준, API `at`는 UTC ISO */
   const [skyObserveAtIso, setSkyObserveAtIso] = useState(() =>
@@ -182,25 +182,25 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     if (activeTab !== 'sky') return;
     let cancelled = false;
     (async () => {
-      setTop5Loading(true);
-      setTop5Error(null);
+      setTop3Loading(true);
+      setTop3Error(null);
       try {
-        const items = await fetchWeeklyTop5();
-        if (!cancelled) setTop5Items(items);
+        const items = await fetchWeeklyTop3();
+        if (!cancelled) setTop3Items(items);
       } catch (e) {
         if (e instanceof SessionExpiredError) {
-          if (!cancelled) setTop5Error('세션이 만료되었습니다. 다시 로그인해 주세요.');
+          if (!cancelled) setTop3Error('세션이 만료되었습니다. 다시 로그인해 주세요.');
           await onSessionInvalidated();
           return;
         }
         if (e instanceof ApiRequestError) {
-          if (!cancelled) setTop5Error(e.message);
+          if (!cancelled) setTop3Error(e.message);
         } else {
-          if (!cancelled) setTop5Error('주간 TOP5를 불러오지 못했습니다.');
+          if (!cancelled) setTop3Error('주간 TOP3를 불러오지 못했습니다.');
         }
-        if (!cancelled) setTop5Items(null);
+        if (!cancelled) setTop3Items(null);
       } finally {
-        if (!cancelled) setTop5Loading(false);
+        if (!cancelled) setTop3Loading(false);
       }
     })();
     return () => {
@@ -350,11 +350,11 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               skyUsesGps={deviceLat != null && deviceLng != null}
               locationPermissionStatus={foregroundLocationStatus}
               onRequestLocationPermission={requestLocationPermission}
-              top5Loading={top5Loading}
-              top5Error={top5Error}
-              top5Items={top5Items}
+              top3Loading={top3Loading}
+              top3Error={top3Error}
+              top3Items={top3Items}
               selectedSpotId={focusSpotId}
-              onSelectTop5Spot={(id: string) => setFocusSpotId(id)}
+              onSelectTop3Spot={(id: string) => setFocusSpotId(id)}
             />
           ) : activeTab === 'records' ? (
             <RecordsTabScreen

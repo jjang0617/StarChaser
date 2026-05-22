@@ -78,7 +78,7 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     alertsEnabled: boolean;
     starIndexAlertEnabled: boolean;
     astronomyEventAlertEnabled: boolean;
-    top5AlertEnabled: boolean;
+    top3AlertEnabled: boolean;
     alertSpotId: string | null;
   }): Promise<NotificationPreference> {
     const existing = await this.prefs.findOne({ where: { userId: params.userId } });
@@ -88,7 +88,7 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
         alertsEnabled: params.alertsEnabled,
         starIndexAlertEnabled: params.starIndexAlertEnabled,
         astronomyEventAlertEnabled: params.astronomyEventAlertEnabled,
-        top5AlertEnabled: params.top5AlertEnabled,
+        top3AlertEnabled: params.top3AlertEnabled,
         alertSpotId: params.alertSpotId,
       });
       return this.prefs.save(created);
@@ -97,12 +97,12 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     existing.alertsEnabled = params.alertsEnabled;
     existing.starIndexAlertEnabled = params.starIndexAlertEnabled;
     existing.astronomyEventAlertEnabled = params.astronomyEventAlertEnabled;
-    existing.top5AlertEnabled = params.top5AlertEnabled;
+    existing.top3AlertEnabled = params.top3AlertEnabled;
     existing.alertSpotId = params.alertSpotId;
     return this.prefs.save(existing);
   }
 
-  async findAndroidRecipientsTop5Enabled(): Promise<
+  async findAndroidRecipientsTop3Enabled(): Promise<
     Array<{ userId: string; fcmToken: string }>
   > {
     const raw = await this.tokens
@@ -110,7 +110,7 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
       .innerJoin(
         NotificationPreferenceEntity,
         'p',
-        'p.userId = t.userId AND p.alertsEnabled = true AND p.top5AlertEnabled = true',
+        'p.userId = t.userId AND p.alertsEnabled = true AND p.top3AlertEnabled = true',
       )
       .where('t.isActive = :active', { active: true })
       .andWhere('t.platform = :plat', { plat: 'android' })

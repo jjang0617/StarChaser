@@ -20,7 +20,7 @@ export class UpdateNotificationPreferencesDto {
   @ApiProperty({ required: false, example: false })
   @IsOptional()
   @IsBoolean()
-  top5AlertEnabled?: boolean;
+  top3AlertEnabled?: boolean;
 
   @ApiPropertyOptional({
     nullable: true,

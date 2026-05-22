@@ -10,7 +10,7 @@ import type {
   AuthTokensResponseDto,
   RefreshAccessResponseDto,
   StarIndexResponseDto,
-  WeeklyTop5ItemDto,
+  WeeklyTop3ItemDto,
 } from './types/api';
 import { isAccessTokenExpired } from './jwt-utils';
 
@@ -370,11 +370,11 @@ export function fetchStarIndexSpotScores(
   ).then((r) => r.items ?? []);
 }
 
-export function fetchWeeklyTop5(weekStart?: string): Promise<WeeklyTop5ItemDto[]> {
+export function fetchWeeklyTop3(weekStart?: string): Promise<WeeklyTop3ItemDto[]> {
   const q = new URLSearchParams();
   if (weekStart && weekStart.trim() !== '') q.set('weekStart', weekStart.trim());
   const suffix = q.size ? `?${q.toString()}` : '';
-  return authorizedGetJson<WeeklyTop5ItemDto[]>(`/top5/weekly${suffix}`);
+  return authorizedGetJson<WeeklyTop3ItemDto[]>(`/top3/weekly${suffix}`);
 }
 
 export interface SkyStarDto {

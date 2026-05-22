@@ -5,7 +5,7 @@ import {
   thisWeekMondayKst,
 } from './kst-date';
 
-/** `GET /top5/weekly?weekStart=` — DB `week_start`와 맞는 YYYY-MM-DD. */
+/** `GET /top3/weekly?weekStart=` — DB `week_start`와 맞는 YYYY-MM-DD. */
 export function requireQueryYmd(raw: string): string {
   const r = parseKstYmdInput(raw);
   if (!r.ok) {
@@ -18,7 +18,7 @@ export function requireQueryYmd(raw: string): string {
   return r.ymd;
 }
 
-/** `job=weeklyTop5` — 비우면 직전 완료 주 월요일, 있으면 해당 날짜가 속한 KST 주의 월요일. */
+/** `job=weeklyTop3` — 비우면 직전 완료 주 월요일, 있으면 해당 날짜가 속한 KST 주의 월요일. */
 export function resolveAggregationWeekMonday(weekStart?: string): string {
   if (weekStart == null || weekStart.trim() === '') {
     return lastCompletedWeekMondayKst();

@@ -13,7 +13,7 @@ import { authorizedPutJson } from '../../lib/api-client';
 type NotificationPrefs = {
   starIndex70: boolean;
   meteorEvents: boolean;
-  weeklyTop5: boolean;
+  weeklyTop3: boolean;
 };
 
 const KEY_COMPLETED_BASE = 'starChaser:onboardingCompleted';
@@ -39,9 +39,9 @@ const NOTIF_ITEMS: Array<{
     desc: '유성우, 월식 같은 특별한 날 + ISS 지나갈 때도 알려드려요.',
   },
   {
-    key: 'weeklyTop5',
+    key: 'weeklyTop3',
     title: '이번 주 가볼 만한 곳',
-    desc: '매주 월요일 아침 7시, 이번 주 추천 명소 다섯 곳만 정리해서 보내요.',
+    desc: '매주 월요일 아침 7시, 이번 주 추천 명소 세 곳만 정리해서 보내요.',
   },
 ];
 
@@ -57,7 +57,7 @@ export function OnboardingFlow({
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>({
     starIndex70: true,
     meteorEvents: true,
-    weeklyTop5: true,
+    weeklyTop3: true,
   });
 
   const finishOnboarding = useCallback(
@@ -75,12 +75,12 @@ export function OnboardingFlow({
 
         try {
           const anyChannel =
-            prefs.starIndex70 || prefs.meteorEvents || prefs.weeklyTop5;
+            prefs.starIndex70 || prefs.meteorEvents || prefs.weeklyTop3;
           await authorizedPutJson('/notifications/preferences', {
             alertsEnabled: anyChannel,
             starIndexAlertEnabled: prefs.starIndex70,
             astronomyEventAlertEnabled: prefs.meteorEvents,
-            top5AlertEnabled: prefs.weeklyTop5,
+            top3AlertEnabled: prefs.weeklyTop3,
           });
         } catch (e) {
           if (__DEV__) {
@@ -101,7 +101,7 @@ export function OnboardingFlow({
     void finishOnboarding({
       starIndex70: false,
       meteorEvents: false,
-      weeklyTop5: false,
+      weeklyTop3: false,
     });
   }, [finishOnboarding]);
 
