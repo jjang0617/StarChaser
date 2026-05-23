@@ -8,6 +8,7 @@ export interface StoredUser {
   id: string;
   email: string;
   nickname: string;
+  avatarUrl?: string | null;
 }
 
 export async function saveSession(params: {
@@ -43,7 +44,15 @@ export async function loadUser(): Promise<StoredUser | null> {
   try {
     const u = JSON.parse(raw) as StoredUser;
     if (u && typeof u.id === 'string' && typeof u.email === 'string') {
-      return { id: u.id, email: u.email, nickname: typeof u.nickname === 'string' ? u.nickname : '' };
+      return {
+        id: u.id,
+        email: u.email,
+        nickname: typeof u.nickname === 'string' ? u.nickname : '',
+        avatarUrl:
+          u.avatarUrl === null || typeof u.avatarUrl === 'string'
+            ? u.avatarUrl
+            : null,
+      };
     }
   } catch {
     /* ignore */
@@ -53,4 +62,13 @@ export async function loadUser(): Promise<StoredUser | null> {
 
 export async function clearSession(): Promise<void> {
   await AsyncStorage.multiRemove([KEY_ACCESS, KEY_REFRESH, KEY_USER]);
+}
+
+export async function patchStoredUser(patch: Partial<StoredUser>): Promise<void> {
+  const current = await loadUser();
+  if (!current) return;
+  await AsyncStorage.setItem(
+    KEY_USER,
+    JSON.stringify({ ...current, ...patch }),
+  );
 }

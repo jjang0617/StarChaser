@@ -16,14 +16,17 @@ import {
   SessionExpiredError,
   authorizedGetJson,
   authorizedPutJson,
+  fetchMyProfile,
 } from '../../lib/api-client';
-import type { NotificationPreferenceDto, SpotDto } from '../../lib/types/api';
+import type { NotificationPreferenceDto, SpotDto, UserProfileDto } from '../../lib/types/api';
+import { useAuth } from '../../contexts/auth-context';
+import { ProfileAvatar } from './ProfileAvatar';
+import { ProfileEditModal } from './ProfileEditModal';
 import { fetchSpotsAll } from '../../lib/spots-api';
 import { PhotographyGuideModal } from '../guide/PhotographyGuideModal';
 import { Button, Card } from '../ui';
 
 interface ProfileTabScreenProps {
-  email: string | null;
   onLogout: () => void;
   isRedMode: boolean;
   onToggleRedMode: () => void;
@@ -32,7 +35,6 @@ interface ProfileTabScreenProps {
 }
 
 export function ProfileTabScreen({
-  email,
   onLogout,
   isRedMode,
   onToggleRedMode,
@@ -40,6 +42,11 @@ export function ProfileTabScreen({
   onDevResetOnboarding,
 }: ProfileTabScreenProps) {
   const { theme } = useTheme();
+  const { applyProfile } = useAuth();
+  const [profile, setProfile] = useState<UserProfileDto | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const [prefsLoading, setPrefsLoading] = useState(true);
   const [prefsError, setPrefsError] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<NotificationPreferenceDto | null>(null);
@@ -48,6 +55,30 @@ export function ProfileTabScreen({
   const [spotsLoading, setSpotsLoading] = useState(false);
   const [spotPickerOpen, setSpotPickerOpen] = useState(false);
   const [photographyGuideOpen, setPhotographyGuideOpen] = useState(false);
+
+  const loadProfile = useCallback(async () => {
+    setProfileError(null);
+    setProfileLoading(true);
+    try {
+      const data = await fetchMyProfile();
+      setProfile(data);
+      await applyProfile(data);
+    } catch (e) {
+      if (e instanceof SessionExpiredError) {
+        await onSessionInvalidated();
+        return;
+      }
+      setProfileError(
+        e instanceof ApiRequestError ? e.message : '프로필을 불러오지 못했습니다.',
+      );
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [applyProfile, onSessionInvalidated]);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
 
   const loadPrefs = useCallback(async () => {
     setPrefsError(null);
@@ -177,13 +208,40 @@ export function ProfileTabScreen({
         showsVerticalScrollIndicator
       >
       <Text style={[styles.title, { color: theme.foreground }]}>마이페이지</Text>
-      <Card
-        title="계정"
-        description="설정·Pro 등은 Phase 1 이후(B 담당 영역과 통합)"
-      >
-        <Text style={[styles.email, { color: theme.mutedForeground }]}>
-          {email ?? '—'}
-        </Text>
+      <Card title="프로필">
+        {profileLoading ? (
+          <ActivityIndicator color={theme.starGold} style={{ marginVertical: 12 }} />
+        ) : profile ? (
+          <View style={styles.profileBlock}>
+            <ProfileAvatar
+              nickname={profile.nickname}
+              avatarUrl={profile.avatarUrl}
+              size={72}
+            />
+            <View style={styles.profileMeta}>
+              <Text style={[styles.nickname, { color: theme.foreground }]}>
+                {profile.nickname?.trim() || '닉네임 없음'}
+              </Text>
+              <Text style={[styles.email, { color: theme.mutedForeground }]}>
+                {profile.email}
+              </Text>
+            </View>
+            <Button
+              label="프로필 수정"
+              variant="outline"
+              size="sm"
+              fullWidth
+              onPress={() => setEditOpen(true)}
+            />
+          </View>
+        ) : (
+          <View style={{ gap: 8 }}>
+            {profileError ? (
+              <Text style={[styles.err, { color: theme.destructive }]}>{profileError}</Text>
+            ) : null}
+            <Button label="다시 불러오기" variant="outline" fullWidth onPress={() => void loadProfile()} />
+          </View>
+        )}
         <View style={{ marginTop: 12 }}>
           <Button label="로그아웃" variant="outline" fullWidth onPress={onLogout} />
         </View>
@@ -348,6 +406,18 @@ export function ProfileTabScreen({
         visible={photographyGuideOpen}
         onClose={() => setPhotographyGuideOpen(false)}
       />
+
+      {profile ? (
+        <ProfileEditModal
+          visible={editOpen}
+          profile={profile}
+          onClose={() => setEditOpen(false)}
+          onSaved={(next) => {
+            setProfile(next);
+            void applyProfile(next);
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -398,7 +468,10 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 28 },
   title: { fontSize: 20, fontFamily: 'SpaceMono-Regular', marginBottom: 16 },
-  email: { fontSize: 14 },
+  profileBlock: { gap: 12, alignItems: 'center' },
+  profileMeta: { alignItems: 'center', gap: 4 },
+  nickname: { fontSize: 18, fontWeight: '700' },
+  email: { fontSize: 13 },
   err: { fontSize: 13, marginBottom: 8 },
   spotHint: { fontSize: 12 },
   modalBackdrop: {

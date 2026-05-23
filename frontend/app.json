@@ -21,7 +21,13 @@
         }
       ],
       "expo-notifications",
-      "expo-screen-orientation"
+      "expo-screen-orientation",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "프로필 사진을 선택하기 위해 사진 라이브러리 접근이 필요합니다."
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,

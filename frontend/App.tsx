@@ -365,7 +365,6 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
             />
           ) : activeTab === 'profile' ? (
             <ProfileTabScreen
-              email={user?.email ?? null}
               onLogout={() => void logout()}
               isRedMode={isRedMode}
               onToggleRedMode={toggleRed}

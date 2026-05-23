@@ -18,6 +18,9 @@ export class UserEntity {
   @Column({ type: 'varchar', length: 30, unique: true, nullable: true })
   nickname: string | null;
 
+  @Column({ name: 'avatar_url', type: 'text', nullable: true })
+  avatarUrl: string | null;
+
   @Column({ name: 'password_hash', type: 'text' })
   passwordHash: string;
 
