@@ -16,6 +16,12 @@ import {
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {
+  NOTIFICATION_PREFS_KEY_BASE,
+  ONBOARDING_COMPLETED_KEY_BASE,
+  onboardingCompletedKey,
+  userScopedStorageKeys,
+} from './lib/auth-storage';
 import { ThemeProvider, useTheme } from './themes/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/auth-context';
 import { BottomTab, Button, Screen, type StatefulCardError } from './components/ui';
@@ -453,15 +459,10 @@ function AppGate() {
   const resetOnboarding = useCallback(async () => {
     const userId = user?.id;
     const keys: string[] = [
-      'starChaser:onboardingCompleted',
-      'starChaser:notificationPrefs',
+      ONBOARDING_COMPLETED_KEY_BASE,
+      NOTIFICATION_PREFS_KEY_BASE,
+      ...(userId ? userScopedStorageKeys(userId) : []),
     ];
-    if (userId) {
-      keys.push(
-        `starChaser:onboardingCompleted:${userId}`,
-        `starChaser:notificationPrefs:${userId}`,
-      );
-    }
     await AsyncStorage.multiRemove(keys);
     setRoute('onboarding');
   }, [user?.id]);
@@ -473,10 +474,10 @@ function AppGate() {
     let mounted = true;
     (async () => {
       try {
-        const completedKey = `starChaser:onboardingCompleted:${user.id}`;
+        const completedKey = onboardingCompletedKey(user.id);
         const staleGlobalKeys = [
-          'starChaser:onboardingCompleted',
-          'starChaser:notificationPrefs',
+          ONBOARDING_COMPLETED_KEY_BASE,
+          NOTIFICATION_PREFS_KEY_BASE,
         ];
 
         const completed = await AsyncStorage.getItem(completedKey);

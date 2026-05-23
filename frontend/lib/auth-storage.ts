@@ -64,6 +64,26 @@ export async function clearSession(): Promise<void> {
   await AsyncStorage.multiRemove([KEY_ACCESS, KEY_REFRESH, KEY_USER]);
 }
 
+/** 온보딩·알림 로컬 캐시 — 사용자별 키 (App.tsx / OnboardingFlow와 동일 규칙) */
+export const ONBOARDING_COMPLETED_KEY_BASE = 'starChaser:onboardingCompleted';
+export const NOTIFICATION_PREFS_KEY_BASE = 'starChaser:notificationPrefs';
+
+export function onboardingCompletedKey(userId: string): string {
+  return `${ONBOARDING_COMPLETED_KEY_BASE}:${userId}`;
+}
+
+export function notificationPrefsKey(userId: string): string {
+  return `${NOTIFICATION_PREFS_KEY_BASE}:${userId}`;
+}
+
+export function userScopedStorageKeys(userId: string): string[] {
+  return [onboardingCompletedKey(userId), notificationPrefsKey(userId)];
+}
+
+export async function clearUserScopedStorage(userId: string): Promise<void> {
+  await AsyncStorage.multiRemove(userScopedStorageKeys(userId));
+}
+
 export async function patchStoredUser(patch: Partial<StoredUser>): Promise<void> {
   const current = await loadUser();
   if (!current) return;

@@ -1,12 +1,17 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { AuthService } from '../auth/auth.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
+import { EmailVerificationEntity } from '../auth/email-verification.entity';
 import { UserEntity } from './user.entity';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -23,7 +28,10 @@ export class UsersService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly usersRepo: Repository<UserEntity>,
+    @InjectRepository(EmailVerificationEntity)
+    private readonly verificationsRepo: Repository<EmailVerificationEntity>,
     private readonly storage: SupabaseStorageService,
+    private readonly authService: AuthService,
   ) {}
 
   toProfileDto(user: UserEntity): UserProfileDto {
@@ -35,19 +43,34 @@ export class UsersService {
     };
   }
 
-  async getMe(userId: string): Promise<UserProfileDto> {
+  private async findUserOrThrow(userId: string): Promise<UserEntity> {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('사용자를 찾을 수 없습니다.');
     }
+    return user;
+  }
+
+  private async assertCurrentPassword(
+    user: UserEntity,
+    currentPassword: string,
+  ): Promise<void> {
+    const valid = await this.authService.comparePassword(
+      currentPassword,
+      user.passwordHash,
+    );
+    if (!valid) {
+      throw new BadRequestException('현재 비밀번호가 올바르지 않습니다.');
+    }
+  }
+
+  async getMe(userId: string): Promise<UserProfileDto> {
+    const user = await this.findUserOrThrow(userId);
     return this.toProfileDto(user);
   }
 
   async updateMe(userId: string, dto: UpdateProfileDto): Promise<UserProfileDto> {
-    const user = await this.usersRepo.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('사용자를 찾을 수 없습니다.');
-    }
+    const user = await this.findUserOrThrow(userId);
 
     if (dto.nickname !== undefined) {
       const trimmed = dto.nickname.trim();
@@ -78,10 +101,7 @@ export class UsersService {
       throw new ConflictException('이미지는 5MB 이하여야 합니다.');
     }
 
-    const user = await this.usersRepo.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('사용자를 찾을 수 없습니다.');
-    }
+    const user = await this.findUserOrThrow(userId);
 
     const avatarUrl = await this.storage.uploadAvatar(
       userId,
@@ -93,15 +113,46 @@ export class UsersService {
     return this.toProfileDto(user);
   }
 
-  async deleteAvatar(userId: string): Promise<UserProfileDto> {
-    const user = await this.usersRepo.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('사용자를 찾을 수 없습니다.');
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    const user = await this.findUserOrThrow(userId);
+    await this.assertCurrentPassword(user, dto.currentPassword);
+
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException(
+        '새 비밀번호는 현재 비밀번호와 달라야 합니다.',
+      );
     }
+
+    const passwordHash = await this.authService.hashPassword(dto.newPassword);
+    await this.usersRepo.update(userId, { passwordHash });
+
+    return { message: '비밀번호가 변경되었습니다.' };
+  }
+
+  async deleteAvatar(userId: string): Promise<UserProfileDto> {
+    const user = await this.findUserOrThrow(userId);
 
     await this.storage.removeAvatar(userId);
     user.avatarUrl = null;
     await this.usersRepo.save(user);
     return this.toProfileDto(user);
+  }
+
+  /** 회원 탈퇴 — 완전 삭제 (연관 데이터 DB CASCADE, 아바타·인증 메일 정리) */
+  async deleteAccount(
+    userId: string,
+    dto: DeleteAccountDto,
+  ): Promise<{ message: string }> {
+    const user = await this.findUserOrThrow(userId);
+    await this.assertCurrentPassword(user, dto.currentPassword);
+
+    await this.storage.removeAvatar(userId);
+    await this.verificationsRepo.delete({ email: user.email });
+    await this.usersRepo.delete({ id: userId });
+
+    return { message: '회원 탈퇴가 완료되었습니다.' };
   }
 }

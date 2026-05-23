@@ -22,6 +22,8 @@ import type { NotificationPreferenceDto, SpotDto, UserProfileDto } from '../../l
 import { useAuth } from '../../contexts/auth-context';
 import { ProfileAvatar } from './ProfileAvatar';
 import { ProfileEditModal } from './ProfileEditModal';
+import { ProfileChangePasswordModal } from './ProfileChangePasswordModal';
+import { ProfileDeleteAccountModal } from './ProfileDeleteAccountModal';
 import { fetchSpotsAll } from '../../lib/spots-api';
 import { PhotographyGuideModal } from '../guide/PhotographyGuideModal';
 import { Button, Card } from '../ui';
@@ -47,6 +49,9 @@ export function ProfileTabScreen({
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordSuccessMsg, setPasswordSuccessMsg] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [prefsLoading, setPrefsLoading] = useState(true);
   const [prefsError, setPrefsError] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<NotificationPreferenceDto | null>(null);
@@ -233,6 +238,21 @@ export function ProfileTabScreen({
               fullWidth
               onPress={() => setEditOpen(true)}
             />
+            <Button
+              label="비밀번호 변경"
+              variant="outline"
+              size="sm"
+              fullWidth
+              onPress={() => {
+                setPasswordSuccessMsg(null);
+                setPasswordOpen(true);
+              }}
+            />
+            {passwordSuccessMsg ? (
+              <Text style={[styles.successMsg, { color: theme.starGold }]}>
+                {passwordSuccessMsg}
+              </Text>
+            ) : null}
           </View>
         ) : (
           <View style={{ gap: 8 }}>
@@ -345,6 +365,16 @@ export function ProfileTabScreen({
           />
         </Card>
       ) : null}
+
+      <Card title="회원 탈퇴" description="탈퇴 시 계정과 모든 데이터가 삭제되며 복구할 수 없습니다.">
+        <Button
+          label="회원 탈퇴"
+          variant="destructive"
+          size="sm"
+          fullWidth
+          onPress={() => setDeleteOpen(true)}
+        />
+      </Card>
       </ScrollView>
 
       <Modal
@@ -418,6 +448,21 @@ export function ProfileTabScreen({
           }}
         />
       ) : null}
+
+      <ProfileChangePasswordModal
+        visible={passwordOpen}
+        onClose={() => setPasswordOpen(false)}
+        onSuccess={(message) => setPasswordSuccessMsg(message)}
+      />
+
+      <ProfileDeleteAccountModal
+        visible={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => {
+          setDeleteOpen(false);
+          onLogout();
+        }}
+      />
     </>
   );
 }
@@ -472,6 +517,7 @@ const styles = StyleSheet.create({
   profileMeta: { alignItems: 'center', gap: 4 },
   nickname: { fontSize: 18, fontWeight: '700' },
   email: { fontSize: 13 },
+  successMsg: { fontSize: 12, textAlign: 'center' },
   err: { fontSize: 13, marginBottom: 8 },
   spotHint: { fontSize: 12 },
   modalBackdrop: {

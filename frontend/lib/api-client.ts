@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from './config';
 import {
   clearSession,
+  clearUserScopedStorage,
   loadTokens,
   loadUser,
   setAccessToken,
@@ -255,21 +256,28 @@ export async function authorizedPatchJson<T>(
   return body as T;
 }
 
-/** Bearer가 필요한 DELETE */
-export async function authorizedDeleteJson<T>(path: string): Promise<T> {
+/** Bearer가 필요한 DELETE (선택적 JSON body) */
+export async function authorizedDeleteJson<T>(
+  path: string,
+  payload?: unknown,
+): Promise<T> {
   const { accessToken, refreshToken } = await loadTokens();
   if (!accessToken || !refreshToken) {
     throw new SessionExpiredError();
   }
 
-  const doFetch = (token: string) =>
-    fetch(`${getApiBaseUrl()}${path}`, {
-      method: 'DELETE',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-    });
+  const doFetch = (token: string) => {
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+    const init: RequestInit = { method: 'DELETE', headers };
+    if (payload !== undefined) {
+      headers['Content-Type'] = 'application/json';
+      init.body = JSON.stringify(payload);
+    }
+    return fetch(`${getApiBaseUrl()}${path}`, init);
+  };
 
   let res = await doFetch(accessToken);
   if (res.status === 401) {
@@ -352,6 +360,43 @@ export async function uploadMyAvatar(
 
 export function deleteMyAvatar(): Promise<UserProfileDto> {
   return authorizedDeleteJson<UserProfileDto>('/users/me/avatar');
+}
+
+export function changeMyPassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ message: string }> {
+  return authorizedPostJson<{ message: string }>('/users/me/password', {
+    currentPassword,
+    newPassword,
+  });
+}
+
+/** 회원 탈퇴 — 성공 시 로컬 사용자 캐시·세션 정리 */
+export async function deleteMyAccount(
+  currentPassword: string,
+): Promise<{ message: string }> {
+  const user = await loadUser();
+  let result: { message: string };
+  try {
+    result = await authorizedDeleteJson<{ message: string }>('/users/me', {
+      currentPassword,
+    });
+  } catch (e) {
+    if (e instanceof ApiRequestError) {
+      throw new ApiRequestError(
+        messageFromErrorBody(e.body, '회원 탈퇴에 실패했습니다.'),
+        e.status,
+        e.body,
+      );
+    }
+    throw e;
+  }
+  if (user?.id) {
+    await clearUserScopedStorage(user.id);
+  }
+  await clearSession();
+  return result;
 }
 
 export async function postAuthJson(

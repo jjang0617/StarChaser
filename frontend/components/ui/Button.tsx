@@ -15,7 +15,13 @@ import {
 } from 'react-native';
 import { useTheme } from '../../themes/ThemeContext';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'red';
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'outline'
+  | 'ghost'
+  | 'red'
+  | 'destructive';
 export type ButtonSize    = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends PressableProps {
@@ -67,6 +73,11 @@ export function Button({
       text:   '#FFFFFF',
       border: theme.dimRed,
     },
+    destructive: {
+      bg:     'transparent',
+      text:   theme.destructive,
+      border: 'transparent',
+    },
   }[variant];
 
   const sizeStyle = {
@@ -83,7 +94,7 @@ export function Button({
         {
           backgroundColor:   variantStyle.bg,
           borderColor:       variantStyle.border,
-          borderWidth:       variant === 'ghost' ? 0 : 1,
+          borderWidth:       variant === 'ghost' || variant === 'destructive' ? 0 : 1,
           borderRadius:      theme.radius,
           paddingVertical:   sizeStyle.paddingVertical,
           paddingHorizontal: sizeStyle.paddingHorizontal,
