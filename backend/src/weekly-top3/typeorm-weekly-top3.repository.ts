@@ -3,22 +3,21 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type {
-  WeeklyTop5Entry,
-  WeeklyTop5Repository,
-} from '../common/interfaces/weekly-top5.repository';
-import { WeeklyTop5Entity } from './weekly-top5.entity';
+  WeeklyTop3Entry,
+  WeeklyTop3Repository,
+} from '../common/interfaces/weekly-top3.repository';
+import { WeeklyTop3Entity } from './weekly-top3.entity';
 
 @Injectable()
-export class TypeOrmWeeklyTop5Repository implements WeeklyTop5Repository {
+export class TypeOrmWeeklyTop3Repository implements WeeklyTop3Repository {
   constructor(
-    @InjectRepository(WeeklyTop5Entity)
-    private readonly repo: Repository<WeeklyTop5Entity>,
+    @InjectRepository(WeeklyTop3Entity)
+    private readonly repo: Repository<WeeklyTop3Entity>,
   ) {}
 
-  async findByWeekStart(weekStart: string): Promise<WeeklyTop5Entry[]> {
+  async findByWeekStart(weekStart: string): Promise<WeeklyTop3Entry[]> {
     const rows = await this.repo
       .createQueryBuilder('w')
-      // QueryBuilder에서는 엔티티 프로퍼티명을 사용해야 안정적으로 컬럼 매핑된다.
       .where('w.weekStart = :weekStart', { weekStart })
       .orderBy('w.rank', 'ASC')
       .addOrderBy('w.spotId', 'ASC')
@@ -27,7 +26,6 @@ export class TypeOrmWeeklyTop5Repository implements WeeklyTop5Repository {
   }
 
   async findLatestWeekStart(): Promise<string | null> {
-    // `MAX()` 대신 최신 row를 정렬로 조회 (date 타입 + driver 매핑 이슈 회피)
     const [row] = await this.repo.find({
       select: { weekStart: true } as unknown as { weekStart: true },
       order: { weekStart: 'DESC' },
@@ -42,10 +40,10 @@ export class TypeOrmWeeklyTop5Repository implements WeeklyTop5Repository {
     rows: Array<{ rank: number; spotId: string; avgStarIndex: number }>,
   ): Promise<void> {
     await this.repo.manager.transaction(async (em) => {
-      await em.delete(WeeklyTop5Entity, { weekStart });
+      await em.delete(WeeklyTop3Entity, { weekStart });
       if (!rows.length) return;
       await em.insert(
-        WeeklyTop5Entity,
+        WeeklyTop3Entity,
         rows.map((r) => ({
           id: randomUUID(),
           weekStart,
@@ -57,7 +55,7 @@ export class TypeOrmWeeklyTop5Repository implements WeeklyTop5Repository {
     });
   }
 
-  private toEntry(e: WeeklyTop5Entity): WeeklyTop5Entry {
+  private toEntry(e: WeeklyTop3Entity): WeeklyTop3Entry {
     return {
       id: e.id,
       weekStart: normalizeDateOnly(e.weekStart),

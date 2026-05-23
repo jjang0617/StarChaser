@@ -5,8 +5,8 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-@Entity('weekly_top5')
-export class WeeklyTop5Entity {
+@Entity('weekly_top3')
+export class WeeklyTop3Entity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

@@ -31,7 +31,7 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 import { useTheme } from '../../themes/ThemeContext';
-import type { WeeklyTop5ItemDto } from '../../lib/types/api';
+import type { WeeklyTop3ItemDto } from '../../lib/types/api';
 import { spotNameWithoutRegionPrefix } from '../../lib/spot-display-name';
 import { Button, Card } from '../ui';
 import {
@@ -108,11 +108,11 @@ export interface SkyTabScreenProps {
   locationPermissionStatus?: Location.PermissionResponse['status'] | null;
   /** 위치 권한 시스템 다이얼로그 재요청 */
   onRequestLocationPermission?: () => void | Promise<void>;
-  top5Loading: boolean;
-  top5Error: string | null;
-  top5Items: WeeklyTop5ItemDto[] | null;
+  top3Loading: boolean;
+  top3Error: string | null;
+  top3Items: WeeklyTop3ItemDto[] | null;
   selectedSpotId: string | null;
-  onSelectTop5Spot: (spotId: string) => void;
+  onSelectTop3Spot: (spotId: string) => void;
 }
 
 /** astronomy-engine 기반 위상 — 이분 원형 오버레이 근사 */
@@ -396,11 +396,11 @@ export function SkyTabScreen({
   skyUsesGps,
   locationPermissionStatus = null,
   onRequestLocationPermission,
-  top5Loading,
-  top5Error,
-  top5Items,
+  top3Loading,
+  top3Error,
+  top3Items,
   selectedSpotId,
-  onSelectTop5Spot,
+  onSelectTop3Spot,
 }: SkyTabScreenProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -861,25 +861,25 @@ export function SkyTabScreen({
         accessibilityLabel="주간 Star-Index 상위 명소"
       >
         <Text style={[styles.top3FloatLabel, { color: theme.mutedForeground }]}>주간 TOP3</Text>
-        {top5Loading ? (
+        {top3Loading ? (
           <Text style={{ color: theme.mutedForeground, fontSize: 10, marginTop: 6 }}>불러오는 중…</Text>
-        ) : top5Error ? (
+        ) : top3Error ? (
           <Text style={{ color: theme.destructive, fontSize: 9, marginTop: 6 }} numberOfLines={3}>
-            {top5Error}
+            {top3Error}
           </Text>
-        ) : top5Items == null ? (
+        ) : top3Items == null ? (
           <Text style={{ color: theme.mutedForeground, fontSize: 10, marginTop: 6 }}>준비 중</Text>
-        ) : top5Items.length === 0 ? (
+        ) : top3Items.length === 0 ? (
           <Text style={{ color: theme.mutedForeground, fontSize: 10, marginTop: 6 }}>데이터 없음</Text>
         ) : (
-          top5Items.slice(0, 3).map((item) => {
+          top3Items.map((item) => {
             const selected = selectedSpotId === item.spotId;
             const displayName = spotNameWithoutRegionPrefix(item.spotName);
             const topSi = getStarIndexScoreDisplay(item.avgStarIndex);
             return (
               <Pressable
                 key={item.id}
-                onPress={() => onSelectTop5Spot(item.spotId)}
+                onPress={() => onSelectTop3Spot(item.spotId)}
                 style={({ pressed }) => ({
                   marginTop: 8,
                   paddingVertical: 6,

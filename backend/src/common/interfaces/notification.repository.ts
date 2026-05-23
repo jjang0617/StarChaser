@@ -15,7 +15,7 @@ export interface NotificationPreference {
   alertsEnabled: boolean;
   starIndexAlertEnabled: boolean;
   astronomyEventAlertEnabled: boolean;
-  top5AlertEnabled: boolean;
+  top3AlertEnabled: boolean;
   /** Star-Index 임계 알림용 기준 명소 */
   alertSpotId: string | null;
   createdAt: Date;
@@ -35,15 +35,15 @@ export interface NotificationRepository {
     alertsEnabled: boolean;
     starIndexAlertEnabled: boolean;
     astronomyEventAlertEnabled: boolean;
-    top5AlertEnabled: boolean;
+    top3AlertEnabled: boolean;
     alertSpotId: string | null;
   }): Promise<NotificationPreference>;
 
   /** 실발송 테스트 등: 활성 토큰만 */
   findActiveTokensByUserId(userId: string): Promise<NotificationToken[]>;
 
-  /** 주간 TOP5 등 알림: 알림·TOP5 허용 + 안드로이드 활성 토큰 행 */
-  findAndroidRecipientsTop5Enabled(): Promise<
+  /** 주간 TOP3 등 알림: 알림·TOP3 허용 + 안드로이드 활성 토큰 행 */
+  findAndroidRecipientsTop3Enabled(): Promise<
     Array<{ userId: string; fcmToken: string }>
   >;
 

@@ -24,7 +24,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   user: StoredUser | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, nickname: string, verificationCode: string) => Promise<void>;
   logout: () => Promise<void>;
   /** refresh 실패 등 — 저장소 비우고 로그인 화면으로 */
   onSessionInvalidated: () => Promise<void>;
@@ -38,6 +38,7 @@ function userFromAccessToken(accessToken: string): StoredUser | null {
   return {
     id: p.sub,
     email: typeof p.email === 'string' ? p.email : '',
+    nickname: '',
   };
 }
 
@@ -64,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           null;
         setUser(
           u
-            ? { id: u.id, email: u.email || '(이메일 없음)' }
+            ? { id: u.id, email: u.email || '(이메일 없음)', nickname: u.nickname || '' }
             : null,
         );
         void registerDevicePushTokenWithServer();
@@ -79,25 +80,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const data = await postAuthJson('/auth/login', { email, password });
-    await saveSession({
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      user: data.user,
-    });
+    const u: StoredUser = { id: data.user.id, email: data.user.email, nickname: data.user.nickname ?? '' };
+    await saveSession({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: u });
     setHasValidSession(true);
-    setUser(data.user);
+    setUser(u);
     void registerDevicePushTokenWithServer();
   }, []);
 
-  const register = useCallback(async (email: string, password: string) => {
-    const data = await postAuthJson('/auth/register', { email, password });
-    await saveSession({
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      user: data.user,
-    });
+  const register = useCallback(async (email: string, password: string, nickname: string, verificationCode: string) => {
+    const data = await postAuthJson('/auth/register', { email, password, nickname, verificationCode });
+    const u: StoredUser = { id: data.user.id, email: data.user.email, nickname: data.user.nickname ?? '' };
+    await saveSession({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: u });
     setHasValidSession(true);
-    setUser(data.user);
+    setUser(u);
     void registerDevicePushTokenWithServer();
   }, []);
 

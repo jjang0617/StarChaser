@@ -1,4 +1,4 @@
-export interface WeeklyTop5Entry {
+export interface WeeklyTop3Entry {
   id: string;
   weekStart: string;
   rank: number;
@@ -7,8 +7,8 @@ export interface WeeklyTop5Entry {
   createdAt: Date;
 }
 
-export interface WeeklyTop5Repository {
-  findByWeekStart(weekStart: string): Promise<WeeklyTop5Entry[]>;
+export interface WeeklyTop3Repository {
+  findByWeekStart(weekStart: string): Promise<WeeklyTop3Entry[]>;
   findLatestWeekStart(): Promise<string | null>;
   replaceWeek(
     weekStart: string,
@@ -16,4 +16,4 @@ export interface WeeklyTop5Repository {
   ): Promise<void>;
 }
 
-export const WEEKLY_TOP5_REPOSITORY = 'WEEKLY_TOP5_REPOSITORY';
+export const WEEKLY_TOP3_REPOSITORY = 'WEEKLY_TOP3_REPOSITORY';

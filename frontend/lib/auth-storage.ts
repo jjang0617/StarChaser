@@ -7,6 +7,7 @@ const KEY_USER = 'starChaser:userJson';
 export interface StoredUser {
   id: string;
   email: string;
+  nickname: string;
 }
 
 export async function saveSession(params: {
@@ -41,7 +42,9 @@ export async function loadUser(): Promise<StoredUser | null> {
   if (!raw) return null;
   try {
     const u = JSON.parse(raw) as StoredUser;
-    if (u && typeof u.id === 'string' && typeof u.email === 'string') return u;
+    if (u && typeof u.id === 'string' && typeof u.email === 'string') {
+      return { id: u.id, email: u.email, nickname: typeof u.nickname === 'string' ? u.nickname : '' };
+    }
   } catch {
     /* ignore */
   }

@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
- * - `weekly_top5`: 주간 TOP5 결과 (신규 환경용 IF NOT EXISTS)
+ * - `weekly_top5`: 주간 랭킹 (마이그레이션 1748000000000에서 `weekly_top3`로 rename)
  * - `spot_star_index_daily`: 명소별 일별 Star-Index 스냅샷 (주간 평균 집계 입력)
  */
 export class AddSpotStarIndexDaily1720050000000 implements MigrationInterface {

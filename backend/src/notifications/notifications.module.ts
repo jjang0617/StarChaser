@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { NOTIFICATION_REPOSITORY } from '../common/interfaces/notification.repository';
-import { WeeklyTop5Module } from '../weekly-top5/weekly-top5.module';
+import { WeeklyTop3Module } from '../weekly-top3/weekly-top3.module';
 import { StarIndexModule } from '../star-index/star-index.module';
 import { SpotsModule } from '../spots/spots.module';
 import { FcmPushService } from './fcm-push.service';
@@ -25,7 +25,7 @@ import { AstronomyEventsCatalogService } from '../astronomy-events/astronomy-eve
       AstroEventPushSentEntity,
     ]),
     AuthModule,
-    WeeklyTop5Module,
+    WeeklyTop3Module,
     StarIndexModule,
     SpotsModule,
   ],

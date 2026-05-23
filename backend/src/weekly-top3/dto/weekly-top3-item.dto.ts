@@ -1,13 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class WeeklyTop5ItemDto {
+export class WeeklyTop3ItemDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
   @ApiProperty({ description: '집계 주 월요일', example: '2026-05-04' })
   weekStart: string;
 
-  @ApiProperty({ minimum: 1, maximum: 5 })
+  @ApiProperty({ minimum: 1, maximum: 3 })
   rank: number;
 
   @ApiProperty({ format: 'uuid' })

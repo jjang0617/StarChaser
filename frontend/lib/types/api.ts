@@ -44,7 +44,7 @@ export interface StarIndexResponseDto {
 }
 
 export interface AuthTokensResponseDto {
-  user: { id: string; email: string };
+  user: { id: string; email: string; nickname: string | null };
   accessToken: string;
   refreshToken: string;
 }
@@ -66,21 +66,21 @@ export interface SpotDto {
   locationRadiusM: number;
 }
 
-/** GET /top5/weekly 한 줄 */
+/** GET /top3/weekly 한 줄 */
 /** GET/PUT /notifications/preferences */
 export interface NotificationPreferenceDto {
   userId: string;
   alertsEnabled: boolean;
   starIndexAlertEnabled: boolean;
   astronomyEventAlertEnabled: boolean;
-  top5AlertEnabled: boolean;
+  top3AlertEnabled: boolean;
   /** Star-Index 임계 알림 기준 명소 — 없으면 서버 스케줄에서 제외 */
   alertSpotId?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
 
-export interface WeeklyTop5ItemDto {
+export interface WeeklyTop3ItemDto {
   id: string;
   /** 집계 기준 월요일 (YYYY-MM-DD) */
   weekStart: string;

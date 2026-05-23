@@ -8,7 +8,7 @@ import {
   SPOT_REPOSITORY,
   type SpotRepository,
 } from '../common/interfaces/spot.repository';
-import { WeeklyTop5AggregationService } from '../weekly-top5/weekly-top5-aggregation.service';
+import { WeeklyTop3AggregationService } from '../weekly-top3/weekly-top3-aggregation.service';
 import { getKstYmd } from '../common/kst-date';
 import { StarIndexCacheHydrationService } from '../cache-hydration/star-index-cache-hydration.service';
 
@@ -25,7 +25,7 @@ export class CronService {
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
     private readonly config: ConfigService,
     @Inject(SPOT_REPOSITORY) private readonly spots: SpotRepository,
-    private readonly weeklyTop5Aggregation: WeeklyTop5AggregationService,
+    private readonly weeklyTop3Aggregation: WeeklyTop3AggregationService,
     private readonly hydration: StarIndexCacheHydrationService,
   ) {}
 
@@ -92,27 +92,27 @@ export class CronService {
     }
   }
 
-  // ── 주간 TOP5 일별 입력 — 매일 00:10 KST ──
+  // ── 주간 TOP3 일별 입력 — 매일 00:10 KST ──
   @Cron('10 0 * * *', { timeZone: 'Asia/Seoul' })
   async snapshotDailyStarIndexScoresJob() {
     this.logger.log('[Cron] 일별 Star-Index 스냅샷(명소 전체) 시작...');
     try {
-      await this.weeklyTop5Aggregation.snapshotTodayStarIndexScores();
+      await this.weeklyTop3Aggregation.snapshotTodayStarIndexScores();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.logger.error(`[Cron] 일별 스냅샷 실패: ${msg}`);
     }
   }
 
-  // ── 주간 TOP5 — 매주 월요일 07:00 KST ────────────────────
+  // ── 주간 TOP3 — 매주 월요일 07:00 KST ────────────────────
   @Cron('0 7 * * 1', { timeZone: 'Asia/Seoul' })
-  async calcWeeklyTop5() {
-    this.logger.log('[Cron] 주간 TOP5 집계 시작...');
+  async calcWeeklyTop3() {
+    this.logger.log('[Cron] 주간 TOP3 집계 시작...');
     try {
-      await this.weeklyTop5Aggregation.aggregateWeekTop5FromDaily();
+      await this.weeklyTop3Aggregation.aggregateWeekTop3FromDaily();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      this.logger.error(`[Cron] 주간 TOP5 집계 실패: ${msg}`);
+      this.logger.error(`[Cron] 주간 TOP3 집계 실패: ${msg}`);
     }
   }
 

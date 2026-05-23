@@ -259,7 +259,7 @@ export class StarIndexService {
 
   /**
    * `star_index:{spotId}` 캐시를 보지 않고, 현재 weather/dust/moon 캐시만으로 점수 계산.
-   * 일별 스냅샷·주간 TOP5 집계 등 배치용.
+   * 일별 스냅샷·주간 TOP3 집계 등 배치용.
    */
   async computeFreshScoreFromCache(spot: Spot): Promise<number> {
     await this.cacheHydration.ensureForStarIndexRequest(spot.lat, spot.lng);
