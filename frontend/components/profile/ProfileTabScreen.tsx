@@ -26,6 +26,7 @@ import { ProfileAvatar } from './ProfileAvatar';
 import { ProfileEditModal } from './ProfileEditModal';
 import { ProfileChangePasswordModal } from './ProfileChangePasswordModal';
 import { ProfileDeleteAccountModal } from './ProfileDeleteAccountModal';
+import { ProfileAppInfoCard } from './ProfileAppInfoCard';
 import { fetchSpotsAll } from '../../lib/spots-api';
 import { PhotographyGuideModal } from '../guide/PhotographyGuideModal';
 import { Button, Card } from '../ui';
@@ -423,6 +424,9 @@ export function ProfileTabScreen({
           onPress={onToggleRedMode}
         />
       </Card>
+
+      <ProfileAppInfoCard />
+
       {onDevResetOnboarding ? (
         <Card title="개발" description="온보딩 플로우만 다시 봅니다">
           <Button
