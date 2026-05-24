@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,6 +19,13 @@ import {
 } from '../../lib/api-client';
 import type { ClusterSpotRnDto } from '../../lib/types/map-spot';
 import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
+import {
+  bottomSheetStyle,
+  glassCardStyle,
+  sheetOverlayStyle,
+  spacing,
+  typography,
+} from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 
 type Props = {
@@ -25,7 +33,6 @@ type Props = {
   title: string;
   spots: ClusterSpotRnDto[];
   onClose: () => void;
-  /** 행 탭 — 해당 좌표로 지도 이동 + 라벨 표시 */
   onPickSpot: (spot: ClusterSpotRnDto) => void;
   onSessionInvalidated?: () => Promise<void>;
 };
@@ -88,43 +95,75 @@ export function MapClusterSpotsSheet({
   }, [visible, idsKey, onSessionInvalidated]);
 
   const rowShellStyle = (pressed: boolean, isSelected: boolean): ViewStyle => ({
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.borderSubtle,
-    backgroundColor: pressed ? theme.input : theme.card,
-    borderLeftWidth: isSelected ? 4 : 0,
-    borderLeftColor: isSelected ? theme.starGold : 'transparent',
-    paddingLeft: isSelected ? 10 : 14,
+    ...glassCardStyle(theme, {
+      marginHorizontal: spacing.md,
+      marginBottom: spacing.sm,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderLeftWidth: isSelected ? 3 : 1,
+      borderLeftColor: isSelected ? theme.primaryGlow : theme.cardBorder,
+      backgroundColor: pressed ? theme.inputBackground : theme.card,
+    }),
   });
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose} accessibilityRole="button" accessibilityLabel="닫기">
+      <Pressable
+        style={sheetOverlayStyle()}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="닫기"
+      >
         <Pressable
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: theme.card,
-              borderColor: theme.border,
-              paddingBottom: Math.max(insets.bottom, 14),
-            },
-          ]}
+          style={bottomSheetStyle(theme, Math.max(insets.bottom, 14))}
           onPress={(e) => e.stopPropagation()}
         >
-          <View style={[styles.grab, { backgroundColor: theme.borderSubtle }]} />
-          <Text style={[styles.sheetTitle, { color: theme.foreground }]} numberOfLines={2}>
-            {title}
-          </Text>
-          <Text style={[styles.hint, { color: theme.mutedForeground }]}>
-            항목을 누르면 지도가 이동하고, 선택한 이름이 지도 위에 함께 표시됩니다.
+          <View style={[styles.grab, { backgroundColor: theme.mutedForeground }]} />
+          <View style={styles.sheetHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[styles.sheetTitle, typography.h3, { color: theme.foreground }]}
+                numberOfLines={2}
+              >
+                {title}
+              </Text>
+              <Text style={[styles.hint, typography.caption, { color: theme.mutedForeground }]}>
+                {spots.length}곳의 별 관측 명소
+              </Text>
+            </View>
+            <Pressable
+              onPress={onClose}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.closeIcon,
+                { backgroundColor: pressed ? theme.inputBackground : 'transparent' },
+              ]}
+            >
+              <Text style={{ color: theme.mutedForeground, fontSize: 18 }}>✕</Text>
+            </Pressable>
+          </View>
+          <Text
+            style={[
+              styles.hintSecondary,
+              typography.caption,
+              { color: theme.mutedForeground },
+            ]}
+          >
+            항목을 누르면 지도가 이동하고, 선택한 명소가 별 아이콘으로 강조됩니다.
           </Text>
           {scoresLoading ? (
             <View style={{ paddingVertical: 8, alignItems: 'center' }}>
-              <ActivityIndicator color={theme.starGold} />
+              <ActivityIndicator color={theme.primaryGlow} />
             </View>
           ) : scoresErr ? (
-            <Text style={{ color: theme.destructive, fontSize: 12, paddingHorizontal: 16, marginBottom: 6 }}>
+            <Text
+              style={{
+                color: theme.destructive,
+                fontSize: 12,
+                paddingHorizontal: spacing.lg,
+                marginBottom: 6,
+              }}
+            >
               {scoresErr}
             </Text>
           ) : null}
@@ -139,10 +178,11 @@ export function MapClusterSpotsSheet({
                 (s.title && s.title.trim()) ||
                 `명소 ${s.id.slice(0, 8)}`;
               const sub =
-                s.title && s.shortTitle && s.title.trim() !== s.shortTitle.trim() ? s.title : null;
+                s.title && s.shortTitle && s.title.trim() !== s.shortTitle.trim()
+                  ? s.title
+                  : null;
               const sc = scoreById[s.id];
-              const scDisplay =
-                sc != null ? getStarIndexScoreDisplay(sc) : null;
+              const scDisplay = sc != null ? getStarIndexScoreDisplay(sc) : null;
               const isSelected = selectedId === s.id;
               return (
                 <Pressable
@@ -156,8 +196,22 @@ export function MapClusterSpotsSheet({
                   style={({ pressed }) => rowShellStyle(pressed, isSelected)}
                 >
                   <View style={styles.rowRow}>
+                    <View
+                      style={[
+                        styles.pinIcon,
+                        {
+                          backgroundColor: theme.primaryGlowMuted,
+                          borderColor: theme.primaryGlowBorder,
+                        },
+                      ]}
+                    >
+                      <Feather name="map-pin" size={14} color={theme.primaryGlow} />
+                    </View>
                     <View style={styles.rowLeft}>
-                      <Text style={[styles.rowMain, { color: theme.foreground }]} numberOfLines={2}>
+                      <Text
+                        style={[styles.rowMain, { color: theme.foreground }]}
+                        numberOfLines={2}
+                      >
                         {main}
                       </Text>
                       {sub ? (
@@ -169,24 +223,25 @@ export function MapClusterSpotsSheet({
                         </Text>
                       ) : null}
                     </View>
-                    <Text
-                      style={[
-                        styles.scoreText,
-                        {
-                          color: scDisplay?.measurable
-                            ? theme.starGold
-                            : theme.destructive,
-                          fontSize: scDisplay?.measurable ? 16 : 12,
-                        },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {scoresLoading
-                        ? '…'
-                        : scDisplay != null
-                          ? scDisplay.label
-                          : '—'}
-                    </Text>
+                    <View style={styles.scoreCol}>
+                      <Text
+                        style={[
+                          styles.scoreText,
+                          {
+                            color: scDisplay?.measurable
+                              ? theme.primaryGlow
+                              : theme.destructive,
+                            fontSize: scDisplay?.measurable ? 18 : 12,
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {scoresLoading ? '…' : scDisplay != null ? scDisplay.label : '—'}
+                      </Text>
+                      <Text style={[styles.scoreLabel, { color: theme.mutedForeground }]}>
+                        Star-Index
+                      </Text>
+                    </View>
                   </View>
                 </Pressable>
               );
@@ -196,13 +251,17 @@ export function MapClusterSpotsSheet({
             onPress={onClose}
             style={({ pressed }) => [
               styles.closeBtn,
-              {
-                borderColor: theme.border,
-                backgroundColor: pressed ? theme.input : theme.background,
-              },
+              glassCardStyle(theme, {
+                marginHorizontal: spacing.lg,
+                marginTop: spacing.sm,
+                alignItems: 'center',
+                backgroundColor: pressed ? theme.inputBackground : theme.card,
+              }),
             ]}
           >
-            <Text style={{ color: theme.foreground, fontWeight: '600' }}>닫기</Text>
+            <Text style={{ color: theme.foreground, fontWeight: '600', fontSize: 15 }}>
+              닫기
+            </Text>
           </Pressable>
         </Pressable>
       </Pressable>
@@ -211,36 +270,33 @@ export function MapClusterSpotsSheet({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  sheet: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderWidth: 1,
-    maxHeight: '62%',
-    paddingTop: 8,
-  },
   grab: {
     alignSelf: 'center',
     width: 40,
     height: 4,
     borderRadius: 2,
     marginBottom: 10,
+    opacity: 0.35,
   },
-  sheetTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    paddingHorizontal: 16,
-    marginBottom: 6,
+  sheetHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
-  hint: {
-    fontSize: 12,
-    lineHeight: 17,
-    paddingHorizontal: 16,
-    marginBottom: 8,
+  sheetTitle: {},
+  hint: { marginTop: 4 },
+  hintSecondary: {
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  closeIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scroll: {
     maxHeight: 360,
@@ -251,33 +307,41 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
+  pinIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rowLeft: {
     flex: 1,
     minWidth: 0,
   },
   rowMain: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    lineHeight: 21,
+    lineHeight: 20,
   },
   rowSub: {
     fontSize: 12,
     marginTop: 4,
     lineHeight: 17,
   },
+  scoreCol: {
+    alignItems: 'flex-end',
+    minWidth: 48,
+  },
   scoreText: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontWeight: '300',
     fontVariant: ['tabular-nums'],
-    minWidth: 36,
-    textAlign: 'right',
+  },
+  scoreLabel: {
+    fontSize: 10,
+    marginTop: 2,
   },
   closeBtn: {
-    marginHorizontal: 16,
-    marginTop: 10,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
+    paddingVertical: 14,
   },
 });

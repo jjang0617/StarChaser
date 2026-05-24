@@ -8,8 +8,13 @@ import {
   Text,
   View,
 } from 'react-native';
+import { screenHeaderText, screenSubheaderText, spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 import { Button, Card } from '../ui';
+import { spotNameWithoutRegionPrefix, spotRegionSubtitle } from '../../lib/spot-display-name';
+import { fetchSpotsAll } from '../../lib/spots-api';
+import type { SpotDto } from '../../lib/types/api';
+import { ObservationLogCard } from './ObservationLogCard';
 import {
   ApiRequestError,
   createObservation,
@@ -21,12 +26,6 @@ import {
 } from '../../lib/api-client';
 import type { StarIndexResponseDto } from '../../lib/types/api';
 import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
-
-const RESULT_LABEL_KO: Record<'success' | 'partial' | 'fail', string> = {
-  success: '성공',
-  partial: '부분',
-  fail: '실패',
-};
 
 interface RecordsTabScreenProps {
   /** 홈·지도와 동일한 기준 명소 UUID (없으면 기록 불가 안내) */
@@ -50,6 +49,7 @@ export function RecordsTabScreen({
   const [list, setList] = useState<ObservationRowDto[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listErr, setListErr] = useState<string | null>(null);
+  const [spotById, setSpotById] = useState<Map<string, SpotDto>>(() => new Map());
 
   const [siData, setSiData] = useState<StarIndexResponseDto | null>(null);
   const [siLoading, setSiLoading] = useState(false);
@@ -200,6 +200,39 @@ export function RecordsTabScreen({
   }, [loadList]);
 
   useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const spots = await fetchSpotsAll();
+        if (cancelled) return;
+        setSpotById(new Map(spots.map((s) => [s.id, s])));
+      } catch {
+        /* 명소 이름 없이 카드만 표시 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const resolveLogCardLabels = useCallback(
+    (row: ObservationRowDto): { title: string; regionSubtitle?: string } => {
+      if (row.spotId) {
+        const spot = spotById.get(row.spotId);
+        if (spot) {
+          return {
+            title: spotNameWithoutRegionPrefix(spot.name),
+            regionSubtitle: spotRegionSubtitle(spot.name) || undefined,
+          };
+        }
+        return { title: `관측지 …${row.spotId.slice(-6)}` };
+      }
+      return { title: 'GPS 관측' };
+    },
+    [spotById],
+  );
+
+  useEffect(() => {
     void loadSi();
   }, [loadSi]);
 
@@ -254,10 +287,9 @@ export function RecordsTabScreen({
       contentContainerStyle={styles.inner}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={[styles.title, { color: theme.foreground }]}>관측 기록</Text>
-      <Text style={[styles.sub, { color: theme.mutedForeground }]}>
-        Star-Index 응답의 weather_snapshot으로 저장합니다. 먼저 아래에서 지수를
-        불러오세요.
+      <Text style={[styles.title, screenHeaderText(theme.foreground)]}>관측 기록</Text>
+      <Text style={[styles.sub, screenSubheaderText(theme.mutedForeground)]}>
+        별자리 촬영 히스토리 · Star-Index 스냅샷으로 저장합니다.
       </Text>
 
       {!canLoadStarIndex ? (
@@ -277,7 +309,7 @@ export function RecordsTabScreen({
           }
         >
           {siLoading ? (
-            <ActivityIndicator color={theme.starGold} />
+            <ActivityIndicator color={theme.primaryGlow} />
           ) : siErr ? (
             <Text style={{ color: theme.destructive }}>{siErr}</Text>
           ) : siData ? (
@@ -287,9 +319,9 @@ export function RecordsTabScreen({
                 return (
                   <Text
                     style={{
-                      color: si.measurable ? theme.foreground : theme.destructive,
+                      color: si.measurable ? theme.primaryGlow : theme.destructive,
                       fontSize: si.measurable ? 28 : 20,
-                      fontWeight: '700',
+                      fontWeight: '300',
                     }}
                   >
                     {si.label}
@@ -359,33 +391,25 @@ export function RecordsTabScreen({
 
       <Card title="내 기록" description={listLoading ? '불러오는 중…' : `${list.length}건`}>
         {listLoading ? (
-          <ActivityIndicator color={theme.starGold} />
+          <ActivityIndicator color={theme.primaryGlow} />
         ) : listErr ? (
           <Text style={{ color: theme.destructive }}>{listErr}</Text>
         ) : list.length === 0 ? (
           <Text style={{ color: theme.mutedForeground, fontSize: 13 }}>기록이 없습니다.</Text>
         ) : (
-          list.map((row) => (
-            <View
-              key={row.id}
-              style={[
-                styles.listRow,
-                { borderColor: theme.borderSubtle },
-              ]}
-            >
-              <Text style={{ color: theme.foreground, fontWeight: '600' }}>
-                {RESULT_LABEL_KO[row.result]} · Star-Index {row.starIndexVal}
-              </Text>
-              <Text style={{ color: theme.mutedForeground, fontSize: 11, marginTop: 4 }}>
-                {new Date(row.observedAt).toLocaleString('ko-KR', {
-                  timeZone: 'Asia/Seoul',
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                })}
-                {row.spotId ? ` · spot …${row.spotId.slice(-8)}` : ''}
-              </Text>
-            </View>
-          ))
+          <View style={styles.logList}>
+            {list.map((row) => {
+              const labels = resolveLogCardLabels(row);
+              return (
+                <ObservationLogCard
+                  key={row.id}
+                  row={row}
+                  title={labels.title}
+                  regionSubtitle={labels.regionSubtitle}
+                />
+              );
+            })}
+          </View>
         )}
         {!listLoading ? (
           <View style={{ marginTop: 8 }}>
@@ -399,13 +423,11 @@ export function RecordsTabScreen({
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  inner: { padding: 16, paddingBottom: 32 },
-  title: { fontSize: 20, fontFamily: 'SpaceMono-Regular', marginBottom: 6 },
-  sub: { fontSize: 12, marginBottom: 16, lineHeight: 18 },
+  inner: { padding: spacing.lg, paddingBottom: 32 },
+  title: { marginBottom: 4 },
+  sub: { marginBottom: spacing.lg },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  listRow: {
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    marginBottom: 4,
+  logList: {
+    marginTop: spacing.xs,
   },
 });

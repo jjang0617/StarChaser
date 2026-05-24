@@ -1,12 +1,14 @@
+import { KAKAO_MAP_MARKER_SCRIPT } from './kakao-map-marker-script';
+
 /**
  * Expo Go 등에서 hosted `kakao.html` 없이 쓸 때의 WebView용 인라인 문서.
  * `map-site/kakao.html` 과 동작을 맞출 것 — VIIRS·마커 스크립트 변경 시 양쪽 수정.
  *
  * 줌 전략 (Kakao map level ↑ = 더 축소/멀리):
- * - ≥13 : 명소 마커 없음(남한 베이스만)
- * - 11~12 : 시·도 단위 클러스터(regionKey)
- * - 9~10 : 격자 클러스터(근접 명소 묶음)
- * - ≤8 : 개별 핀(짧은 이름 없음·탭 시 RN 시트)
+ * - ≥13 : 명소 마커 없음
+ * - 11~12 : Figma 클러스터 pill (MapPin + 개수)
+ * - 9~10 : 격자 클러스터 pill (MapPin + 개수)
+ * - ≤8 : 개별 별 스팟 핀 (이름 텍스트 없음)
  */
 export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
   return `<!doctype html>
@@ -233,66 +235,7 @@ export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
           spotMarkers.clear();
         }
 
-        function makeClusterEl(title, count) {
-          var el = document.createElement('div');
-          el.style.cssText =
-            'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-            'min-width:52px;max-width:min(42vw,200px);padding:8px 13px;' +
-            'background:rgba(15,23,42,0.92);color:#f8fafc;border-radius:999px;' +
-            'font-size:12px;line-height:1.2;cursor:pointer;' +
-            'box-shadow:0 4px 20px rgba(0,0,0,0.22),0 0 0 1px rgba(148,163,184,0.2);' +
-            'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
-            'transform:translate(-50%,-100%);text-align:center;font-weight:600;';
-          var t = escapeHtml(title);
-          var c =
-            count > 1
-              ? '<span style="font-size:13px;font-weight:700;margin-top:3px;opacity:0.95;letter-spacing:-0.02em">' +
-                count +
-                '</span>'
-              : '';
-          el.innerHTML =
-            '<span style="font-size:11px;font-weight:600;opacity:0.88;line-height:1.25">' +
-            t +
-            '</span>' +
-            c;
-          return el;
-        }
-
-        function makeDotEl() {
-          var el = document.createElement('div');
-          el.style.cssText =
-            'width:12px;height:12px;border-radius:50%;' +
-            'background:linear-gradient(160deg,#93c5fd,#3b82f6);' +
-            'box-shadow:0 0 0 2px rgba(255,255,255,0.92),0 2px 10px rgba(15,23,42,0.35);cursor:pointer;' +
-            'transform:translate(-50%,-50%);';
-          return el;
-        }
-
-        /** 시트에서 연 명소 — 이름 칩 + 한 개 앵커만 (도트와 pill 이중 표시 방지) */
-        function makeFocusedSpotMarkerEl(title) {
-          var wrap = document.createElement('div');
-          wrap.style.cssText =
-            'display:flex;flex-direction:column;align-items:center;' +
-            'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
-            'pointer-events:auto;cursor:pointer;';
-          var card = document.createElement('div');
-          var safe = escapeHtml(title);
-          card.style.cssText =
-            'max-width:min(72vw,232px);padding:8px 13px;' +
-            'background:rgba(15,23,42,0.94);' +
-            'color:#f1f5f9;border-radius:12px;font-size:12px;font-weight:600;line-height:1.35;' +
-            'box-shadow:0 8px 28px rgba(0,0,0,0.26),0 0 0 1px rgba(148,163,184,0.22);' +
-            'text-align:center;white-space:normal;word-break:keep-all;letter-spacing:-0.02em;';
-          card.innerHTML = safe;
-          var pin = document.createElement('div');
-          pin.style.cssText =
-            'width:10px;height:10px;margin-top:5px;border-radius:50%;' +
-            'background:linear-gradient(145deg,#60a5fa,#2563eb);' +
-            'box-shadow:0 0 0 2.5px rgba(255,255,255,0.96),0 3px 10px rgba(37,99,235,0.35);';
-          wrap.appendChild(card);
-          wrap.appendChild(pin);
-          return wrap;
-        }
+${KAKAO_MAP_MARKER_SCRIPT}
 
         function placeOverlay(key, pos, el, onClick, placeOpts) {
           placeOpts = placeOpts || {};
@@ -357,7 +300,7 @@ export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
             Object.keys(byRegion).forEach(function (rk) {
               var list = byRegion[rk];
               var pos = centroid(list);
-              var el = makeClusterEl(rk, list.length);
+              var el = makeClusterEl(list.length, false);
               placeOverlay('p-' + rk, pos, el, function () {
                 post({
                   type: 'CLUSTER_SPOTS',
@@ -385,11 +328,7 @@ export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
             Object.keys(buckets).forEach(function (bk) {
               var list = buckets[bk];
               var pos = centroid(list);
-              var label =
-                list.length === 1
-                  ? (list[0].shortTitle || list[0].title || '명소').slice(0, 14)
-                  : list.length + '곳';
-              var el = makeClusterEl(label, list.length);
+              var el = makeClusterEl(list.length, false);
               placeOverlay('g-' + bk, pos, el, function () {
                 post({
                   type: 'CLUSTER_SPOTS',
@@ -406,14 +345,10 @@ export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
           spots.forEach(function (s) {
             var pos = new kakao.maps.LatLng(s.lat, s.lng);
             var sid = String(s.id);
-            var focused =
-              mapFocusState &&
-              mapFocusState.spotId === sid &&
-              mapFocusState.label &&
-              String(mapFocusState.label).trim() !== '';
+            var focused = mapFocusState && mapFocusState.spotId === sid;
 
             if (focused) {
-              var elF = makeFocusedSpotMarkerEl(String(mapFocusState.label));
+              var elF = makeFocusedSpotMarkerEl();
               elF.addEventListener('click', function () {
                 post({ type: 'MARKER_CLICK', data: { spotId: sid } });
               });
@@ -421,11 +356,11 @@ export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
               return;
             }
 
-            var el = makeDotEl();
+            var el = makeStarPinEl(false);
             el.addEventListener('click', function () {
               post({ type: 'MARKER_CLICK', data: { spotId: sid } });
             });
-            placeOverlay('s-' + sid, pos, el, null);
+            placeOverlay('s-' + sid, pos, el, null, { yAnchor: 1, zIndex: 8 });
           });
         }
 
@@ -486,7 +421,7 @@ export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
           var lb = data.label != null ? String(data.label).trim() : '';
           var sidRaw = data.spotId != null ? String(data.spotId).trim() : '';
 
-          if (sidRaw && lb) {
+          if (sidRaw) {
             clearHighlightLabel();
             mapFocusState = {
               spotId: sidRaw,
@@ -497,9 +432,6 @@ export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
           } else {
             mapFocusState = null;
             clearHighlightLabel();
-            if (lb.length > 0) {
-              showHighlightLabel(data.lat, data.lng, lb);
-            }
           }
 
           refreshSpotOverlays();
@@ -548,14 +480,16 @@ export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
           handleMessage(e.data);
         });
 
-        if (!ensureKakao()) {
-          var el = document.getElementById('map');
-          el.innerHTML = '<div id="fallback">Kakao Maps SDK 로딩 실패</div>';
-          return;
+        function bootMap() {
+          if (!ensureKakao()) {
+            setTimeout(bootMap, 80);
+            return;
+          }
+          kakao.maps.load(function () {
+            initMap({});
+          });
         }
-        kakao.maps.load(function () {
-          initMap({});
-        });
+        bootMap();
       })();
     </script>
   </body>

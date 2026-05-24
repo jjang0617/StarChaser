@@ -3,9 +3,9 @@
  *
  * 사용자-facing: night, red / 개발 확인용: normal
  *
- * Anti-AI 원칙: Shadow 없음 · Border 중심 · 절제된 Amber · 고밀도
+ * Figma Redesign: 딥 네이비 · 아이스 블루 글로우 · 글래스 카드 · iOS형 라운드
  *
- * ⚠️ React Native는 OKLCH 미지원 → hex 값 사용
+ * ⚠️ React Native는 OKLCH 미지원 → hex / rgba 사용
  * StyleSheet에서는 이 파일의 토큰만 참조
  */
 
@@ -20,7 +20,7 @@ export interface ThemeTokens {
   muted:               string;
   mutedForeground:     string;
   border:              string;
-  borderSubtle:        string;   // 0.5px 내부 구분선
+  borderSubtle:        string;
   input:               string;
   ring:                string;
   primary:             string;
@@ -30,62 +30,87 @@ export interface ThemeTokens {
   destructive:         string;
   destructiveFg:       string;
 
-  // ── StarChaser 전용 ──
-  starGold:            string;   // Amber — 수치 데이터만
-  nebulaSteel:         string;   // Steel Gray — 구조
-  moonlight:           string;   // 달빛 텍스트
-  dimRed:              string;   // Red Mode 배경 계열
-  dimRedFg:            string;   // Red Mode 텍스트
+  // ── Figma Ice & Space ──
+  deepNavy:              string;
+  cardBorder:            string;
+  inputBackground:       string;
+  primaryGlow:           string;
+  primaryGlowMuted:      string;
+  primaryGlowBorder:     string;
+  accent:                string;
+  overlay:               string;
+
+  // ── StarChaser 전용 (데이터·강조 — 골드 대신 아이스 블루) ──
+  starGold:            string;
+  nebulaSteel:         string;
+  moonlight:           string;
+  dimRed:              string;
+  dimRedFg:            string;
 
   // ── 레이아웃 ──
-  radius:              number;   // 기본 border-radius (px)
+  radius:              number;
   radiusSm:            number;
   radiusLg:            number;
+  radiusXl:            number;
 }
 
-// ============================================================
-//  NORMAL MODE
-// ============================================================
-export const normalTheme: ThemeTokens = {
-  background:          '#161618',
-  foreground:          '#DEDDE8',
-  card:                '#1A1A1D',
-  cardForeground:      '#DEDDE8',
-  muted:               '#1E1E22',
-  mutedForeground:     '#6E6E82',
-  border:              '#2C2C34',
-  borderSubtle:        '#202028',
-  input:               '#1A1A20',
-  ring:                '#B8922A',
-  primary:             '#B8922A',
-  primaryForeground:   '#161618',
-  secondary:           '#222228',
-  secondaryForeground: '#A8A8BC',
-  destructive:         '#7A2E1A',
-  destructiveFg:       '#FFFFFF',
+/** Figma theme.css 기준 — Ice & Space (항상 다크) */
+const iceBase: Omit<ThemeTokens, 'dimRed' | 'dimRedFg'> = {
+  background:          '#030712',
+  foreground:          '#F8FAFC',
+  card:                'rgba(8, 15, 30, 0.72)',
+  cardForeground:      '#F8FAFC',
+  muted:               'rgba(71, 85, 105, 0.3)',
+  mutedForeground:     '#94A3B8',
+  border:              'rgba(255, 255, 255, 0.1)',
+  borderSubtle:        'rgba(255, 255, 255, 0.06)',
+  input:               'rgba(255, 255, 255, 0.05)',
+  ring:                'rgba(138, 220, 255, 0.5)',
+  primary:             '#EAF6FF',
+  primaryForeground:   '#030712',
+  secondary:           '#5DADEB',
+  secondaryForeground: '#F8FAFC',
+  destructive:         '#EF4444',
+  destructiveFg:       '#F8FAFC',
 
-  starGold:            '#B8922A',
-  nebulaSteel:         '#4A4A5E',
-  moonlight:           '#C8C8D8',
-  dimRed:              '#7A2E1A',
-  dimRedFg:            '#C85030',
+  deepNavy:            '#07111F',
+  cardBorder:          'rgba(255, 255, 255, 0.1)',
+  inputBackground:     'rgba(15, 23, 42, 0.5)',
+  primaryGlow:         '#8DDCFF',
+  primaryGlowMuted:    'rgba(141, 220, 255, 0.1)',
+  primaryGlowBorder:   'rgba(141, 220, 255, 0.3)',
+  accent:              '#8DDCFF',
+  overlay:             'rgba(0, 0, 0, 0.5)',
 
-  radius:              6,
-  radiusSm:            4,
-  radiusLg:            8,
+  starGold:            '#8DDCFF',
+  nebulaSteel:         '#64748B',
+  moonlight:           '#EAF6FF',
+
+  radius:              12,
+  radiusSm:            8,
+  radiusLg:            16,
+  radiusXl:            24,
 };
 
 // ============================================================
-//  NIGHT MODE — 더 어둡게 (현장 관측)
+//  NORMAL MODE — 개발·프리뷰 (Figma와 동일 팔레트)
+// ============================================================
+export const normalTheme: ThemeTokens = {
+  ...iceBase,
+  dimRed:              '#EF4444',
+  dimRedFg:            '#FCA5A5',
+};
+
+// ============================================================
+//  NIGHT MODE — 현장 관측 (Figma 기본 톤, 배경만 약간 더 깊게)
 // ============================================================
 export const nightTheme: ThemeTokens = {
-  ...normalTheme,
-  background:   '#0E0E10',
-  card:         '#121214',
-  muted:        '#161618',
-  border:       '#242430',
-  borderSubtle: '#1A1A22',
-  input:        '#121218',
+  ...iceBase,
+  background:   '#020617',
+  deepNavy:     '#050C18',
+  card:         'rgba(6, 12, 24, 0.82)',
+  dimRed:       '#EF4444',
+  dimRedFg:     '#FCA5A5',
 };
 
 // ============================================================
@@ -95,9 +120,9 @@ export const nightTheme: ThemeTokens = {
 export const redTheme: ThemeTokens = {
   background:          '#0A0604',
   foreground:          '#C85030',
-  card:                '#0E0806',
+  card:                'rgba(14, 8, 6, 0.85)',
   cardForeground:      '#C85030',
-  muted:               '#120A06',
+  muted:               'rgba(90, 40, 24, 0.35)',
   mutedForeground:     '#5A2818',
   border:              '#2A1008',
   borderSubtle:        '#1A0A06',
@@ -110,15 +135,25 @@ export const redTheme: ThemeTokens = {
   destructive:         '#C85030',
   destructiveFg:       '#FFFFFF',
 
+  deepNavy:            '#0A0604',
+  cardBorder:          '#2A1008',
+  inputBackground:     '#0E0806',
+  primaryGlow:         '#C85030',
+  primaryGlowMuted:    'rgba(200, 80, 48, 0.12)',
+  primaryGlowBorder:   'rgba(200, 80, 48, 0.35)',
+  accent:              '#C85030',
+  overlay:             'rgba(0, 0, 0, 0.55)',
+
   starGold:            '#C85030',
   nebulaSteel:         '#3A1E14',
   moonlight:           '#A84028',
   dimRed:              '#C85030',
   dimRedFg:            '#C85030',
 
-  radius:              6,
-  radiusSm:            4,
-  radiusLg:            8,
+  radius:              12,
+  radiusSm:            8,
+  radiusLg:            16,
+  radiusXl:            24,
 };
 
 export const themes: Record<ThemeMode, ThemeTokens> = {

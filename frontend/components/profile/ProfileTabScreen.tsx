@@ -6,11 +6,16 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from 'react-native';
 import * as Location from 'expo-location';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  glassCardStyle,
+  spacing,
+  typography,
+} from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 import type { ThemeTokens } from '../../themes/themes';
 import {
@@ -28,9 +33,12 @@ import { ProfileChangePasswordModal } from './ProfileChangePasswordModal';
 import { ProfileDeleteAccountModal } from './ProfileDeleteAccountModal';
 import { ProfileAppInfoCard } from './ProfileAppInfoCard';
 import { ProfileMySpotsCard } from './ProfileMySpotsCard';
+import { ProfileSection } from './ProfileSection';
 import { fetchSpotsAll } from '../../lib/spots-api';
 import { PhotographyGuideModal } from '../guide/PhotographyGuideModal';
-import { Button, Card } from '../ui';
+import { AppToggle } from '../ui/AppToggle';
+import { GlassCard } from '../ui/GlassCard';
+import { ProfileSettingIcon, type ProfileSettingIconName } from './ProfileSettingIcon';
 
 interface ProfileTabScreenProps {
   onLogout: () => void;
@@ -66,6 +74,7 @@ export function ProfileTabScreen({
   onOpenSpotDetail,
 }: ProfileTabScreenProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { applyProfile } = useAuth();
   const [profile, setProfile] = useState<UserProfileDto | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -182,7 +191,7 @@ export function ProfileTabScreen({
   const alertSpotLabel = useMemo(() => {
     const id = prefs?.alertSpotId;
     if (!id) return '선택 안 함';
-    const s = spots.find(x => x.id === id);
+    const s = spots.find((x) => x.id === id);
     return s?.name ?? '선택한 명소';
   }, [prefs?.alertSpotId, spots]);
 
@@ -251,212 +260,277 @@ export function ProfileTabScreen({
     <>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: Math.max(insets.top, 12) + spacing.sm },
+        ]}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator
+        showsVerticalScrollIndicator={false}
       >
-      <Text style={[styles.title, { color: theme.foreground }]}>마이페이지</Text>
-      <Card title="프로필">
-        {profileLoading ? (
-          <ActivityIndicator color={theme.starGold} style={{ marginVertical: 12 }} />
-        ) : profile ? (
-          <View style={styles.profileBlock}>
-            <ProfileAvatar
-              nickname={profile.nickname}
-              avatarUrl={profile.avatarUrl}
-              size={72}
-            />
-            <View style={styles.profileMeta}>
-              <Text style={[styles.nickname, { color: theme.foreground }]}>
-                {profile.nickname?.trim() || '닉네임 없음'}
-              </Text>
-              <Text style={[styles.email, { color: theme.mutedForeground }]}>
-                {profile.email}
-              </Text>
+        <View style={styles.profileHeader}>
+          {profileLoading ? (
+            <ActivityIndicator color={theme.primaryGlow} style={{ marginVertical: 12 }} />
+          ) : profile ? (
+            <>
+              <ProfileAvatar
+                nickname={profile.nickname}
+                avatarUrl={profile.avatarUrl}
+                size={64}
+              />
+              <View style={styles.profileText}>
+                <Text style={[styles.profileName, { color: theme.foreground }]}>
+                  {profile.nickname?.trim() || '닉네임 없음'}
+                </Text>
+                <Text style={[styles.profileEmail, { color: theme.mutedForeground }]}>
+                  {profile.email}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <View style={{ flex: 1, gap: 8 }}>
+              {profileError ? (
+                <Text style={[styles.errBanner, { color: theme.destructive }]}>
+                  {profileError}
+                </Text>
+              ) : null}
+              <Pressable onPress={() => void loadProfile()}>
+                <Text style={{ color: theme.primaryGlow }}>프로필 다시 불러오기</Text>
+              </Pressable>
             </View>
-            <Button
-              label="프로필 수정"
-              variant="outline"
-              size="sm"
-              fullWidth
+          )}
+        </View>
+
+        {profile ? (
+          <GlassCard padding={8} style={styles.profileActionsCard}>
+            <SettingRow
+              theme={theme}
+              icon="user"
+              title="프로필 수정"
+              subtitle="사진·닉네임 변경"
+              chevron
               onPress={() => setEditOpen(true)}
             />
-            <Button
-              label="비밀번호 변경"
-              variant="outline"
-              size="sm"
-              fullWidth
+            <SettingRow
+              theme={theme}
+              icon="shield"
+              title="비밀번호 변경"
+              chevron
               onPress={() => {
                 setPasswordSuccessMsg(null);
                 setPasswordOpen(true);
               }}
             />
             {passwordSuccessMsg ? (
-              <Text style={[styles.successMsg, { color: theme.starGold }]}>
+              <Text style={[styles.passwordSuccess, { color: theme.primaryGlow }]}>
                 {passwordSuccessMsg}
               </Text>
             ) : null}
-          </View>
-        ) : (
-          <View style={{ gap: 8 }}>
-            {profileError ? (
-              <Text style={[styles.err, { color: theme.destructive }]}>{profileError}</Text>
-            ) : null}
-            <Button label="다시 불러오기" variant="outline" fullWidth onPress={() => void loadProfile()} />
-          </View>
-        )}
-        <View style={{ marginTop: 12 }}>
-          <Button label="로그아웃" variant="outline" fullWidth onPress={onLogout} />
-        </View>
-      </Card>
+          </GlassCard>
+        ) : null}
 
-      <Card
-        title="알림 (서버 연동)"
-        description="온보딩에서 고른 항목과 동기됩니다. 이벤트 푸시는 서버 스케줄러에서 이 설정을 따릅니다."
-      >
-        {prefsLoading ? (
-          <ActivityIndicator color={theme.starGold} style={{ marginVertical: 12 }} />
-        ) : prefs ? (
-          <View style={{ gap: 14 }}>
-            {prefsError ? (
-              <Text style={[styles.err, { color: theme.destructive }]}>{prefsError}</Text>
-            ) : null}
-            <Row
-              label="푸시 알림 전체"
-              description="끄면 세부 항목도 모두 꺼집니다."
-              value={prefs.alertsEnabled}
-              disabled={prefsSaving}
-              theme={theme}
-              onValueChange={(v) => toggleField('alertsEnabled', v)}
-            />
-            <Row
-              label="별 보기 좋은 날 (Star-Index)"
-              description="기준 명소의 점수가 서버 설정 임계 이상일 때 하루 한 번 알림"
-              value={prefs.starIndexAlertEnabled}
-              disabled={prefsSaving || !prefs.alertsEnabled}
-              theme={theme}
-              onValueChange={(v) => toggleField('starIndexAlertEnabled', v)}
-            />
-            <View style={{ gap: 8, opacity: prefs.alertsEnabled ? 1 : 0.45 }}>
-              <Text style={[styles.spotHint, { color: theme.mutedForeground }]}>
-                기준 명소: {spotsLoading ? '목록 불러오는 중…' : alertSpotLabel}
-              </Text>
-              <Button
-                label="기준 명소 선택"
-                variant="outline"
-                fullWidth
-                disabled={
-                  prefsSaving || !prefs.alertsEnabled || spotsLoading || spots.length === 0
-                }
-                onPress={() => setSpotPickerOpen(true)}
-              />
-            </View>
-            <Row
-              label="하늘 이벤트"
-              description="유성우·특별 천체 등"
-              value={prefs.astronomyEventAlertEnabled}
-              disabled={prefsSaving || !prefs.alertsEnabled}
-              theme={theme}
-              onValueChange={(v) => toggleField('astronomyEventAlertEnabled', v)}
-            />
-            <Row
-              label="주간 TOP3"
-              description="주간 추천 명소 요약"
-              value={prefs.top3AlertEnabled}
-              disabled={prefsSaving || !prefs.alertsEnabled}
-              theme={theme}
-              onValueChange={(v) => toggleField('top3AlertEnabled', v)}
-            />
-          </View>
-        ) : (
-          <View>
-            {prefsError ? (
-              <Text style={[styles.err, { color: theme.destructive }]}>{prefsError}</Text>
-            ) : null}
-            <Button label="다시 불러오기" variant="outline" fullWidth onPress={loadPrefs} />
-          </View>
-        )}
-      </Card>
+        {prefsError ? (
+          <Text style={[styles.errBanner, { color: theme.destructive }]}>{prefsError}</Text>
+        ) : null}
 
-      {Platform.OS !== 'web' ? (
-        <Card
-          title="위치"
-          description="천구·지도·관측 기록에 사용합니다. 끄면 명소·TOP3 기준으로 동작합니다."
-        >
-          {!locationPrefLoaded ? (
-            <ActivityIndicator color={theme.starGold} style={{ marginVertical: 12 }} />
-          ) : (
-            <View style={{ gap: 12 }}>
-              <Row
-                label="앱에서 위치 사용"
-                description={locationStatusHint}
-                value={locationEnabled}
-                disabled={locationToggleBusy}
+        <ProfileSection title="알림 설정" theme={theme}>
+          {prefsLoading ? (
+            <ActivityIndicator color={theme.primaryGlow} style={{ marginVertical: 16 }} />
+          ) : prefs ? (
+            <GlassCard padding={8}>
+              <SettingRow
                 theme={theme}
-                onValueChange={onLocationEnabledChange}
+                icon="bell"
+                title="푸시 알림"
+                subtitle="앱 알림 수신 여부"
+                toggle
+                value={prefs.alertsEnabled}
+                disabled={prefsSaving}
+                onToggle={(v) => toggleField('alertsEnabled', v)}
               />
-              {showLocationSettings ? (
-                <Button
-                  label="시스템 설정에서 위치 허용"
-                  variant="outline"
-                  size="sm"
-                  fullWidth
-                  onPress={onOpenLocationSettings}
-                />
+              {prefs.alertsEnabled ? (
+                <View style={styles.nested}>
+                  <SettingRow
+                    theme={theme}
+                    icon="star"
+                    title="Star-Index 알림"
+                    subtitle="별 관측 지수 업데이트"
+                    toggle
+                    value={prefs.starIndexAlertEnabled}
+                    disabled={prefsSaving}
+                    onToggle={(v) => toggleField('starIndexAlertEnabled', v)}
+                  />
+                  <View style={styles.spotPickBlock}>
+                    <Text style={[styles.spotPickLabel, { color: theme.mutedForeground }]}>
+                      기준 명소: {spotsLoading ? '불러오는 중…' : alertSpotLabel}
+                    </Text>
+                    <Pressable
+                      onPress={() => setSpotPickerOpen(true)}
+                      disabled={
+                        prefsSaving || !prefs.alertsEnabled || spotsLoading || spots.length === 0
+                      }
+                      style={({ pressed }) => [
+                        styles.spotPickBtn,
+                        {
+                          borderColor: theme.cardBorder,
+                          backgroundColor: pressed
+                            ? theme.inputBackground
+                            : theme.primaryGlowMuted,
+                          opacity:
+                            prefsSaving || spotsLoading || spots.length === 0 ? 0.45 : 1,
+                        },
+                      ]}
+                    >
+                      <Text style={{ color: theme.primaryGlow, fontSize: 13, fontWeight: '500' }}>
+                        기준 명소 선택
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <SettingRow
+                    theme={theme}
+                    icon="camera"
+                    title="천문 이벤트"
+                    subtitle="유성우, 일식 등"
+                    toggle
+                    value={prefs.astronomyEventAlertEnabled}
+                    disabled={prefsSaving}
+                    onToggle={(v) => toggleField('astronomyEventAlertEnabled', v)}
+                  />
+                  <SettingRow
+                    theme={theme}
+                    icon="map-pin"
+                    title="주간 TOP5 명소"
+                    subtitle="인기 관측지 알림"
+                    toggle
+                    value={prefs.top3AlertEnabled}
+                    disabled={prefsSaving}
+                    onToggle={(v) => toggleField('top3AlertEnabled', v)}
+                  />
+                </View>
               ) : null}
-            </View>
+            </GlassCard>
+          ) : (
+            <Pressable onPress={loadPrefs} style={styles.retryWrap}>
+              <Text style={{ color: theme.primaryGlow }}>다시 불러오기</Text>
+            </Pressable>
           )}
-        </Card>
-      ) : null}
+        </ProfileSection>
 
-      <ProfileMySpotsCard
-        activityRevision={spotActivityRevision}
-        onOpenSpotDetail={onOpenSpotDetail}
-      />
+        {Platform.OS !== 'web' ? (
+          <ProfileSection title="위치" theme={theme}>
+            {!locationPrefLoaded ? (
+              <ActivityIndicator color={theme.primaryGlow} style={{ marginVertical: 16 }} />
+            ) : (
+              <GlassCard padding={8}>
+                <SettingRow
+                  theme={theme}
+                  icon="map-pin"
+                  title="앱에서 위치 사용"
+                  subtitle={locationStatusHint}
+                  toggle
+                  value={locationEnabled}
+                  disabled={locationToggleBusy}
+                  onToggle={onLocationEnabledChange}
+                />
+                {showLocationSettings ? (
+                  <Pressable
+                    onPress={onOpenLocationSettings}
+                    style={({ pressed }) => [
+                      styles.spotPickBtn,
+                      {
+                        marginHorizontal: spacing.sm,
+                        marginTop: spacing.sm,
+                        borderColor: theme.cardBorder,
+                        backgroundColor: pressed
+                          ? theme.inputBackground
+                          : theme.primaryGlowMuted,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: theme.primaryGlow, fontSize: 13, fontWeight: '500' }}>
+                      시스템 설정에서 위치 허용
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </GlassCard>
+            )}
+          </ProfileSection>
+        ) : null}
 
-      <Card
-        title="촬영 가이드"
-        description="별·야경·유성우 촬영 시 참고할 기본 설정과 안전 안내입니다."
-      >
-        <Button
-          label="별·야경 촬영 기본 가이드 보기"
-          variant="outline"
-          fullWidth
-          onPress={() => setPhotographyGuideOpen(true)}
-        />
-      </Card>
-
-      <Card title="표시" description="야간 관측 시 눈부심을 줄입니다">
-        <Button
-          label={isRedMode ? '야간 모드(Night Vision) 해제' : '야간 모드(Night Vision) 켜기'}
-          variant="red"
-          fullWidth
-          onPress={onToggleRedMode}
-        />
-      </Card>
-
-      <ProfileAppInfoCard />
-
-      {onDevResetOnboarding ? (
-        <Card title="개발" description="온보딩 플로우만 다시 봅니다">
-          <Button
-            label="DEV: 온보딩 다시보기"
-            variant="outline"
-            fullWidth
-            onPress={onDevResetOnboarding}
+        <ProfileSection title="내 명소" theme={theme}>
+          <ProfileMySpotsCard
+            activityRevision={spotActivityRevision}
+            onOpenSpotDetail={onOpenSpotDetail}
           />
-        </Card>
-      ) : null}
+        </ProfileSection>
 
-      <Card title="회원 탈퇴" description="탈퇴 시 계정과 모든 데이터가 삭제되며 복구할 수 없습니다.">
-        <Button
-          label="회원 탈퇴"
-          variant="destructive"
-          size="sm"
-          fullWidth
-          onPress={() => setDeleteOpen(true)}
-        />
-      </Card>
+        <ProfileSection title="앱 설정" theme={theme}>
+          <GlassCard padding={8}>
+            <SettingRow
+              theme={theme}
+              icon="eye"
+              title="Night Vision 모드"
+              subtitle="어두운 환경에 최적화"
+              toggle
+              value={isRedMode}
+              onToggle={() => onToggleRedMode()}
+            />
+            <SettingRow
+              theme={theme}
+              icon="camera"
+              title="촬영 가이드"
+              subtitle="별·야경·유성우 촬영 팁"
+              chevron
+              onPress={() => setPhotographyGuideOpen(true)}
+            />
+          </GlassCard>
+        </ProfileSection>
+
+        <ProfileSection title="앱 정보" theme={theme}>
+          <ProfileAppInfoCard />
+        </ProfileSection>
+
+        <ProfileSection title="계정" theme={theme}>
+          <GlassCard padding={8}>
+            <SettingRow
+              theme={theme}
+              icon="shield"
+              title="회원 탈퇴"
+              subtitle="계정과 데이터가 삭제됩니다"
+              chevron
+              onPress={() => setDeleteOpen(true)}
+            />
+          </GlassCard>
+        </ProfileSection>
+
+        <ProfileSection theme={theme}>
+          <GlassCard padding={4}>
+            <SettingRow
+              theme={theme}
+              icon="log-out"
+              title="로그아웃"
+              chevron
+              onPress={onLogout}
+            />
+          </GlassCard>
+        </ProfileSection>
+
+        {onDevResetOnboarding ? (
+          <Pressable
+            onPress={onDevResetOnboarding}
+            style={[styles.devBtn, { borderColor: theme.cardBorder }]}
+          >
+            <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>DEV: 온보딩 다시보기</Text>
+          </Pressable>
+        ) : null}
+
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: theme.mutedForeground }]}>
+            StarChaser v1.0.0
+          </Text>
+          <Text style={[styles.footerText, { color: theme.mutedForeground }]}>
+            © 2026 StarChaser
+          </Text>
+        </View>
       </ScrollView>
 
       <Modal
@@ -467,13 +541,13 @@ export function ProfileTabScreen({
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setSpotPickerOpen(false)}>
           <Pressable
-            style={[styles.modalSheet, { backgroundColor: theme.card, borderColor: theme.border }]}
-            onPress={e => e.stopPropagation()}
+            style={[styles.modalSheet, glassCardStyle(theme)]}
+            onPress={(e) => e.stopPropagation()}
           >
             <Text style={[styles.modalTitle, { color: theme.foreground }]}>
               Star-Index 알림 기준 명소
             </Text>
-            <ScrollView style={{ maxHeight: 420 }}>
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
               <Pressable
                 onPress={() => {
                   setSpotPickerOpen(false);
@@ -482,15 +556,12 @@ export function ProfileTabScreen({
                 }}
                 style={({ pressed }) => [
                   styles.modalRow,
-                  {
-                    borderBottomColor: theme.border,
-                    backgroundColor: pressed ? theme.muted : 'transparent',
-                  },
+                  { backgroundColor: pressed ? theme.inputBackground : 'transparent' },
                 ]}
               >
                 <Text style={{ color: theme.foreground }}>선택 안 함</Text>
               </Pressable>
-              {sortedSpots.map(s => (
+              {sortedSpots.map((s) => (
                 <Pressable
                   key={s.id}
                   onPress={() => {
@@ -500,10 +571,7 @@ export function ProfileTabScreen({
                   }}
                   style={({ pressed }) => [
                     styles.modalRow,
-                    {
-                      borderBottomColor: theme.border,
-                      backgroundColor: pressed ? theme.muted : 'transparent',
-                    },
+                    { backgroundColor: pressed ? theme.inputBackground : 'transparent' },
                   ]}
                 >
                   <Text style={{ color: theme.foreground }}>{s.name}</Text>
@@ -549,75 +617,154 @@ export function ProfileTabScreen({
   );
 }
 
-function Row({
-  label,
-  description,
+function SettingRow({
+  theme,
+  icon,
+  title,
+  subtitle,
+  toggle,
   value,
   disabled,
-  theme,
-  onValueChange,
+  onToggle,
+  chevron,
+  trailingText,
+  onPress,
 }: {
-  label: string;
-  description: string;
-  value: boolean;
-  disabled: boolean;
   theme: ThemeTokens;
-  onValueChange: (v: boolean) => void;
+  icon: ProfileSettingIconName;
+  title: string;
+  subtitle?: string;
+  toggle?: boolean;
+  value?: boolean;
+  disabled?: boolean;
+  onToggle?: (v: boolean) => void;
+  chevron?: boolean;
+  trailingText?: string;
+  onPress?: () => void;
 }) {
-  return (
-    <View style={rowStyles.row}>
-      <View style={{ flex: 1, paddingRight: 8 }}>
-        <Text style={[rowStyles.label, { color: theme.foreground }]}>{label}</Text>
-        <Text style={[rowStyles.desc, { color: theme.mutedForeground }]}>{description}</Text>
+  const inner = (
+    <>
+      <View
+        style={[
+          styles.iconCircle,
+          { backgroundColor: theme.primaryGlowMuted, borderColor: theme.primaryGlowBorder },
+        ]}
+      >
+        <ProfileSettingIcon name={icon} color={theme.primaryGlow} size={16} />
       </View>
-      <Switch
-        value={value}
-        disabled={disabled}
-        onValueChange={onValueChange}
-        trackColor={{ false: theme.muted, true: theme.primary }}
-        thumbColor={theme.cardForeground}
-      />
-    </View>
+      <View style={styles.rowText}>
+        <Text style={[styles.rowTitle, { color: theme.foreground }]}>{title}</Text>
+        {subtitle ? (
+          <Text style={[styles.rowSub, { color: theme.mutedForeground }]}>{subtitle}</Text>
+        ) : null}
+      </View>
+      {toggle && value !== undefined && onToggle ? (
+        <AppToggle value={value} onValueChange={onToggle} disabled={disabled} />
+      ) : trailingText ? (
+        <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>{trailingText}</Text>
+      ) : chevron ? (
+        <ProfileSettingIcon name="chevron-right" color={theme.mutedForeground} size={18} />
+      ) : null}
+    </>
   );
-}
 
-const rowStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  label: { fontSize: 14, fontWeight: '600' },
-  desc: { fontSize: 12, marginTop: 2 },
-});
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [styles.row, { opacity: pressed ? 0.88 : 1 }]}
+      >
+        {inner}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.row}>{inner}</View>;
+}
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 28 },
-  title: { fontSize: 20, fontFamily: 'SpaceMono-Regular', marginBottom: 16 },
-  profileBlock: { gap: 12, alignItems: 'center' },
-  profileMeta: { alignItems: 'center', gap: 4 },
-  nickname: { fontSize: 18, fontWeight: '700' },
-  email: { fontSize: 13 },
-  successMsg: { fontSize: 12, textAlign: 'center' },
-  err: { fontSize: 13, marginBottom: 8 },
-  spotHint: { fontSize: 12 },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    padding: 24,
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 32,
   },
-  modalSheet: {
+  passwordSuccess: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  profileActionsCard: {
+    marginBottom: spacing.xl,
+  },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileText: { flex: 1 },
+  profileName: { ...typography.h2, marginBottom: 4 },
+  profileEmail: typography.bodySm,
+  errBanner: { fontSize: 13, marginBottom: spacing.md },
+  nested: { marginLeft: spacing.md, marginTop: 4 },
+  spotPickBlock: { paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, gap: 8 },
+  spotPickLabel: { fontSize: 12 },
+  spotPickBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 1,
-    padding: 16,
-    maxHeight: '80%',
   },
-  modalTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12 },
+  retryWrap: { padding: spacing.lg, alignItems: 'center' },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.sm,
+  },
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowText: { flex: 1, minWidth: 0 },
+  rowTitle: { fontSize: 14, fontWeight: '600' },
+  rowSub: { fontSize: 12, marginTop: 2, lineHeight: 16 },
+  devBtn: {
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  footer: { alignItems: 'center', marginTop: spacing.xl, gap: 4 },
+  footerText: { fontSize: 11 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  modalSheet: { padding: spacing.lg, maxHeight: '80%' },
+  modalTitle: { ...typography.h3, marginBottom: spacing.md },
   modalRow: {
     paddingVertical: 14,
-    paddingHorizontal: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 10,
   },
 });

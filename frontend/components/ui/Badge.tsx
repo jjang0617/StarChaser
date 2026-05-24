@@ -1,42 +1,41 @@
 /**
  * StarChaser — Badge
- * Anti-AI: 채도 낮은 팔레트 · 각진 radius · Glow 없음
- * 수치 뱃지(Bortle, 고도)는 mono prop으로 Space Mono 적용
+ * Figma: pill · 아이스 글로우 / 블루그레이 변형
  */
 
 import React from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useTheme } from '../../themes/ThemeContext';
 
-export type BadgeVariant = 'gold' | 'bronze' | 'steel' | 'muted' | 'red' | 'outline';
+export type BadgeVariant = 'gold' | 'glow' | 'bronze' | 'steel' | 'muted' | 'red' | 'outline';
 
 interface BadgeProps {
   label:    string;
   variant?: BadgeVariant;
-  mono?:    boolean;   // Space Mono — 수치 데이터 뱃지용
+  mono?:    boolean;
   style?:   ViewStyle;
 }
 
 export function Badge({ label, variant = 'muted', mono = false, style }: BadgeProps) {
   const { theme } = useTheme();
 
-  // variant별 배경/텍스트/테두리 — 채도 낮게
+  const resolved = variant === 'gold' ? 'glow' : variant;
+
   const variantStyle = {
-    gold: {
-      bg:     theme.starGold + '1A',  // 10% alpha
-      text:   theme.starGold,
-      border: theme.starGold + '45',  // 27% alpha
+    glow: {
+      bg:     theme.primaryGlowMuted,
+      text:   theme.primaryGlow,
+      border: theme.primaryGlowBorder,
     },
     bronze: {
-      // 테마 토큰에 없어서 고정 hex 사용 (Blue/Green 없음)
-      bg:     '#7A4A2A14',   // ~8% alpha
-      text:   '#A8643A',     // muted copper
-      border: '#7A4A2A52',   // ~32% alpha
+      bg:     'rgba(93, 173, 235, 0.12)',
+      text:   theme.secondary,
+      border: 'rgba(93, 173, 235, 0.35)',
     },
     steel: {
-      bg:     theme.nebulaSteel + '26',
+      bg:     'rgba(100, 116, 139, 0.2)',
       text:   theme.moonlight,
-      border: theme.nebulaSteel + '59',
+      border: 'rgba(148, 163, 184, 0.35)',
     },
     muted: {
       bg:     theme.muted,
@@ -51,9 +50,9 @@ export function Badge({ label, variant = 'muted', mono = false, style }: BadgePr
     outline: {
       bg:     'transparent',
       text:   theme.mutedForeground,
-      border: theme.border,
+      border: theme.cardBorder,
     },
-  }[variant];
+  }[resolved];
 
   return (
     <View
@@ -87,8 +86,8 @@ const styles = StyleSheet.create({
   base: {
     alignSelf:         'flex-start',
     borderWidth:       1,
-    paddingVertical:   2,
-    paddingHorizontal: 7,
+    paddingVertical:   3,
+    paddingHorizontal: 8,
   },
   label: {
     fontSize:   11,

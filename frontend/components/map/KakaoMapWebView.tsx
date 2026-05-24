@@ -40,6 +40,15 @@ export type SpotListMode = 'nearby' | 'all';
 /** VIIRS Black Marble 합성(구름 영향 적고 “도시빛”에 가까움). */
 const DEFAULT_VIIRS_LAYER_ID = 'VIIRS_Black_Marble';
 
+/** map-site/kakao.html(GitHub Pages) 캐시 무효화 — hosted 폴백 시에만 사용 */
+const HOSTED_MAP_CACHE_VERSION = 'figma-markers-v3';
+
+function hostedMapPageUri(url: string): string {
+  const base = url.trim();
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}scv=${HOSTED_MAP_CACHE_VERSION}`;
+}
+
 function getApiBaseUrlFromEnv(): string {
   const url = process.env.EXPO_PUBLIC_API_URL?.trim();
   return (url || 'http://127.0.0.1:3333').replace(/\/+$/, '');
@@ -196,7 +205,12 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
   };
 
   const hasHostedPage = Boolean(mapPageUrl?.trim());
-  const canUseInlineFallback = Boolean(kakaoJavascriptKey);
+  const canUseInlineFallback = Boolean(kakaoJavascriptKey?.trim());
+  /**
+   * URL이 있으면 hosted 페이지 사용 (카카오 JS SDK 도메인 검증 통과).
+   * 인라인 HTML만 쓰면 WebView origin이 달라 지도가 안 뜰 수 있음.
+   */
+  const useBundledInlineMap = canUseInlineFallback && !hasHostedPage;
 
   const viirsBackendBaseResolved = useMemo(() => getApiBaseUrlFromEnv(), []);
 
@@ -419,10 +433,11 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
 
   return (
     <View style={{ flex: 1 }}>
-      {!hasHostedPage && !canUseInlineFallback && (
+      {!useBundledInlineMap && !hasHostedPage && (
         <View style={{ padding: 12 }}>
           <Text style={{ fontSize: 12, opacity: 0.8 }}>
-            EXPO_PUBLIC_KAKAO_MAP_PAGE_URL을 frontend/.env에 설정하세요.
+            EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY(권장) 또는 EXPO_PUBLIC_KAKAO_MAP_PAGE_URL을
+            frontend/.env에 설정하세요.
           </Text>
         </View>
       )}
@@ -431,10 +446,10 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
           ref={webViewRef}
           originWhitelist={['*']}
           source={
-            hasHostedPage
-              ? { uri: mapPageUrl!.trim() }
-              : canUseInlineFallback
-                ? { html }
+            useBundledInlineMap
+              ? { html }
+              : hasHostedPage
+                ? { uri: hostedMapPageUri(mapPageUrl!) }
                 : { html: '<html><body style="margin:0"></body></html>' }
           }
           javaScriptEnabled
