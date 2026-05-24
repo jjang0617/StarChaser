@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -16,6 +16,8 @@ import {
   type CorrectionAggregateDto,
 } from '../../lib/api-client';
 import type { StarIndexResponseDto } from '../../lib/types/api';
+import { useAuth } from '../../contexts/auth-context';
+import { isSpotBookmarked, toggleSpotBookmark } from '../../lib/spot-activity-storage';
 import { starIndexResponseToCardModel } from '../../lib/star-index-display';
 import { Button, Card, SpotCard, StarIndexCard, StatefulCard, type StatefulCardError } from '../ui';
 
@@ -29,6 +31,7 @@ export interface MapSpotDetailModalProps {
   onRetry: () => void;
   onSessionInvalidated: () => Promise<void>;
   starIndexErrorFromApi: (e: ApiRequestError) => StatefulCardError;
+  onBookmarkChange?: () => void;
 }
 
 /**
@@ -44,9 +47,14 @@ export function MapSpotDetailModal({
   onRetry,
   onSessionInvalidated,
   starIndexErrorFromApi,
+  onBookmarkChange,
 }: MapSpotDetailModalProps) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const starProps = data ? starIndexResponseToCardModel(data) : null;
+
+  const [bookmarked, setBookmarked] = useState(false);
+  const [bookmarkBusy, setBookmarkBusy] = useState(false);
 
   const [corrAgg, setCorrAgg] = useState<CorrectionAggregateDto | null>(null);
   const [perceivedQuality, setPerceivedQuality] = useState(75);
@@ -73,6 +81,31 @@ export function MapSpotDetailModal({
     };
   }, [visible, spotId]);
 
+  useEffect(() => {
+    if (!visible || !spotId || !user?.id) {
+      setBookmarked(false);
+      return;
+    }
+    let cancelled = false;
+    void isSpotBookmarked(user.id, spotId).then((v) => {
+      if (!cancelled) setBookmarked(v);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, spotId, user?.id]);
+
+  const handleToggleBookmark = useCallback(() => {
+    if (!user?.id || !spotId || bookmarkBusy) return;
+    setBookmarkBusy(true);
+    void toggleSpotBookmark(user.id, spotId)
+      .then((saved) => {
+        setBookmarked(saved);
+        onBookmarkChange?.();
+      })
+      .finally(() => setBookmarkBusy(false));
+  }, [bookmarkBusy, onBookmarkChange, spotId, user?.id]);
+
   return (
     <Modal
       visible={visible}
@@ -83,9 +116,30 @@ export function MapSpotDetailModal({
       <View style={[styles.sheet, { backgroundColor: theme.background }]}>
         <View style={[styles.header, { borderBottomColor: theme.border }]}>
           <Text style={[styles.headerTitle, { color: theme.foreground }]}>명소 상세</Text>
-          <Pressable onPress={onClose} hitSlop={12}>
-            <Text style={{ color: theme.starGold, fontSize: 15, fontWeight: '600' }}>닫기</Text>
-          </Pressable>
+          <View style={styles.headerActions}>
+            {spotId && user?.id ? (
+              <Pressable
+                onPress={() => void handleToggleBookmark()}
+                disabled={bookmarkBusy}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel={bookmarked ? '저장 해제' : '명소 저장'}
+              >
+                <Text
+                  style={{
+                    color: bookmarked ? theme.starGold : theme.mutedForeground,
+                    fontSize: 20,
+                    fontWeight: '600',
+                  }}
+                >
+                  {bookmarked ? '★' : '☆'}
+                </Text>
+              </Pressable>
+            ) : null}
+            <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button">
+              <Text style={{ color: theme.starGold, fontSize: 15, fontWeight: '600' }}>닫기</Text>
+            </Pressable>
+          </View>
         </View>
         <ScrollView
           style={styles.scroll}
@@ -242,7 +296,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 17, fontWeight: '700' },
+  headerTitle: { fontSize: 17, fontWeight: '700', flex: 1, paddingRight: 8 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   scroll: { flex: 1 },
   scrollInner: { padding: 16, gap: 12, paddingBottom: 40 },
 });

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { locationEnabledKey } from './location-preferences';
+import { spotActivityStorageKey } from './spot-activity-storage';
 
 const KEY_ACCESS = 'starChaser:accessToken';
 const KEY_REFRESH = 'starChaser:refreshToken';
@@ -82,6 +83,7 @@ export function userScopedStorageKeys(userId: string): string[] {
     onboardingCompletedKey(userId),
     notificationPrefsKey(userId),
     locationEnabledKey(userId),
+    spotActivityStorageKey(userId),
   ];
 }
 

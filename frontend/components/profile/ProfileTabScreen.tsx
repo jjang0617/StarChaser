@@ -27,6 +27,7 @@ import { ProfileEditModal } from './ProfileEditModal';
 import { ProfileChangePasswordModal } from './ProfileChangePasswordModal';
 import { ProfileDeleteAccountModal } from './ProfileDeleteAccountModal';
 import { ProfileAppInfoCard } from './ProfileAppInfoCard';
+import { ProfileMySpotsCard } from './ProfileMySpotsCard';
 import { fetchSpotsAll } from '../../lib/spots-api';
 import { PhotographyGuideModal } from '../guide/PhotographyGuideModal';
 import { Button, Card } from '../ui';
@@ -44,6 +45,8 @@ interface ProfileTabScreenProps {
   onLocationEnabledChange: (enabled: boolean) => void;
   onRefreshLocationStatus: () => Promise<Location.PermissionResponse['status']>;
   onOpenLocationSettings: () => void;
+  spotActivityRevision: number;
+  onOpenSpotDetail: (spotId: string) => void;
 }
 
 export function ProfileTabScreen({
@@ -59,6 +62,8 @@ export function ProfileTabScreen({
   onLocationEnabledChange,
   onRefreshLocationStatus,
   onOpenLocationSettings,
+  spotActivityRevision,
+  onOpenSpotDetail,
 }: ProfileTabScreenProps) {
   const { theme } = useTheme();
   const { applyProfile } = useAuth();
@@ -403,6 +408,11 @@ export function ProfileTabScreen({
           )}
         </Card>
       ) : null}
+
+      <ProfileMySpotsCard
+        activityRevision={spotActivityRevision}
+        onOpenSpotDetail={onOpenSpotDetail}
+      />
 
       <Card
         title="촬영 가이드"

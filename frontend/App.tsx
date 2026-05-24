@@ -39,6 +39,7 @@ import {
   loadLocationEnabled,
   saveLocationEnabled,
 } from './lib/location-preferences';
+import { recordSpotDetailView } from './lib/spot-activity-storage';
 import { RecordsTabScreen } from './components/records/RecordsTabScreen';
 import { SkyTabScreen } from './components/sky/SkyTabScreen';
 import { AuthScreen } from './components/auth/auth-screen';
@@ -239,6 +240,11 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     void Linking.openSettings();
   }, []);
 
+  const [spotActivityRevision, setSpotActivityRevision] = useState(0);
+  const refreshMySpots = useCallback(() => {
+    setSpotActivityRevision((r) => r + 1);
+  }, []);
+
   const [top3Loading, setTop3Loading] = useState(false);
   const [top3Error, setTop3Error] = useState<string | null>(null);
   const [top3Items, setTop3Items] = useState<WeeklyTop3ItemDto[] | null>(null);
@@ -324,6 +330,21 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     [onSessionInvalidated],
   );
 
+  const openMapSpotDetail = useCallback(
+    (spotId: string) => {
+      setActiveTab('map');
+      setMapLayerMounted(true);
+      setFocusSpotId(spotId);
+      setMapSpotId(spotId);
+      setMapDetailOpen(true);
+      loadMapSpotStarIndex(spotId);
+      if (user?.id) {
+        void recordSpotDetailView(user.id, spotId).then(refreshMySpots);
+      }
+    },
+    [user?.id, loadMapSpotStarIndex, refreshMySpots],
+  );
+
   return (
     <Screen>
       <StatusBar style="light" />
@@ -373,11 +394,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                   return;
                 }
                 if (msg.type === 'MARKER_CLICK') {
-                  const spotId = msg.data.spotId;
-                  setFocusSpotId(spotId);
-                  setMapSpotId(spotId);
-                  setMapDetailOpen(true);
-                  loadMapSpotStarIndex(spotId);
+                  openMapSpotDetail(msg.data.spotId);
                 }
               }}
             />
@@ -467,6 +484,8 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               onLocationEnabledChange={(enabled) => void handleLocationEnabledChange(enabled)}
               onRefreshLocationStatus={refreshForegroundLocationStatus}
               onOpenLocationSettings={openLocationSettings}
+              spotActivityRevision={spotActivityRevision}
+              onOpenSpotDetail={openMapSpotDetail}
             />
           ) : null
         ) : null}
@@ -502,6 +521,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
           onRetry={() => mapSpotId && loadMapSpotStarIndex(mapSpotId)}
           onSessionInvalidated={onSessionInvalidated}
           starIndexErrorFromApi={starIndexErrorFromApi}
+          onBookmarkChange={refreshMySpots}
         />
 
         <View style={styles.tabWrap}>
