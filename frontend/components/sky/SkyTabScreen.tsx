@@ -104,6 +104,8 @@ export interface SkyTabScreenProps {
   onSessionInvalidated: () => Promise<void>;
   /** 기기 GPS로 천구 중심을 잡는 중인지 */
   skyUsesGps: boolean;
+  /** 마이페이지에서 위치 기능을 켠 경우에만 OS 권한 UI 표시 */
+  locationFeaturesEnabled?: boolean;
   /** expo-location 전경 위치 권한(null이면 아직 조회 전) */
   locationPermissionStatus?: Location.PermissionResponse['status'] | null;
   /** 위치 권한 시스템 다이얼로그 재요청 */
@@ -394,6 +396,7 @@ export function SkyTabScreen({
   onObserveNow,
   onSessionInvalidated,
   skyUsesGps,
+  locationFeaturesEnabled = true,
   locationPermissionStatus = null,
   onRequestLocationPermission,
   top3Loading,
@@ -658,7 +661,7 @@ export function SkyTabScreen({
   }, [motionAssist, headingDeg]);
 
   useEffect(() => {
-    if (!alignHeading || Platform.OS === 'web') {
+    if (!alignHeading || Platform.OS === 'web' || !locationFeaturesEnabled) {
       return;
     }
     let sub: Location.LocationSubscription | undefined;
@@ -700,7 +703,7 @@ export function SkyTabScreen({
       cancelled = true;
       sub?.remove();
     };
-  }, [alignHeading, motionAssist]);
+  }, [alignHeading, motionAssist, locationFeaturesEnabled]);
 
   useEffect(() => {
     if (!alignHeading || !motionAssist || Platform.OS === 'web') {
@@ -1248,6 +1251,7 @@ export function SkyTabScreen({
                 {utcNote}
               </Text>
               {Platform.OS !== 'web' &&
+              locationFeaturesEnabled &&
               locationPermissionStatus != null &&
               locationPermissionStatus !== Location.PermissionStatus.GRANTED ? (
                 <View style={{ marginTop: 8, gap: 6 }}>
@@ -1476,6 +1480,7 @@ export function SkyTabScreen({
             위치를 잡으면 천구가 화면을 채웁니다. 명소는 오른쪽 TOP3에서 고를 수 있어요.
           </Text>
           {Platform.OS !== 'web' &&
+          locationFeaturesEnabled &&
           locationPermissionStatus != null &&
           locationPermissionStatus !== Location.PermissionStatus.GRANTED ? (
             <Card title="위치 권한" description="천구·Star-Index에 현재 좌표를 쓰려면 필요합니다">

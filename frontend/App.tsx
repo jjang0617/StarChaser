@@ -8,6 +8,8 @@ import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
+  Linking,
   Text,
   StyleSheet,
   View,
@@ -33,6 +35,10 @@ import {
 import { MapClusterSpotsSheet } from './components/map/MapClusterSpotsSheet';
 import { MapSpotDetailModal } from './components/map/MapSpotDetailModal';
 import { ProfileTabScreen } from './components/profile/ProfileTabScreen';
+import {
+  loadLocationEnabled,
+  saveLocationEnabled,
+} from './lib/location-preferences';
 import { RecordsTabScreen } from './components/records/RecordsTabScreen';
 import { SkyTabScreen } from './components/sky/SkyTabScreen';
 import { AuthScreen } from './components/auth/auth-screen';
@@ -75,6 +81,9 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [deviceLng, setDeviceLng] = useState<number | null>(null);
   const [foregroundLocationStatus, setForegroundLocationStatus] =
     useState<Location.PermissionResponse['status'] | null>(null);
+  const [locationEnabledPref, setLocationEnabledPref] = useState(false);
+  const [locationPrefLoaded, setLocationPrefLoaded] = useState(false);
+  const [locationToggleBusy, setLocationToggleBusy] = useState(false);
 
   const mapWebViewRef = useRef<KakaoMapWebViewHandle>(null);
 
@@ -110,19 +119,57 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    void (async () => {
-      const existing = await Location.getForegroundPermissionsAsync();
-      setForegroundLocationStatus(existing.status);
-      if (existing.status === Location.PermissionStatus.UNDETERMINED) {
-        const asked = await Location.requestForegroundPermissionsAsync();
-        setForegroundLocationStatus(asked.status);
-      }
-    })();
+  const refreshForegroundLocationStatus = useCallback(async () => {
+    const existing = await Location.getForegroundPermissionsAsync();
+    setForegroundLocationStatus(existing.status);
+    return existing.status;
   }, []);
 
   useEffect(() => {
-    if (foregroundLocationStatus !== Location.PermissionStatus.GRANTED) {
+    void refreshForegroundLocationStatus();
+  }, [refreshForegroundLocationStatus]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setLocationPrefLoaded(false);
+      return;
+    }
+    let mounted = true;
+    void (async () => {
+      const enabled = await loadLocationEnabled(user.id);
+      if (!mounted) return;
+      setLocationEnabledPref(enabled);
+      setLocationPrefLoaded(true);
+      if (!enabled) {
+        setDeviceLat(null);
+        setDeviceLng(null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void refreshForegroundLocationStatus();
+      }
+    });
+    return () => sub.remove();
+  }, [refreshForegroundLocationStatus]);
+
+  const useDeviceLocation =
+    locationPrefLoaded &&
+    locationEnabledPref &&
+    foregroundLocationStatus === Location.PermissionStatus.GRANTED;
+
+  useEffect(() => {
+    if (!useDeviceLocation) {
+      if (!locationEnabledPref) {
+        setDeviceLat(null);
+        setDeviceLng(null);
+      }
       return;
     }
     let sub: Location.LocationSubscription | undefined;
@@ -145,7 +192,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
       alive = false;
       sub?.remove();
     };
-  }, [foregroundLocationStatus]);
+  }, [useDeviceLocation, locationEnabledPref]);
 
   const requestLocationPermission = useCallback(async () => {
     const r = await Location.requestForegroundPermissionsAsync();
@@ -161,6 +208,35 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
         /* 단말·서비스 일시 오류는 watch에서 보정 */
       }
     }
+    return r.status;
+  }, []);
+
+  const handleLocationEnabledChange = useCallback(
+    async (enabled: boolean) => {
+      const userId = user?.id;
+      if (!userId) return;
+      setLocationToggleBusy(true);
+      try {
+        await saveLocationEnabled(userId, enabled);
+        setLocationEnabledPref(enabled);
+        if (!enabled) {
+          setDeviceLat(null);
+          setDeviceLng(null);
+          return;
+        }
+        const status = await requestLocationPermission();
+        if (status !== Location.PermissionStatus.GRANTED) {
+          await refreshForegroundLocationStatus();
+        }
+      } finally {
+        setLocationToggleBusy(false);
+      }
+    },
+    [user?.id, requestLocationPermission, refreshForegroundLocationStatus],
+  );
+
+  const openLocationSettings = useCallback(() => {
+    void Linking.openSettings();
   }, []);
 
   const [top3Loading, setTop3Loading] = useState(false);
@@ -269,6 +345,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               mapPageUrl={kakaoMapPageUrl}
               kakaoJavascriptKey={kakaoJavascriptKey}
               spotListMode="all"
+              showUserLocation={useDeviceLocation}
               viirsLayerEnabled={mapViirsEnabled}
               onSessionExpired={onSessionInvalidated}
               onMessage={(msg) => {
@@ -353,9 +430,15 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               onShiftHours={shiftSkyObserveHours}
               onObserveNow={resetSkyObserveNow}
               onSessionInvalidated={onSessionInvalidated}
-              skyUsesGps={deviceLat != null && deviceLng != null}
+              skyUsesGps={useDeviceLocation && deviceLat != null && deviceLng != null}
+              locationFeaturesEnabled={locationEnabledPref}
               locationPermissionStatus={foregroundLocationStatus}
-              onRequestLocationPermission={requestLocationPermission}
+              onRequestLocationPermission={async () => {
+                if (!user?.id) return;
+                await saveLocationEnabled(user.id, true);
+                setLocationEnabledPref(true);
+                await requestLocationPermission();
+              }}
               top3Loading={top3Loading}
               top3Error={top3Error}
               top3Items={top3Items}
@@ -367,6 +450,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               activeSpotId={focusSpotId}
               observerLat={deviceLat}
               observerLng={deviceLng}
+              useDeviceLocation={useDeviceLocation}
               onSessionInvalidated={onSessionInvalidated}
             />
           ) : activeTab === 'profile' ? (
@@ -376,6 +460,13 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               onToggleRedMode={toggleRed}
               onSessionInvalidated={onSessionInvalidated}
               onDevResetOnboarding={__DEV__ ? onResetOnboarding : undefined}
+              locationEnabled={locationEnabledPref}
+              locationPrefLoaded={locationPrefLoaded}
+              locationPermissionStatus={foregroundLocationStatus}
+              locationToggleBusy={locationToggleBusy}
+              onLocationEnabledChange={(enabled) => void handleLocationEnabledChange(enabled)}
+              onRefreshLocationStatus={refreshForegroundLocationStatus}
+              onOpenLocationSettings={openLocationSettings}
             />
           ) : null
         ) : null}

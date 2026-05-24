@@ -34,6 +34,8 @@ interface RecordsTabScreenProps {
   /** 있으면 Star-Index는 이 좌표 격자를 우선 (내 위치 점수) */
   observerLat?: number | null;
   observerLng?: number | null;
+  /** App에서 위치 기능을 켠 경우에만 기기 GPS 사용 */
+  useDeviceLocation?: boolean;
   onSessionInvalidated: () => Promise<void>;
 }
 
@@ -41,6 +43,7 @@ export function RecordsTabScreen({
   activeSpotId,
   observerLat = null,
   observerLng = null,
+  useDeviceLocation = true,
   onSessionInvalidated,
 }: RecordsTabScreenProps) {
   const { theme } = useTheme();
@@ -85,7 +88,7 @@ export function RecordsTabScreen({
     let lat: number | undefined;
     let lng: number | undefined;
 
-    if (Platform.OS !== 'web') {
+    if (useDeviceLocation && Platform.OS !== 'web') {
       try {
         const perm = await Location.getForegroundPermissionsAsync();
         if (perm.status === Location.PermissionStatus.GRANTED) {
@@ -190,7 +193,7 @@ export function RecordsTabScreen({
     } finally {
       setSiLoading(false);
     }
-  }, [activeSpotId, observerLat, observerLng, onSessionInvalidated]);
+  }, [activeSpotId, observerLat, observerLng, useDeviceLocation, onSessionInvalidated]);
 
   useEffect(() => {
     void loadList();

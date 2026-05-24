@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { useTheme } from '../../themes/ThemeContext';
 import type { ThemeTokens } from '../../themes/themes';
 import {
@@ -34,6 +36,13 @@ interface ProfileTabScreenProps {
   onToggleRedMode: () => void;
   onSessionInvalidated: () => Promise<void>;
   onDevResetOnboarding?: () => void;
+  locationEnabled: boolean;
+  locationPrefLoaded: boolean;
+  locationPermissionStatus: Location.PermissionResponse['status'] | null;
+  locationToggleBusy: boolean;
+  onLocationEnabledChange: (enabled: boolean) => void;
+  onRefreshLocationStatus: () => Promise<Location.PermissionResponse['status']>;
+  onOpenLocationSettings: () => void;
 }
 
 export function ProfileTabScreen({
@@ -42,6 +51,13 @@ export function ProfileTabScreen({
   onToggleRedMode,
   onSessionInvalidated,
   onDevResetOnboarding,
+  locationEnabled,
+  locationPrefLoaded,
+  locationPermissionStatus,
+  locationToggleBusy,
+  onLocationEnabledChange,
+  onRefreshLocationStatus,
+  onOpenLocationSettings,
 }: ProfileTabScreenProps) {
   const { theme } = useTheme();
   const { applyProfile } = useAuth();
@@ -60,6 +76,27 @@ export function ProfileTabScreen({
   const [spotsLoading, setSpotsLoading] = useState(false);
   const [spotPickerOpen, setSpotPickerOpen] = useState(false);
   const [photographyGuideOpen, setPhotographyGuideOpen] = useState(false);
+
+  useEffect(() => {
+    void onRefreshLocationStatus();
+  }, [onRefreshLocationStatus]);
+
+  const locationStatusHint = useMemo(() => {
+    if (!locationEnabled) {
+      return '앱에서 GPS를 사용하지 않습니다. (시스템 권한과 별개)';
+    }
+    if (locationPermissionStatus === Location.PermissionStatus.GRANTED) {
+      return '현재 위치를 천구·지도·관측 기록에 사용합니다.';
+    }
+    if (locationPermissionStatus === Location.PermissionStatus.DENIED) {
+      return '앱에서 켜 두었지만 시스템에서 거부됨. 아래에서 설정을 열어 허용해 주세요.';
+    }
+    return '켜져 있음. 시스템 위치 권한을 허용하면 GPS를 사용합니다.';
+  }, [locationEnabled, locationPermissionStatus]);
+
+  const showLocationSettings =
+    locationEnabled &&
+    locationPermissionStatus === Location.PermissionStatus.DENIED;
 
   const loadProfile = useCallback(async () => {
     setProfileError(null);
@@ -334,6 +371,37 @@ export function ProfileTabScreen({
           </View>
         )}
       </Card>
+
+      {Platform.OS !== 'web' ? (
+        <Card
+          title="위치"
+          description="천구·지도·관측 기록에 사용합니다. 끄면 명소·TOP3 기준으로 동작합니다."
+        >
+          {!locationPrefLoaded ? (
+            <ActivityIndicator color={theme.starGold} style={{ marginVertical: 12 }} />
+          ) : (
+            <View style={{ gap: 12 }}>
+              <Row
+                label="앱에서 위치 사용"
+                description={locationStatusHint}
+                value={locationEnabled}
+                disabled={locationToggleBusy}
+                theme={theme}
+                onValueChange={onLocationEnabledChange}
+              />
+              {showLocationSettings ? (
+                <Button
+                  label="시스템 설정에서 위치 허용"
+                  variant="outline"
+                  size="sm"
+                  fullWidth
+                  onPress={onOpenLocationSettings}
+                />
+              ) : null}
+            </View>
+          )}
+        </Card>
+      ) : null}
 
       <Card
         title="촬영 가이드"

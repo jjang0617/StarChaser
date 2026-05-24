@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { locationEnabledKey } from './location-preferences';
 
 const KEY_ACCESS = 'starChaser:accessToken';
 const KEY_REFRESH = 'starChaser:refreshToken';
@@ -77,7 +78,11 @@ export function notificationPrefsKey(userId: string): string {
 }
 
 export function userScopedStorageKeys(userId: string): string[] {
-  return [onboardingCompletedKey(userId), notificationPrefsKey(userId)];
+  return [
+    onboardingCompletedKey(userId),
+    notificationPrefsKey(userId),
+    locationEnabledKey(userId),
+  ];
 }
 
 export async function clearUserScopedStorage(userId: string): Promise<void> {
