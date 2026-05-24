@@ -8,6 +8,8 @@ import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
+  Linking,
   Text,
   StyleSheet,
   View,
@@ -16,6 +18,12 @@ import {
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {
+  NOTIFICATION_PREFS_KEY_BASE,
+  ONBOARDING_COMPLETED_KEY_BASE,
+  onboardingCompletedKey,
+  userScopedStorageKeys,
+} from './lib/auth-storage';
 import { ThemeProvider, useTheme } from './themes/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/auth-context';
 import { BottomTab, Button, Screen, type StatefulCardError } from './components/ui';
@@ -27,6 +35,11 @@ import {
 import { MapClusterSpotsSheet } from './components/map/MapClusterSpotsSheet';
 import { MapSpotDetailModal } from './components/map/MapSpotDetailModal';
 import { ProfileTabScreen } from './components/profile/ProfileTabScreen';
+import {
+  loadLocationEnabled,
+  saveLocationEnabled,
+} from './lib/location-preferences';
+import { recordSpotDetailView } from './lib/spot-activity-storage';
 import { RecordsTabScreen } from './components/records/RecordsTabScreen';
 import { SkyTabScreen } from './components/sky/SkyTabScreen';
 import { AuthScreen } from './components/auth/auth-screen';
@@ -69,6 +82,9 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [deviceLng, setDeviceLng] = useState<number | null>(null);
   const [foregroundLocationStatus, setForegroundLocationStatus] =
     useState<Location.PermissionResponse['status'] | null>(null);
+  const [locationEnabledPref, setLocationEnabledPref] = useState(false);
+  const [locationPrefLoaded, setLocationPrefLoaded] = useState(false);
+  const [locationToggleBusy, setLocationToggleBusy] = useState(false);
 
   const mapWebViewRef = useRef<KakaoMapWebViewHandle>(null);
 
@@ -104,19 +120,57 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    void (async () => {
-      const existing = await Location.getForegroundPermissionsAsync();
-      setForegroundLocationStatus(existing.status);
-      if (existing.status === Location.PermissionStatus.UNDETERMINED) {
-        const asked = await Location.requestForegroundPermissionsAsync();
-        setForegroundLocationStatus(asked.status);
-      }
-    })();
+  const refreshForegroundLocationStatus = useCallback(async () => {
+    const existing = await Location.getForegroundPermissionsAsync();
+    setForegroundLocationStatus(existing.status);
+    return existing.status;
   }, []);
 
   useEffect(() => {
-    if (foregroundLocationStatus !== Location.PermissionStatus.GRANTED) {
+    void refreshForegroundLocationStatus();
+  }, [refreshForegroundLocationStatus]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setLocationPrefLoaded(false);
+      return;
+    }
+    let mounted = true;
+    void (async () => {
+      const enabled = await loadLocationEnabled(user.id);
+      if (!mounted) return;
+      setLocationEnabledPref(enabled);
+      setLocationPrefLoaded(true);
+      if (!enabled) {
+        setDeviceLat(null);
+        setDeviceLng(null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void refreshForegroundLocationStatus();
+      }
+    });
+    return () => sub.remove();
+  }, [refreshForegroundLocationStatus]);
+
+  const useDeviceLocation =
+    locationPrefLoaded &&
+    locationEnabledPref &&
+    foregroundLocationStatus === Location.PermissionStatus.GRANTED;
+
+  useEffect(() => {
+    if (!useDeviceLocation) {
+      if (!locationEnabledPref) {
+        setDeviceLat(null);
+        setDeviceLng(null);
+      }
       return;
     }
     let sub: Location.LocationSubscription | undefined;
@@ -139,7 +193,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
       alive = false;
       sub?.remove();
     };
-  }, [foregroundLocationStatus]);
+  }, [useDeviceLocation, locationEnabledPref]);
 
   const requestLocationPermission = useCallback(async () => {
     const r = await Location.requestForegroundPermissionsAsync();
@@ -155,6 +209,40 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
         /* 단말·서비스 일시 오류는 watch에서 보정 */
       }
     }
+    return r.status;
+  }, []);
+
+  const handleLocationEnabledChange = useCallback(
+    async (enabled: boolean) => {
+      const userId = user?.id;
+      if (!userId) return;
+      setLocationToggleBusy(true);
+      try {
+        await saveLocationEnabled(userId, enabled);
+        setLocationEnabledPref(enabled);
+        if (!enabled) {
+          setDeviceLat(null);
+          setDeviceLng(null);
+          return;
+        }
+        const status = await requestLocationPermission();
+        if (status !== Location.PermissionStatus.GRANTED) {
+          await refreshForegroundLocationStatus();
+        }
+      } finally {
+        setLocationToggleBusy(false);
+      }
+    },
+    [user?.id, requestLocationPermission, refreshForegroundLocationStatus],
+  );
+
+  const openLocationSettings = useCallback(() => {
+    void Linking.openSettings();
+  }, []);
+
+  const [spotActivityRevision, setSpotActivityRevision] = useState(0);
+  const refreshMySpots = useCallback(() => {
+    setSpotActivityRevision((r) => r + 1);
   }, []);
 
   const [top3Loading, setTop3Loading] = useState(false);
@@ -242,6 +330,21 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     [onSessionInvalidated],
   );
 
+  const openMapSpotDetail = useCallback(
+    (spotId: string) => {
+      setActiveTab('map');
+      setMapLayerMounted(true);
+      setFocusSpotId(spotId);
+      setMapSpotId(spotId);
+      setMapDetailOpen(true);
+      loadMapSpotStarIndex(spotId);
+      if (user?.id) {
+        void recordSpotDetailView(user.id, spotId).then(refreshMySpots);
+      }
+    },
+    [user?.id, loadMapSpotStarIndex, refreshMySpots],
+  );
+
   return (
     <Screen>
       <StatusBar style="light" />
@@ -263,6 +366,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               mapPageUrl={kakaoMapPageUrl}
               kakaoJavascriptKey={kakaoJavascriptKey}
               spotListMode="all"
+              showUserLocation={useDeviceLocation}
               viirsLayerEnabled={mapViirsEnabled}
               onSessionExpired={onSessionInvalidated}
               onMessage={(msg) => {
@@ -290,11 +394,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                   return;
                 }
                 if (msg.type === 'MARKER_CLICK') {
-                  const spotId = msg.data.spotId;
-                  setFocusSpotId(spotId);
-                  setMapSpotId(spotId);
-                  setMapDetailOpen(true);
-                  loadMapSpotStarIndex(spotId);
+                  openMapSpotDetail(msg.data.spotId);
                 }
               }}
             />
@@ -347,9 +447,15 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               onShiftHours={shiftSkyObserveHours}
               onObserveNow={resetSkyObserveNow}
               onSessionInvalidated={onSessionInvalidated}
-              skyUsesGps={deviceLat != null && deviceLng != null}
+              skyUsesGps={useDeviceLocation && deviceLat != null && deviceLng != null}
+              locationFeaturesEnabled={locationEnabledPref}
               locationPermissionStatus={foregroundLocationStatus}
-              onRequestLocationPermission={requestLocationPermission}
+              onRequestLocationPermission={async () => {
+                if (!user?.id) return;
+                await saveLocationEnabled(user.id, true);
+                setLocationEnabledPref(true);
+                await requestLocationPermission();
+              }}
               top3Loading={top3Loading}
               top3Error={top3Error}
               top3Items={top3Items}
@@ -361,16 +467,25 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               activeSpotId={focusSpotId}
               observerLat={deviceLat}
               observerLng={deviceLng}
+              useDeviceLocation={useDeviceLocation}
               onSessionInvalidated={onSessionInvalidated}
             />
           ) : activeTab === 'profile' ? (
             <ProfileTabScreen
-              email={user?.email ?? null}
               onLogout={() => void logout()}
               isRedMode={isRedMode}
               onToggleRedMode={toggleRed}
               onSessionInvalidated={onSessionInvalidated}
               onDevResetOnboarding={__DEV__ ? onResetOnboarding : undefined}
+              locationEnabled={locationEnabledPref}
+              locationPrefLoaded={locationPrefLoaded}
+              locationPermissionStatus={foregroundLocationStatus}
+              locationToggleBusy={locationToggleBusy}
+              onLocationEnabledChange={(enabled) => void handleLocationEnabledChange(enabled)}
+              onRefreshLocationStatus={refreshForegroundLocationStatus}
+              onOpenLocationSettings={openLocationSettings}
+              spotActivityRevision={spotActivityRevision}
+              onOpenSpotDetail={openMapSpotDetail}
             />
           ) : null
         ) : null}
@@ -406,6 +521,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
           onRetry={() => mapSpotId && loadMapSpotStarIndex(mapSpotId)}
           onSessionInvalidated={onSessionInvalidated}
           starIndexErrorFromApi={starIndexErrorFromApi}
+          onBookmarkChange={refreshMySpots}
         />
 
         <View style={styles.tabWrap}>
@@ -454,15 +570,10 @@ function AppGate() {
   const resetOnboarding = useCallback(async () => {
     const userId = user?.id;
     const keys: string[] = [
-      'starChaser:onboardingCompleted',
-      'starChaser:notificationPrefs',
+      ONBOARDING_COMPLETED_KEY_BASE,
+      NOTIFICATION_PREFS_KEY_BASE,
+      ...(userId ? userScopedStorageKeys(userId) : []),
     ];
-    if (userId) {
-      keys.push(
-        `starChaser:onboardingCompleted:${userId}`,
-        `starChaser:notificationPrefs:${userId}`,
-      );
-    }
     await AsyncStorage.multiRemove(keys);
     setRoute('onboarding');
   }, [user?.id]);
@@ -474,10 +585,10 @@ function AppGate() {
     let mounted = true;
     (async () => {
       try {
-        const completedKey = `starChaser:onboardingCompleted:${user.id}`;
+        const completedKey = onboardingCompletedKey(user.id);
         const staleGlobalKeys = [
-          'starChaser:onboardingCompleted',
-          'starChaser:notificationPrefs',
+          ONBOARDING_COMPLETED_KEY_BASE,
+          NOTIFICATION_PREFS_KEY_BASE,
         ];
 
         const completed = await AsyncStorage.getItem(completedKey);

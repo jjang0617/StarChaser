@@ -43,8 +43,15 @@ export interface StarIndexResponseDto {
   requestedBy: string;
 }
 
+export interface UserProfileDto {
+  id: string;
+  email: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+}
+
 export interface AuthTokensResponseDto {
-  user: { id: string; email: string; nickname: string | null };
+  user: UserProfileDto;
   accessToken: string;
   refreshToken: string;
 }

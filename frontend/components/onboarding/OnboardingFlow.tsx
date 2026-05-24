@@ -9,19 +9,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button, Card, Screen } from '../ui';
 import { useTheme } from '../../themes/ThemeContext';
 import { authorizedPutJson } from '../../lib/api-client';
+import { notificationPrefsKey, onboardingCompletedKey } from '../../lib/auth-storage';
 
 type NotificationPrefs = {
   starIndex70: boolean;
   meteorEvents: boolean;
   weeklyTop3: boolean;
 };
-
-const KEY_COMPLETED_BASE = 'starChaser:onboardingCompleted';
-const KEY_NOTIF_PREFS_BASE = 'starChaser:notificationPrefs';
-
-function onboardingKey(base: string, userId: string) {
-  return `${base}:${userId}`;
-}
 
 const NOTIF_ITEMS: Array<{
   key: keyof NotificationPrefs;
@@ -66,9 +60,9 @@ export function OnboardingFlow({
       const prefs = prefsOverride ?? notifPrefs;
       try {
         await Promise.all([
-          AsyncStorage.setItem(onboardingKey(KEY_COMPLETED_BASE, userId), 'true'),
+          AsyncStorage.setItem(onboardingCompletedKey(userId), 'true'),
           AsyncStorage.setItem(
-            onboardingKey(KEY_NOTIF_PREFS_BASE, userId),
+            notificationPrefsKey(userId),
             JSON.stringify(prefs),
           ),
         ]);

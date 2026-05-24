@@ -9,11 +9,12 @@ import React, {
 } from 'react';
 import {
   clearSession,
-  loadUser,
+  patchStoredUser,
   saveSession,
   type StoredUser,
 } from '../lib/auth-storage';
 import { ensureFreshAccessToken, postAuthJson } from '../lib/api-client';
+import type { UserProfileDto } from '../lib/types/api';
 import { getJwtPayload } from '../lib/jwt-utils';
 import { registerDevicePushTokenWithServer } from '../lib/register-fcm-token';
 
@@ -28,6 +29,8 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   /** refresh 실패 등 — 저장소 비우고 로그인 화면으로 */
   onSessionInvalidated: () => Promise<void>;
+  /** 프로필 수정 후 context·AsyncStorage 동기화 */
+  applyProfile: (profile: UserProfileDto) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -39,6 +42,16 @@ function userFromAccessToken(accessToken: string): StoredUser | null {
     id: p.sub,
     email: typeof p.email === 'string' ? p.email : '',
     nickname: '',
+    avatarUrl: null,
+  };
+}
+
+function storedUserFromProfile(profile: UserProfileDto): StoredUser {
+  return {
+    id: profile.id,
+    email: profile.email,
+    nickname: profile.nickname ?? '',
+    avatarUrl: profile.avatarUrl ?? null,
   };
 }
 
@@ -65,7 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           null;
         setUser(
           u
-            ? { id: u.id, email: u.email || '(이메일 없음)', nickname: u.nickname || '' }
+            ? {
+                id: u.id,
+                email: u.email || '(이메일 없음)',
+                nickname: u.nickname || '',
+                avatarUrl: u.avatarUrl ?? null,
+              }
             : null,
         );
         void registerDevicePushTokenWithServer();
@@ -80,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const data = await postAuthJson('/auth/login', { email, password });
-    const u: StoredUser = { id: data.user.id, email: data.user.email, nickname: data.user.nickname ?? '' };
+    const u = storedUserFromProfile(data.user);
     await saveSession({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: u });
     setHasValidSession(true);
     setUser(u);
@@ -89,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (email: string, password: string, nickname: string, verificationCode: string) => {
     const data = await postAuthJson('/auth/register', { email, password, nickname, verificationCode });
-    const u: StoredUser = { id: data.user.id, email: data.user.email, nickname: data.user.nickname ?? '' };
+    const u = storedUserFromProfile(data.user);
     await saveSession({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: u });
     setHasValidSession(true);
     setUser(u);
@@ -108,6 +126,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const applyProfile = useCallback(async (profile: UserProfileDto) => {
+    const u = storedUserFromProfile(profile);
+    await patchStoredUser(u);
+    setUser(u);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       isHydrated,
@@ -117,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       onSessionInvalidated,
+      applyProfile,
     }),
     [
       isHydrated,
@@ -126,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       onSessionInvalidated,
+      applyProfile,
     ],
   );
 

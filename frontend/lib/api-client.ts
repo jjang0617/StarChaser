@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from './config';
 import {
   clearSession,
+  clearUserScopedStorage,
   loadTokens,
   loadUser,
   setAccessToken,
@@ -10,6 +11,7 @@ import type {
   AuthTokensResponseDto,
   RefreshAccessResponseDto,
   StarIndexResponseDto,
+  UserProfileDto,
   WeeklyTop3ItemDto,
 } from './types/api';
 import { isAccessTokenExpired } from './jwt-utils';
@@ -208,6 +210,193 @@ export async function authorizedPutJson<T>(
     );
   }
   return body as T;
+}
+
+/** Bearer가 필요한 PATCH JSON */
+export async function authorizedPatchJson<T>(
+  path: string,
+  payload: unknown,
+): Promise<T> {
+  const { accessToken, refreshToken } = await loadTokens();
+  if (!accessToken || !refreshToken) {
+    throw new SessionExpiredError();
+  }
+
+  const doFetch = (token: string) =>
+    fetch(`${getApiBaseUrl()}${path}`, {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+  let res = await doFetch(accessToken);
+  if (res.status === 401) {
+    try {
+      const next = await requestAccessRefresh(refreshToken);
+      await setAccessToken(next);
+      res = await doFetch(next);
+    } catch {
+      await clearSession();
+      throw new SessionExpiredError();
+    }
+  }
+
+  const body = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiRequestError(
+      messageFromErrorBody(body, `요청 실패 (${res.status})`),
+      res.status,
+      body,
+    );
+  }
+  return body as T;
+}
+
+/** Bearer가 필요한 DELETE (선택적 JSON body) */
+export async function authorizedDeleteJson<T>(
+  path: string,
+  payload?: unknown,
+): Promise<T> {
+  const { accessToken, refreshToken } = await loadTokens();
+  if (!accessToken || !refreshToken) {
+    throw new SessionExpiredError();
+  }
+
+  const doFetch = (token: string) => {
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+    const init: RequestInit = { method: 'DELETE', headers };
+    if (payload !== undefined) {
+      headers['Content-Type'] = 'application/json';
+      init.body = JSON.stringify(payload);
+    }
+    return fetch(`${getApiBaseUrl()}${path}`, init);
+  };
+
+  let res = await doFetch(accessToken);
+  if (res.status === 401) {
+    try {
+      const next = await requestAccessRefresh(refreshToken);
+      await setAccessToken(next);
+      res = await doFetch(next);
+    } catch {
+      await clearSession();
+      throw new SessionExpiredError();
+    }
+  }
+
+  const body = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiRequestError(
+      messageFromErrorBody(body, `요청 실패 (${res.status})`),
+      res.status,
+      body,
+    );
+  }
+  return body as T;
+}
+
+export function fetchMyProfile(): Promise<UserProfileDto> {
+  return authorizedGetJson<UserProfileDto>('/users/me');
+}
+
+export function updateMyProfile(payload: { nickname: string }): Promise<UserProfileDto> {
+  return authorizedPatchJson<UserProfileDto>('/users/me', payload);
+}
+
+export async function uploadMyAvatar(
+  localUri: string,
+  mimeType: string,
+): Promise<UserProfileDto> {
+  const { accessToken, refreshToken } = await loadTokens();
+  if (!accessToken || !refreshToken) {
+    throw new SessionExpiredError();
+  }
+
+  const ext =
+    mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const form = new FormData();
+  form.append('file', {
+    uri: localUri,
+    name: `avatar.${ext}`,
+    type: mimeType,
+  } as unknown as Blob);
+
+  const doFetch = (token: string) =>
+    fetch(`${getApiBaseUrl()}/users/me/avatar`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+
+  let res = await doFetch(accessToken);
+  if (res.status === 401) {
+    try {
+      const next = await requestAccessRefresh(refreshToken);
+      await setAccessToken(next);
+      res = await doFetch(next);
+    } catch {
+      await clearSession();
+      throw new SessionExpiredError();
+    }
+  }
+
+  const body = await parseJsonSafe(res);
+  if (!res.ok) {
+    throw new ApiRequestError(
+      messageFromErrorBody(body, '프로필 사진 업로드에 실패했습니다.'),
+      res.status,
+      body,
+    );
+  }
+  return body as UserProfileDto;
+}
+
+export function deleteMyAvatar(): Promise<UserProfileDto> {
+  return authorizedDeleteJson<UserProfileDto>('/users/me/avatar');
+}
+
+export function changeMyPassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ message: string }> {
+  return authorizedPostJson<{ message: string }>('/users/me/password', {
+    currentPassword,
+    newPassword,
+  });
+}
+
+/** 회원 탈퇴 — 성공 시 로컬 사용자 캐시·세션 정리 */
+export async function deleteMyAccount(
+  currentPassword: string,
+): Promise<{ message: string }> {
+  const user = await loadUser();
+  let result: { message: string };
+  try {
+    result = await authorizedDeleteJson<{ message: string }>('/users/me', {
+      currentPassword,
+    });
+  } catch (e) {
+    if (e instanceof ApiRequestError) {
+      throw new ApiRequestError(
+        messageFromErrorBody(e.body, '회원 탈퇴에 실패했습니다.'),
+        e.status,
+        e.body,
+      );
+    }
+    throw e;
+  }
+  if (user?.id) {
+    await clearUserScopedStorage(user.id);
+  }
+  await clearSession();
+  return result;
 }
 
 export async function postAuthJson(

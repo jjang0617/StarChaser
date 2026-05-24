@@ -177,7 +177,12 @@ export class AuthService {
     this.logger.log(`회원가입 완료: ${saved.email}`);
 
     return {
-      user: { id: saved.id, email: saved.email, nickname: saved.nickname },
+      user: {
+        id: saved.id,
+        email: saved.email,
+        nickname: saved.nickname,
+        avatarUrl: saved.avatarUrl,
+      },
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     };
@@ -235,7 +240,12 @@ export class AuthService {
     this.logger.log(`로그인 성공: ${user.email}`);
 
     return {
-      user: { id: user.id, email: user.email, nickname: user.nickname },
+      user: {
+        id: user.id,
+        email: user.email,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl,
+      },
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     };

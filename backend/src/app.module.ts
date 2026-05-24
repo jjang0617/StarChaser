@@ -17,6 +17,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { CorrectionsModule } from './corrections/corrections.module';
 import { ViirsModule } from './viirs/viirs.module';
 import { WeeklyTop3Module } from './weekly-top3/weekly-top3.module';
+import { UsersModule } from './users/users.module';
 import { KakaoPageController } from './kakao-page.controller';
 
 @Module({
@@ -72,6 +73,7 @@ import { KakaoPageController } from './kakao-page.controller';
     CorrectionsModule,
     ViirsModule,
     WeeklyTop3Module,
+    UsersModule,
   ],
   controllers: [AppController, KakaoPageController],
   providers: [AppService],
