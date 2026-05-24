@@ -35,3 +35,11 @@ export function spotNameWithoutRegionPrefix(full: string): string {
   if (parts.length === 2) return parts[1];
   return parts.slice(2).join(' ') || full.trim();
 }
+
+/** 카드 부제: "경기 양평" 등 시·도 + 시·군·구 1토큰 */
+export function spotRegionSubtitle(full: string): string {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2 || !isProvinceToken(parts[0])) return '';
+  if (parts.length === 2) return parts[0];
+  return `${parts[0]} ${parts[1]}`;
+}

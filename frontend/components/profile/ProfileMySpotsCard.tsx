@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 
+import { spacing } from '../../themes/design-tokens';
 import { useAuth } from '../../contexts/auth-context';
 import { spotNameWithoutRegionPrefix } from '../../lib/spot-display-name';
 import {
@@ -19,7 +20,8 @@ import { fetchSpotsAll } from '../../lib/spots-api';
 import type { SpotDto } from '../../lib/types/api';
 import { useTheme } from '../../themes/ThemeContext';
 import type { ThemeTokens } from '../../themes/themes';
-import { Card } from '../ui';
+import { GlassCard } from '../ui/GlassCard';
+import { ProfileSettingIcon } from './ProfileSettingIcon';
 
 const RECENT_SHOW = 5;
 const TOP_SHOW = 3;
@@ -102,49 +104,47 @@ export function ProfileMySpotsCard({
   if (!userId) return null;
 
   return (
-    <Card>
-      <Text style={[styles.sectionTitle, { color: theme.foreground }]}>내 명소</Text>
-      <Text style={[styles.sectionDesc, { color: theme.mutedForeground }]}>
-        지도에서 명소 상세를 열면 최근·자주 본 목록에 반영됩니다.
-      </Text>
-
+    <GlassCard padding={8}>
       {loading ? (
-        <ActivityIndicator color={theme.starGold} style={{ marginVertical: 16 }} />
+        <ActivityIndicator color={theme.primaryGlow} style={styles.loader} />
       ) : (
-        <View style={{ gap: 16 }}>
-          {sections.map((sec) => (
-            <View key={sec.title} style={{ gap: 8 }}>
-              <Text style={[styles.subTitle, { color: theme.foreground }]}>{sec.title}</Text>
+        <View style={styles.groups}>
+          {sections.map((sec, secIndex) => (
+            <View
+              key={sec.title}
+              style={
+                secIndex > 0
+                  ? [styles.groupAfter, { borderTopColor: theme.borderSubtle }]
+                  : undefined
+              }
+            >
+              <Text style={[styles.groupTitle, { color: theme.foreground }]}>{sec.title}</Text>
               {sec.items.length === 0 ? (
                 <Text style={[styles.empty, { color: theme.mutedForeground }]}>{sec.empty}</Text>
               ) : (
-                <View style={[styles.list, { borderColor: theme.border }]}>
-                  {sec.items.map((item, i) => (
-                    <SpotRow
-                      key={`${sec.title}-${item.spotId}`}
-                      theme={theme}
-                      label={label(item.spotId)}
-                      meta={item.meta}
-                      isLast={i === sec.items.length - 1}
-                      onPress={() => onOpenSpotDetail(item.spotId)}
-                      onRemove={
-                        item.removable
-                          ? () => {
-                              void toggleSpotBookmark(userId, item.spotId).then(() =>
-                                reload(),
-                              );
-                            }
-                          : undefined
-                      }
-                    />
-                  ))}
-                </View>
+                sec.items.map((item, i) => (
+                  <SpotRow
+                    key={`${sec.title}-${item.spotId}`}
+                    theme={theme}
+                    label={label(item.spotId)}
+                    meta={item.meta}
+                    isLast={i === sec.items.length - 1}
+                    onPress={() => onOpenSpotDetail(item.spotId)}
+                    onRemove={
+                      item.removable
+                        ? () => {
+                            void toggleSpotBookmark(userId, item.spotId).then(() => reload());
+                          }
+                        : undefined
+                    }
+                  />
+                ))
               )}
             </View>
           ))}
         </View>
       )}
-    </Card>
+    </GlassCard>
   );
 }
 
@@ -166,52 +166,96 @@ function SpotRow({
   return (
     <View
       style={[
-        styles.row,
+        styles.rowWrap,
         !isLast && {
           borderBottomWidth: StyleSheet.hairlineWidth,
-          borderBottomColor: theme.border,
+          borderBottomColor: theme.borderSubtle,
         },
       ]}
     >
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => [styles.rowPress, { opacity: pressed ? 0.8 : 1 }]}
+        style={({ pressed }) => [styles.row, { opacity: pressed ? 0.88 : 1 }]}
+        accessibilityRole="button"
       >
-        <Text style={[styles.rowLabel, { color: theme.foreground }]} numberOfLines={2}>
-          {label}
-        </Text>
-        {meta ? (
-          <Text style={[styles.rowMeta, { color: theme.mutedForeground }]}>{meta}</Text>
+        <View
+          style={[
+            styles.iconCircle,
+            { backgroundColor: theme.primaryGlowMuted, borderColor: theme.primaryGlowBorder },
+          ]}
+        >
+          <ProfileSettingIcon name="map-pin" color={theme.primaryGlow} size={16} />
+        </View>
+        <View style={styles.rowText}>
+          <Text style={[styles.rowTitle, { color: theme.foreground }]} numberOfLines={2}>
+            {label}
+          </Text>
+          {meta ? (
+            <Text style={[styles.rowSub, { color: theme.mutedForeground }]}>{meta}</Text>
+          ) : null}
+        </View>
+        {!onRemove ? (
+          <ProfileSettingIcon name="chevron-right" color={theme.mutedForeground} size={18} />
         ) : null}
       </Pressable>
       {onRemove ? (
-        <Pressable onPress={onRemove} hitSlop={8} accessibilityLabel="저장 해제">
-          <Text style={{ color: theme.mutedForeground, fontSize: 18 }}>×</Text>
+        <Pressable
+          onPress={onRemove}
+          hitSlop={8}
+          accessibilityLabel="저장 해제"
+          style={styles.removeBtn}
+        >
+          <Text style={{ color: theme.mutedForeground, fontSize: 18, lineHeight: 20 }}>×</Text>
         </Pressable>
-      ) : (
-        <Text style={[styles.chevron, { color: theme.mutedForeground }]}>›</Text>
-      )}
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  sectionDesc: { fontSize: 12, lineHeight: 17, marginBottom: 14 },
-  subTitle: { fontSize: 14, fontWeight: '600' },
-  empty: { fontSize: 12, lineHeight: 17 },
-  list: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  rowPress: {
+  loader: { marginVertical: spacing.lg },
+  groups: { gap: spacing.md },
+  groupAfter: {
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  groupTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.sm,
+  },
+  empty: {
+    fontSize: 12,
+    lineHeight: 17,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
+  rowWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  row: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    gap: spacing.md,
     paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.sm,
   },
-  rowLabel: { flex: 1, fontSize: 14, fontWeight: '500' },
-  rowMeta: { fontSize: 12 },
-  chevron: { fontSize: 18, paddingHorizontal: 10 },
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowText: { flex: 1, minWidth: 0 },
+  rowTitle: { fontSize: 14, fontWeight: '600' },
+  rowSub: { fontSize: 12, marginTop: 2, lineHeight: 16 },
+  removeBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+  },
 });

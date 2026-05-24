@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PRIVACY_POLICY, TERMS_OF_SERVICE } from '../../content/legal-documents';
+import { spacing } from '../../themes/design-tokens';
 import { getAppVersionLabel, getAppVersionSubLabel } from '../../lib/app-info';
 import { useTheme } from '../../themes/ThemeContext';
 import type { ThemeTokens } from '../../themes/themes';
-import { Card } from '../ui';
+import { GlassCard } from '../ui/GlassCard';
 import { LegalDocumentModal } from './LegalDocumentModal';
+import { ProfileSettingIcon, type ProfileSettingIconName } from './ProfileSettingIcon';
 
 type LegalKind = 'terms' | 'privacy';
 
@@ -19,36 +21,30 @@ export function ProfileAppInfoCard() {
 
   return (
     <>
-      <Card>
-        <Text style={[styles.sectionTitle, { color: theme.foreground }]}>앱 정보</Text>
-        <Text style={[styles.sectionDesc, { color: theme.mutedForeground }]}>
-          버전 확인 및 약관·개인정보 안내
-        </Text>
-
-        <View style={[styles.versionRow, { borderColor: theme.border }]}>
-          <Text style={[styles.versionLabel, { color: theme.foreground }]}>버전</Text>
-          <View style={styles.versionValueCol}>
-            <Text style={[styles.versionValue, { color: theme.foreground }]}>
-              {versionLabel}
-            </Text>
-            {versionSub ? (
-              <Text style={[styles.versionSub, { color: theme.mutedForeground }]}>
-                {versionSub}
-              </Text>
-            ) : null}
-          </View>
-        </View>
-
-        <View style={[styles.list, { borderColor: theme.border }]}>
-          <LinkRow label="이용약관" theme={theme} onPress={() => setLegalOpen('terms')} />
-          <LinkRow
-            label="개인정보 처리방침"
-            theme={theme}
-            onPress={() => setLegalOpen('privacy')}
-            isLast
-          />
-        </View>
-      </Card>
+      <GlassCard padding={8}>
+        <InfoRow
+          theme={theme}
+          icon="info"
+          title="버전"
+          subtitle={versionSub || 'StarChaser'}
+          trailingText={versionLabel}
+        />
+        <InfoRow
+          theme={theme}
+          icon="file-text"
+          title="이용약관"
+          chevron
+          onPress={() => setLegalOpen('terms')}
+        />
+        <InfoRow
+          theme={theme}
+          icon="shield"
+          title="개인정보 처리방침"
+          chevron
+          onPress={() => setLegalOpen('privacy')}
+          isLast
+        />
+      </GlassCard>
 
       <LegalDocumentModal
         visible={legalOpen === 'terms'}
@@ -66,90 +62,94 @@ export function ProfileAppInfoCard() {
   );
 }
 
-function LinkRow({
-  label,
+function InfoRow({
   theme,
+  icon,
+  title,
+  subtitle,
+  trailingText,
+  chevron,
   onPress,
   isLast,
 }: {
-  label: string;
   theme: ThemeTokens;
-  onPress: () => void;
+  icon: ProfileSettingIconName;
+  title: string;
+  subtitle?: string;
+  trailingText?: string;
+  chevron?: boolean;
+  onPress?: () => void;
   isLast?: boolean;
 }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.linkRow,
-        !isLast && {
-          borderBottomWidth: StyleSheet.hairlineWidth,
-          borderBottomColor: theme.border,
-        },
-        { opacity: pressed ? 0.75 : 1 },
-      ]}
-      accessibilityRole="button"
-    >
-      <Text style={[styles.linkLabel, { color: theme.foreground }]}>{label}</Text>
-      <Text style={[styles.chevron, { color: theme.mutedForeground }]}>›</Text>
-    </Pressable>
+  const inner = (
+    <>
+      <View
+        style={[
+          styles.iconCircle,
+          { backgroundColor: theme.primaryGlowMuted, borderColor: theme.primaryGlowBorder },
+        ]}
+      >
+        <ProfileSettingIcon name={icon} color={theme.primaryGlow} size={16} />
+      </View>
+      <View style={styles.rowText}>
+        <Text style={[styles.rowTitle, { color: theme.foreground }]}>{title}</Text>
+        {subtitle ? (
+          <Text style={[styles.rowSub, { color: theme.mutedForeground }]}>{subtitle}</Text>
+        ) : null}
+      </View>
+      {trailingText ? (
+        <Text style={[styles.trailing, { color: theme.foreground }]}>{trailingText}</Text>
+      ) : chevron ? (
+        <ProfileSettingIcon name="chevron-right" color={theme.mutedForeground} size={18} />
+      ) : null}
+    </>
   );
+
+  const rowStyle = [
+    styles.row,
+    !isLast && {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.borderSubtle,
+    },
+  ];
+
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [...rowStyle, { opacity: pressed ? 0.88 : 1 }]}
+        accessibilityRole="button"
+      >
+        {inner}
+      </Pressable>
+    );
+  }
+
+  return <View style={rowStyle}>{inner}</View>;
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-    marginBottom: 4,
-  },
-  sectionDesc: {
-    fontSize: 12,
-    lineHeight: 17,
-    marginBottom: 14,
-  },
-  versionRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-    gap: 12,
-  },
-  versionLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    paddingTop: 1,
-  },
-  versionValueCol: {
-    flex: 1,
-    alignItems: 'flex-end',
-    gap: 2,
-  },
-  versionValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    fontFamily: 'SpaceMono-Regular',
-  },
-  versionSub: {
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  list: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  linkRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 12,
+    gap: spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.sm,
   },
-  linkLabel: { fontSize: 15, fontWeight: '500' },
-  chevron: { fontSize: 20, lineHeight: 22 },
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowText: { flex: 1, minWidth: 0 },
+  rowTitle: { fontSize: 14, fontWeight: '600' },
+  rowSub: { fontSize: 12, marginTop: 2, lineHeight: 16 },
+  trailing: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
 });

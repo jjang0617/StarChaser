@@ -30,10 +30,13 @@ import Svg, {
   Stop,
   Text as SvgText,
 } from 'react-native-svg';
+import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 import type { WeeklyTop3ItemDto } from '../../lib/types/api';
 import { spotNameWithoutRegionPrefix } from '../../lib/spot-display-name';
 import { Button, Card } from '../ui';
+import { GlassCard } from '../ui/GlassCard';
+import { SkyTop3Panel } from './SkyTop3Panel';
 import {
   ApiRequestError,
   fetchConstellationLines,
@@ -839,101 +842,22 @@ export function SkyTabScreen({
   const win = Dimensions.get('window');
   const stageW = skyStage.w > 0 ? skyStage.w : win.width;
   const stageH = skyStage.h > 0 ? skyStage.h : win.height;
-  const top3MaxWidth = Math.min(142, stageW * 0.42);
-  const controlsMaxW = Math.min(188, Math.max(136, stageW - top3MaxWidth - 44));
+  /** Screen SafeAreaView 안이므로 insets.top 중복 적용하지 않음 */
+  const skyOverlayTop = spacing.xs;
+  /** Figma 컴팩트 폭 — 2줄 레이아웃으로 긴 명소명은 말줄임 */
+  const top3MaxWidth = Math.min(148, Math.max(132, stageW * 0.36));
+  const controlsMaxW = Math.min(168, Math.max(120, stageW - top3MaxWidth - 24));
 
   const top3Floating = (
-    <View
-      style={[
-        styles.top3FloatWrap,
-        {
-          top: Math.max(insets.top, 6) + 4,
-          right: 10,
-        },
-      ]}
-      pointerEvents="box-none"
-    >
-      <View
-        style={[
-          styles.top3FloatCard,
-          {
-            borderColor: theme.borderSubtle,
-            maxWidth: top3MaxWidth,
-          },
-        ]}
-        accessibilityLabel="주간 Star-Index 상위 명소"
-      >
-        <Text style={[styles.top3FloatLabel, { color: theme.mutedForeground }]}>주간 TOP3</Text>
-        {top3Loading ? (
-          <Text style={{ color: theme.mutedForeground, fontSize: 10, marginTop: 6 }}>불러오는 중…</Text>
-        ) : top3Error ? (
-          <Text style={{ color: theme.destructive, fontSize: 9, marginTop: 6 }} numberOfLines={3}>
-            {top3Error}
-          </Text>
-        ) : top3Items == null ? (
-          <Text style={{ color: theme.mutedForeground, fontSize: 10, marginTop: 6 }}>준비 중</Text>
-        ) : top3Items.length === 0 ? (
-          <Text style={{ color: theme.mutedForeground, fontSize: 10, marginTop: 6 }}>데이터 없음</Text>
-        ) : (
-          top3Items.map((item) => {
-            const selected = selectedSpotId === item.spotId;
-            const displayName = spotNameWithoutRegionPrefix(item.spotName);
-            const topSi = getStarIndexScoreDisplay(item.avgStarIndex);
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => onSelectTop3Spot(item.spotId)}
-                style={({ pressed }) => ({
-                  marginTop: 8,
-                  paddingVertical: 6,
-                  paddingHorizontal: 2,
-                  opacity: pressed ? 0.88 : 1,
-                  borderLeftWidth: 2,
-                  borderLeftColor: selected ? theme.starGold : 'transparent',
-                  paddingLeft: 6,
-                })}
-              >
-                <View style={styles.top3RowHead}>
-                  <Text
-                    style={[
-                      styles.top3Rank,
-                      {
-                        color:
-                          item.rank === 1
-                            ? theme.starGold
-                            : item.rank === 2
-                              ? theme.mutedForeground
-                              : theme.mutedForeground,
-                      },
-                    ]}
-                  >
-                    {item.rank}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.top3Score,
-                      {
-                        color: topSi.measurable ? theme.starGold : theme.destructive,
-                        fontSize: topSi.measurable ? undefined : 11,
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {topSi.label}
-                  </Text>
-                </View>
-                <Text
-                  style={[styles.top3Name, { color: theme.foreground }]}
-                  numberOfLines={2}
-                >
-                  {displayName}
-                </Text>
-              </Pressable>
-            );
-          })
-        )}
-      </View>
-    </View>
+    <SkyTop3Panel
+      top={skyOverlayTop}
+      maxWidth={top3MaxWidth}
+      top3Loading={top3Loading}
+      top3Error={top3Error}
+      top3Items={top3Items}
+      selectedSpotId={selectedSpotId}
+      onSelectTop3Spot={onSelectTop3Spot}
+    />
   );
 
   const skySvg = data ? (
@@ -1182,14 +1106,14 @@ export function SkyTabScreen({
           style={[
             styles.controlsFloat,
             {
-              top: Math.max(insets.top, 6) + 4,
-              left: 8,
+              top: skyOverlayTop,
+              left: spacing.sm,
               maxWidth: controlsMaxW,
             },
           ]}
           pointerEvents="auto"
         >
-        <View style={[styles.controlsFloatInner, { borderColor: theme.borderSubtle }]}>
+        <GlassCard glow padding={10} style={styles.controlsFloatInner}>
           <Pressable
             onPress={() => persistControlsExpanded(!controlsExpanded)}
             style={({ pressed }) => [
@@ -1438,7 +1362,7 @@ export function SkyTabScreen({
               ) : null}
             </>
           )}
-        </View>
+        </GlassCard>
         </View>
         <Text
           pointerEvents="none"
@@ -1719,10 +1643,10 @@ const styles = StyleSheet.create({
   skyViewportFill: {
     flex: 1,
     minHeight: 0,
-    marginHorizontal: 3,
-    marginVertical: 3,
+    marginHorizontal: 0,
+    marginVertical: 0,
     overflow: 'hidden',
-    borderRadius: 10,
+    borderRadius: 0,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -1787,11 +1711,7 @@ const styles = StyleSheet.create({
     left: 0,
   },
   controlsFloatInner: {
-    backgroundColor: 'rgba(6, 8, 14, 0.55)',
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderWidth: StyleSheet.hairlineWidth,
+    maxWidth: '100%',
   },
   controlsHeaderRow: {
     flexDirection: 'row',

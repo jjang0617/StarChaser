@@ -1,15 +1,18 @@
 /**
- * 온보딩: 알림 종류 선택.
- * 완료 시 AsyncStorage + PUT /notifications/preferences → ME 탭과 서버 동기화.
+ * 온보딩: 알림 종류 선택 (Figma OnboardingScreen 레이아웃)
  */
 import React, { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { Button, Card, Screen } from '../ui';
+import { spacing, typography } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 import { authorizedPutJson } from '../../lib/api-client';
 import { notificationPrefsKey, onboardingCompletedKey } from '../../lib/auth-storage';
+import { AppToggle } from '../ui/AppToggle';
+import { GlassCard } from '../ui/GlassCard';
+import { Screen } from '../ui/Screen';
 
 type NotificationPrefs = {
   starIndex70: boolean;
@@ -19,21 +22,25 @@ type NotificationPrefs = {
 
 const NOTIF_ITEMS: Array<{
   key: keyof NotificationPrefs;
+  icon: string;
   title: string;
   desc: string;
 }> = [
   {
     key: 'starIndex70',
+    icon: '★',
     title: '오늘 밤, 볼 만한 날만',
     desc: '별 보기 좋은 날(점수가 70 넘을 때)에만 살짝 알려줄게요.',
   },
   {
     key: 'meteorEvents',
+    icon: '🔔',
     title: '하늘 이벤트 소식',
     desc: '유성우, 월식 같은 특별한 날 + ISS 지나갈 때도 알려드려요.',
   },
   {
     key: 'weeklyTop3',
+    icon: '📍',
     title: '이번 주 가볼 만한 곳',
     desc: '매주 월요일 아침 7시, 이번 주 추천 명소 세 곳만 정리해서 보내요.',
   },
@@ -47,6 +54,7 @@ export function OnboardingFlow({
   userId: string;
 }) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>({
     starIndex70: true,
@@ -100,137 +108,129 @@ export function OnboardingFlow({
   }, [finishOnboarding]);
 
   return (
-    <Screen noPadding={false}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.top}>
-          <Text style={[styles.title, { color: theme.foreground }]}>알림 설정</Text>
+    <Screen noPadding>
+      <View
+        style={[
+          styles.flex,
+          {
+            paddingTop: Math.max(insets.top, 12) + spacing.lg,
+            paddingBottom: Math.max(insets.bottom, 16) + spacing.md,
+          },
+        ]}
+      >
+        <View style={styles.header}>
+          <Text style={[styles.title, typography.h1, { color: theme.foreground }]}>
+            알림 설정
+          </Text>
           <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>
             마이페이지(ME)에서 언제든 바꿀 수 있어요.
           </Text>
         </View>
 
-        <Card>
-          <View style={styles.cardInner}>
-            <View style={styles.toggleList}>
-              {NOTIF_ITEMS.map(item => {
-                const enabled = notifPrefs[item.key];
-                return (
-                  <Pressable
-                    key={item.key}
-                    onPress={() =>
-                      setNotifPrefs(prev => ({ ...prev, [item.key]: !prev[item.key] }))
-                    }
-                    style={({ pressed }) => [
-                      styles.toggleRow,
+        <ScrollView
+          style={styles.listScroll}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {NOTIF_ITEMS.map((item) => {
+            const enabled = notifPrefs[item.key];
+            return (
+              <GlassCard key={item.key} padding={16} style={styles.notifCard}>
+                <View style={styles.notifRow}>
+                  <View
+                    style={[
+                      styles.iconWrap,
                       {
-                        borderColor: enabled ? theme.ring : theme.border,
-                        backgroundColor: enabled ? theme.input : 'transparent',
-                        opacity: pressed ? 0.92 : 1,
+                        backgroundColor: theme.primaryGlowMuted,
+                        borderColor: theme.primaryGlowBorder,
                       },
                     ]}
                   >
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={[styles.toggleTitle, { color: theme.foreground }]}>
-                        {item.title}
-                      </Text>
-                      <Text style={[styles.toggleDesc, { color: theme.mutedForeground }]}>
-                        {item.desc}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.toggleMark,
-                        {
-                          borderColor: enabled ? theme.starGold : theme.border,
-                          backgroundColor: enabled ? theme.starGold : 'transparent',
-                        },
-                      ]}
-                    />
-                  </Pressable>
-                );
-              })}
-            </View>
+                    <Text style={{ fontSize: 18, color: theme.primaryGlow }}>{item.icon}</Text>
+                  </View>
+                  <View style={styles.notifText}>
+                    <Text style={[styles.notifTitle, { color: theme.foreground }]}>
+                      {item.title}
+                    </Text>
+                    <Text style={[styles.notifDesc, { color: theme.mutedForeground }]}>
+                      {item.desc}
+                    </Text>
+                  </View>
+                  <AppToggle
+                    value={enabled}
+                    onValueChange={(v) =>
+                      setNotifPrefs((prev) => ({ ...prev, [item.key]: v }))
+                    }
+                    disabled={busy}
+                  />
+                </View>
+              </GlassCard>
+            );
+          })}
+        </ScrollView>
 
-            <View style={styles.btnRow}>
-              <View style={{ flex: 1 }}>
-                <Button
-                  label="건너뛰기"
-                  variant="outline"
-                  fullWidth
-                  size="sm"
-                  onPress={skipAllNotifications}
-                  disabled={busy}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button
-                  label="시작하기"
-                  fullWidth
-                  size="sm"
-                  onPress={() => void finishOnboarding()}
-                  disabled={busy}
-                  loading={busy}
-                />
-              </View>
-            </View>
-          </View>
-        </Card>
-      </ScrollView>
+        <View style={styles.actions}>
+          <Pressable
+            onPress={() => void finishOnboarding()}
+            disabled={busy}
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              {
+                backgroundColor: theme.primaryGlowMuted,
+                borderColor: theme.primaryGlowBorder,
+                opacity: busy ? 0.5 : pressed ? 0.9 : 1,
+              },
+            ]}
+          >
+            <Text style={[styles.primaryBtnText, { color: theme.foreground }]}>
+              {busy ? '저장 중…' : '시작하기'}
+            </Text>
+          </Pressable>
+          <Pressable onPress={skipAllNotifications} disabled={busy} hitSlop={8}>
+            <Text style={[styles.skipText, { color: theme.mutedForeground }]}>건너뛰기</Text>
+          </Pressable>
+        </View>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 20,
-    gap: 14,
-  },
-  top: {
-    gap: 8,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  subtitle: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  cardInner: {
-    gap: 12,
-  },
-  btnRow: {
+  flex: { flex: 1, paddingHorizontal: spacing.xl },
+  header: { marginBottom: spacing.lg },
+  title: { marginBottom: spacing.sm },
+  subtitle: { ...typography.bodySm, lineHeight: 20 },
+  listScroll: { flex: 1 },
+  listContent: { gap: spacing.md, paddingBottom: spacing.lg },
+  notifCard: {},
+  notifRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 6,
+    alignItems: 'flex-start',
+    gap: spacing.md,
   },
-  toggleList: {
-    gap: 10,
-    marginTop: 6,
-  },
-  toggleRow: {
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 1,
-    borderRadius: 6,
-    padding: 12,
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'center',
+    marginTop: 2,
   },
-  toggleTitle: {
-    fontSize: 13,
-    fontWeight: '600',
+  notifText: { flex: 1, minWidth: 0 },
+  notifTitle: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
+  notifDesc: { fontSize: 13, lineHeight: 19 },
+  actions: { gap: spacing.md, paddingTop: spacing.sm },
+  primaryBtn: {
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
   },
-  toggleDesc: {
-    fontSize: 11,
-    lineHeight: 14,
-  },
-  toggleMark: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
+  primaryBtnText: { fontSize: 15, fontWeight: '600' },
+  skipText: {
+    textAlign: 'center',
+    fontSize: 14,
+    paddingVertical: spacing.sm,
   },
 });

@@ -223,65 +223,93 @@
           spotMarkers.clear();
         }
 
-        function makeClusterEl(title, count) {
+        /* Figma MapMarker — `frontend/components/map/kakao-map-marker-script.ts` 와 동기화 */
+        var SC = {
+          deepNavy: 'rgba(7,17,31,0.92)',
+          glow: '#8DDCFF',
+          glowSoft: 'rgba(141,220,255,0.3)',
+          glowFill: 'rgba(141,220,255,0.95)',
+          fg: '#F8FAFC',
+          border: 'rgba(255,255,255,0.1)',
+        };
+
+        function mapPinSvg(stroke) {
+          return (
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="' +
+            stroke +
+            '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>' +
+            '<circle cx="12" cy="10" r="3"/>' +
+            '</svg>'
+          );
+        }
+
+        function starSvg(fill, stroke) {
+          return (
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="' +
+            fill +
+            '" stroke="' +
+            stroke +
+            '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>' +
+            '</svg>'
+          );
+        }
+
+        function makeClusterEl(count, active) {
           var el = document.createElement('div');
+          var isOn = !!active;
+          var bg = isOn ? SC.glowFill : SC.deepNavy;
+          var border = isOn ? 'rgba(234,246,255,0.55)' : SC.border;
+          var iconColor = isOn ? SC.deepNavy.replace('0.92', '1') : SC.glow;
+          var textColor = isOn ? SC.deepNavy.replace('0.92', '1') : SC.fg;
           el.style.cssText =
-            'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-            'min-width:52px;max-width:min(42vw,200px);padding:8px 13px;' +
-            'background:rgba(15,23,42,0.92);color:#f8fafc;border-radius:999px;' +
-            'font-size:12px;line-height:1.2;cursor:pointer;' +
-            'box-shadow:0 4px 20px rgba(0,0,0,0.22),0 0 0 1px rgba(148,163,184,0.2);' +
-            'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
-            'transform:translate(-50%,-100%);text-align:center;font-weight:600;';
-          var t = escapeHtml(title);
-          var c =
-            count > 1
-              ? '<span style="font-size:13px;font-weight:700;margin-top:3px;opacity:0.95;letter-spacing:-0.02em">' +
-                count +
-                '</span>'
-              : '';
+            'display:flex;align-items:center;gap:6px;padding:6px 12px;' +
+            'border-radius:999px;background:' +
+            bg +
+            ';border:1px solid ' +
+            border +
+            ';cursor:pointer;transform:translate(-50%,-100%);' +
+            'box-shadow:0 4px 18px rgba(0,0,0,0.32)' +
+            (isOn ? ',0 0 18px rgba(141,220,255,0.45)' : ',0 0 10px rgba(141,220,255,0.12)') +
+            ';font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
           el.innerHTML =
-            '<span style="font-size:11px;font-weight:600;opacity:0.88;line-height:1.25">' +
-            t +
-            '</span>' +
-            c;
+            mapPinSvg(iconColor) +
+            '<span style="font-size:12px;font-weight:600;color:' +
+            textColor +
+            ';letter-spacing:-0.02em">' +
+            String(count) +
+            '</span>';
           return el;
         }
 
-        function makeDotEl() {
-          var el = document.createElement('div');
-          el.style.cssText =
-            'width:12px;height:12px;border-radius:50%;' +
-            'background:linear-gradient(160deg,#93c5fd,#3b82f6);' +
-            'box-shadow:0 0 0 2px rgba(255,255,255,0.92),0 2px 10px rgba(15,23,42,0.35);cursor:pointer;' +
-            'transform:translate(-50%,-50%);';
-          return el;
-        }
-
-        /** 시트에서 연 명소 — 이름 칩 + 한 개 앵커만 (도트와 pill 이중 표시 방지) */
-        function makeFocusedSpotMarkerEl(title) {
+        function makeStarPinEl(active) {
           var wrap = document.createElement('div');
+          var isOn = !!active;
+          var bg = isOn ? SC.glow : SC.deepNavy;
+          var border = isOn ? '#EAF6FF' : 'rgba(141,220,255,0.5)';
+          var starColor = isOn ? SC.deepNavy.replace('0.92', '1') : SC.glow;
+          var shadow = isOn
+            ? '0 0 20px rgba(141,220,255,0.75)'
+            : '0 0 10px rgba(141,220,255,0.28)';
           wrap.style.cssText =
-            'display:flex;flex-direction:column;align-items:center;' +
-            'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
-            'pointer-events:auto;cursor:pointer;';
-          var card = document.createElement('div');
-          var safe = escapeHtml(title);
-          card.style.cssText =
-            'max-width:min(72vw,232px);padding:8px 13px;' +
-            'background:rgba(15,23,42,0.94);' +
-            'color:#f1f5f9;border-radius:12px;font-size:12px;font-weight:600;line-height:1.35;' +
-            'box-shadow:0 8px 28px rgba(0,0,0,0.26),0 0 0 1px rgba(148,163,184,0.22);' +
-            'text-align:center;white-space:normal;word-break:keep-all;letter-spacing:-0.02em;';
-          card.innerHTML = safe;
-          var pin = document.createElement('div');
-          pin.style.cssText =
-            'width:10px;height:10px;margin-top:5px;border-radius:50%;' +
-            'background:linear-gradient(145deg,#60a5fa,#2563eb);' +
-            'box-shadow:0 0 0 2.5px rgba(255,255,255,0.96),0 3px 10px rgba(37,99,235,0.35);';
-          wrap.appendChild(card);
-          wrap.appendChild(pin);
+            'position:relative;display:flex;align-items:center;justify-content:center;' +
+            'width:40px;height:44px;cursor:pointer;transform:translate(-50%,-100%);';
+          wrap.innerHTML =
+            '<div style="width:36px;height:36px;border-radius:50%;background:' +
+            bg +
+            ';border:1.5px solid ' +
+            border +
+            ';box-shadow:' +
+            shadow +
+            ';display:flex;align-items:center;justify-content:center;">' +
+            starSvg(starColor, starColor) +
+            '</div>';
           return wrap;
+        }
+
+        function makeFocusedSpotMarkerEl() {
+          return makeStarPinEl(true);
         }
 
         function placeOverlay(key, pos, el, onClick, placeOpts) {
@@ -347,7 +375,7 @@
             Object.keys(byRegion).forEach(function (rk) {
               var list = byRegion[rk];
               var pos = centroid(list);
-              var el = makeClusterEl(rk, list.length);
+              var el = makeClusterEl(list.length, false);
               placeOverlay('p-' + rk, pos, el, function () {
                 post({
                   type: 'CLUSTER_SPOTS',
@@ -375,11 +403,7 @@
             Object.keys(buckets).forEach(function (bk) {
               var list = buckets[bk];
               var pos = centroid(list);
-              var label =
-                list.length === 1
-                  ? (list[0].shortTitle || list[0].title || '명소').slice(0, 14)
-                  : list.length + '곳';
-              var el = makeClusterEl(label, list.length);
+              var el = makeClusterEl(list.length, false);
               placeOverlay('g-' + bk, pos, el, function () {
                 post({
                   type: 'CLUSTER_SPOTS',
@@ -396,14 +420,10 @@
           spots.forEach(function (s) {
             var pos = new kakao.maps.LatLng(s.lat, s.lng);
             var sid = String(s.id);
-            var focused =
-              mapFocusState &&
-              mapFocusState.spotId === sid &&
-              mapFocusState.label &&
-              String(mapFocusState.label).trim() !== '';
+            var focused = mapFocusState && mapFocusState.spotId === sid;
 
             if (focused) {
-              var elF = makeFocusedSpotMarkerEl(String(mapFocusState.label));
+              var elF = makeFocusedSpotMarkerEl();
               elF.addEventListener('click', function () {
                 post({ type: 'MARKER_CLICK', data: { spotId: sid } });
               });
@@ -411,11 +431,11 @@
               return;
             }
 
-            var el = makeDotEl();
+            var el = makeStarPinEl(false);
             el.addEventListener('click', function () {
               post({ type: 'MARKER_CLICK', data: { spotId: sid } });
             });
-            placeOverlay('s-' + sid, pos, el, null);
+            placeOverlay('s-' + sid, pos, el, null, { yAnchor: 1, zIndex: 8 });
           });
         }
 
@@ -476,7 +496,7 @@
           var lb = data.label != null ? String(data.label).trim() : '';
           var sidRaw = data.spotId != null ? String(data.spotId).trim() : '';
 
-          if (sidRaw && lb) {
+          if (sidRaw) {
             clearHighlightLabel();
             mapFocusState = {
               spotId: sidRaw,
@@ -487,9 +507,6 @@
           } else {
             mapFocusState = null;
             clearHighlightLabel();
-            if (lb.length > 0) {
-              showHighlightLabel(data.lat, data.lng, lb);
-            }
           }
 
           refreshSpotOverlays();
@@ -538,14 +555,16 @@
           handleMessage(e.data);
         });
 
-        if (!ensureKakao()) {
-          var el = document.getElementById('map');
-          el.innerHTML = '<div id="fallback">Kakao Maps SDK 로딩 실패</div>';
-          return;
+        function bootMap() {
+          if (!ensureKakao()) {
+            setTimeout(bootMap, 80);
+            return;
+          }
+          kakao.maps.load(function () {
+            initMap({});
+          });
         }
-        kakao.maps.load(function () {
-          initMap({});
-        });
+        bootMap();
       })();
     </script>
   </body>

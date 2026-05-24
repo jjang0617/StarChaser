@@ -1,7 +1,6 @@
 /**
  * StarChaser — Card
- * Anti-AI: Shadow 완전 없음 · Border 중심 · padding 12px 고밀도
- * StarIndexCard / SpotCard 전용 variant 포함
+ * Figma: 반투명 글래스 · card-border · rounded-xl
  */
 
 import React, { type ReactNode } from 'react';
@@ -14,12 +13,12 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { glassCardStyle, typography } from '../../themes/design-tokens';
 import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
 import { useTheme } from '../../themes/ThemeContext';
 import { Badge } from './Badge';
 import { Button } from './Button';
 
-// ── 기본 Card 래퍼 ──
 interface CardProps {
   children:  ReactNode;
   onPress?:  () => void;
@@ -32,23 +31,16 @@ export function Card({ children, onPress, style, title, description }: CardProps
   const { theme } = useTheme();
 
   const inner = (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: theme.card,
-          borderColor:     theme.border,
-          borderRadius:    theme.radius,
-          // ⚠️ elevation/shadow 없음 — Anti-AI
-        },
-        style,
-      ]}
-    >
+    <View style={[styles.card, glassCardStyle(theme), style]}>
       {title && (
-        <Text style={[styles.title, { color: theme.foreground }]}>{title}</Text>
+        <Text style={[styles.title, typography.h3, { color: theme.foreground }]}>
+          {title}
+        </Text>
       )}
       {description && (
-        <Text style={[styles.desc, { color: theme.mutedForeground }]}>{description}</Text>
+        <Text style={[styles.desc, typography.caption, { color: theme.mutedForeground }]}>
+          {description}
+        </Text>
       )}
       {(title || description) && children ? (
         <View style={styles.childrenWrap}>{children}</View>
@@ -60,31 +52,26 @@ export function Card({ children, onPress, style, title, description }: CardProps
 
   if (!onPress) return inner;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}>
+    <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.92 : 1 })}>
       {inner}
     </Pressable>
   );
 }
 
-/** 로딩/에러/정상 UI를 Card 안에서 일관되게 보여줄 때 사용 */
 export type StatefulCardError = {
   cardDescription: string;
   lines: string[];
-  /** true면 안내 톤(빨간 에러색 대신 muted) */
   isTransient?: boolean;
 };
 
 interface StatefulCardProps {
   title: string;
-  /** 로딩/에러 시 카드 상단 설명(선택). 없으면 기본 문구 사용 */
   description?: string;
   loading: boolean;
   error?: StatefulCardError | null;
   onRetry?: () => void;
   retryLabel?: string;
-  /** 성공 상태 본문 */
   children?: ReactNode;
-  /** 성공/에러 하단 액션(닫기 등) */
   footer?: ReactNode;
   style?: ViewStyle;
 }
@@ -107,30 +94,28 @@ export function StatefulCard({
     (loading ? '불러오는 중…' : error ? error.cardDescription : undefined);
 
   return (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: theme.card,
-          borderColor: theme.border,
-          borderRadius: theme.radius,
-        },
-        style,
-      ]}
-    >
-      {title ? <Text style={[styles.title, { color: theme.foreground }]}>{title}</Text> : null}
-      {desc ? <Text style={[styles.desc, { color: theme.mutedForeground }]}>{desc}</Text> : null}
+    <View style={[styles.card, glassCardStyle(theme), style]}>
+      {title ? (
+        <Text style={[styles.title, typography.h3, { color: theme.foreground }]}>
+          {title}
+        </Text>
+      ) : null}
+      {desc ? (
+        <Text style={[styles.desc, typography.caption, { color: theme.mutedForeground }]}>
+          {desc}
+        </Text>
+      ) : null}
 
       <View style={[styles.stateBody, (title || desc) && styles.stateBodyAfterHeader]}>
         {loading ? (
-          <ActivityIndicator color={theme.starGold} />
+          <ActivityIndicator color={theme.primaryGlow} />
         ) : error ? (
           <>
             {error.lines.map((line, i) => (
               <Text
                 key={i}
                 style={{
-                  color: error.isTransient ? theme.mutedForeground : theme.dimRedFg,
+                  color: error.isTransient ? theme.mutedForeground : theme.destructive,
                   fontSize: 12,
                   lineHeight: 16,
                   marginBottom: i < error.lines.length - 1 ? 8 : 0,
@@ -158,18 +143,14 @@ export function StatefulCard({
   );
 }
 
-// ── Star-Index 숫자 카드 ──
 interface StarIndexCardProps {
   score:        number;
-  cloudLabel:   string;   // 맑음·구름조금·구름많음·흐림
-  pm25Level:    string;   // 예: 12㎍/㎥·칠곡군
-  moonAltitude: number;   // 달 고도 (도) — unknown이면 표시만 생략
-  /** false면 KASI 고도 미수신 등 — MOON 칸에 미상 */
+  cloudLabel:   string;
+  pm25Level:    string;
+  moonAltitude: number;
   moonAltitudeKnown?: boolean;
   onPress?:     () => void;
-  /** true면 바깥 Card 래퍼 없이 내용만 렌더(StatefulCard 등 중첩 방지) */
   bare?: boolean;
-  /** 원형 게이지(Phase 1 홈 Star-Index) */
   showCircularGauge?: boolean;
 }
 
@@ -195,7 +176,7 @@ export function StarIndexCard({
   const scoreColor = !scoreDisplay.measurable
     ? theme.destructive
     : score >= 75
-      ? theme.starGold
+      ? theme.primaryGlow
       : theme.moonlight;
 
   const moonLabel =
@@ -213,7 +194,6 @@ export function StarIndexCard({
 
   const inner = (
     <>
-      {/* 헤더 행 — 원형 게이지 + 점수(기획서 홈 게이지 MVP) */}
       <View style={styles.siTop}>
         <View style={styles.siLeftRow}>
           {showCircularGauge ? (
@@ -265,7 +245,7 @@ export function StarIndexCard({
               !scoreDisplay.measurable
                 ? 'red'
                 : score >= 75
-                  ? 'gold'
+                  ? 'glow'
                   : 'steel'
             }
           />
@@ -275,10 +255,8 @@ export function StarIndexCard({
         </View>
       </View>
 
-      {/* 구분선 — borderSubtle */}
       <View style={[styles.divider, { backgroundColor: theme.borderSubtle }]} />
 
-      {/* 데이터 그리드 */}
       <View style={styles.dataGrid}>
         {dataItems.map((item, i) => (
           <View
@@ -303,7 +281,7 @@ export function StarIndexCard({
   if (bare) {
     if (!onPress) return inner;
     return (
-      <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}>
+      <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.92 : 1 })}>
         {inner}
       </Pressable>
     );
@@ -312,7 +290,6 @@ export function StarIndexCard({
   return <Card onPress={onPress}>{inner}</Card>;
 }
 
-// ── 명소 카드 ──
 interface SpotCardProps {
   name:        string;
   region:      string;
@@ -323,7 +300,6 @@ interface SpotCardProps {
   hasToilet:   boolean;
   distanceKm?: number;
   onPress?:    () => void;
-  /** true면 바깥 Card 래퍼 없이 내용만 렌더(StatefulCard 등 중첩 방지) */
   bare?: boolean;
 }
 
@@ -336,7 +312,7 @@ export function SpotCard({
   const scoreDisplay = getStarIndexScoreDisplay(starIndex);
 
   const bortleVariant =
-    bortleClass <= 3 ? 'gold' :
+    bortleClass <= 3 ? 'glow' :
     bortleClass <= 5 ? 'steel' : 'muted';
 
   const inner = (
@@ -353,7 +329,7 @@ export function SpotCard({
             style={[
               styles.spotScore,
               {
-                color: scoreDisplay.measurable ? theme.starGold : theme.destructive,
+                color: scoreDisplay.measurable ? theme.primaryGlow : theme.destructive,
                 fontFamily: 'SpaceMono-Regular',
                 fontSize: scoreDisplay.measurable ? 22 : 13,
                 lineHeight: scoreDisplay.measurable ? 24 : 18,
@@ -382,7 +358,7 @@ export function SpotCard({
   if (bare) {
     if (!onPress) return inner;
     return (
-      <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}>
+      <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.92 : 1 })}>
         {inner}
       </Pressable>
     );
@@ -393,17 +369,12 @@ export function SpotCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderWidth: 1,
-    padding:     12,   // 고밀도 — 큰 padding 금지
+    padding: 14,
   },
   title: {
-    fontSize:   15,
-    fontWeight: '600',
     marginBottom: 2,
   },
   desc: {
-    fontSize:   13,
-    lineHeight: 18,
     marginBottom: 4,
   },
   childrenWrap: {
@@ -420,7 +391,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Star-Index Card
   siTop: {
     flexDirection:  'row',
     justifyContent: 'space-between',
@@ -457,13 +427,11 @@ const styles = StyleSheet.create({
     marginTop:      4,
   },
 
-  // 구분선
   divider: {
     height:        1,
     marginBottom: 10,
   },
 
-  // 데이터 그리드
   dataGrid: {
     flexDirection: 'row',
   },
@@ -484,7 +452,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Spot Card
   spotTop: {
     flexDirection:  'row',
     justifyContent: 'space-between',
@@ -492,13 +459,13 @@ const styles = StyleSheet.create({
     marginBottom:    6,
   },
   spotName: {
-    fontSize:   14,
+    fontSize:   15,
     fontWeight: '600',
     marginBottom: 2,
   },
   spotRegion: {
-    fontSize:      9,
-    letterSpacing: 0.5,
+    fontSize:      11,
+    letterSpacing: 0.3,
   },
   spotScore: {
     fontSize:   22,
@@ -514,6 +481,6 @@ const styles = StyleSheet.create({
   badgeRow: {
     flexDirection: 'row',
     flexWrap:      'wrap',
-    gap:            4,
+    gap:            6,
   },
 });

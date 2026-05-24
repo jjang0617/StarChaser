@@ -127,7 +127,7 @@ export function MapSpotDetailModal({
               >
                 <Text
                   style={{
-                    color: bookmarked ? theme.starGold : theme.mutedForeground,
+                    color: bookmarked ? theme.primaryGlow : theme.mutedForeground,
                     fontSize: 20,
                     fontWeight: '600',
                   }}
@@ -137,7 +137,9 @@ export function MapSpotDetailModal({
               </Pressable>
             ) : null}
             <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button">
-              <Text style={{ color: theme.starGold, fontSize: 15, fontWeight: '600' }}>닫기</Text>
+              <Text style={{ color: theme.primaryGlow, fontSize: 15, fontWeight: '600' }}>
+                닫기
+              </Text>
             </Pressable>
           </View>
         </View>

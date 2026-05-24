@@ -1,10 +1,5 @@
 /**
- * StarChaser — BottomTab
- * Anti-AI: 상단 2px 라인 인디케이터 (Glow 없음) · Solid 배경
- * Red Mode: 이모지 → ASCII 심볼 (Blue/Green 완전 제거)
- *
- * props는 기존 구조(items/activeKey/onChange) 유지하면서
- * 아이콘 지원 추가
+ * StarChaser — BottomTab (Figma TabBar)
  */
 
 import React from 'react';
@@ -15,21 +10,23 @@ import {
   View,
   type ViewStyle,
 } from 'react-native';
+import { spacing, typography } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
+import { BottomTabIcon, type BottomTabIconName } from './BottomTabIcon';
 
 export interface BottomTabItem {
-  key:      string;
-  label:    string;
-  icon?:    string;       // 이모지 (normal/night 모드)
-  redIcon?: string;       // ASCII 심볼 (red 모드) — Blue/Green 제거용
-  hasDot?:  boolean;      // 미확인 알림 닷
+  key: string;
+  label: string;
+  icon: BottomTabIconName;
+  /** red mode 전용 텍스트 아이콘 */
+  redIcon?: string;
 }
 
 interface BottomTabProps {
-  items:     BottomTabItem[];
+  items: BottomTabItem[];
   activeKey: string;
-  onChange:  (key: string) => void;
-  style?:    ViewStyle;
+  onChange: (key: string) => void;
+  style?: ViewStyle;
 }
 
 export function BottomTab({ items, activeKey, onChange, style }: BottomTabProps) {
@@ -40,22 +37,17 @@ export function BottomTab({ items, activeKey, onChange, style }: BottomTabProps)
       style={[
         styles.bar,
         {
-          backgroundColor: theme.card,    // Solid — blur backdrop 없음
-          borderTopColor:  theme.border,
+          backgroundColor: theme.deepNavy,
+          borderTopColor: theme.cardBorder,
         },
         style,
       ]}
     >
-      {items.map(item => {
-        const isActive     = item.key === activeKey;
-        const activeColor  = theme.starGold;   // Red Mode에서도 theme.starGold = red
+      {items.map((item) => {
+        const isActive = item.key === activeKey;
+        const activeColor = theme.primaryGlow;
         const inactiveColor = theme.mutedForeground;
-        const labelColor   = isActive ? activeColor : inactiveColor;
-
-        // Red Mode: 이모지 → ASCII 심볼 (Blue/Green 계열 완전 제거)
-        const displayIcon = isRedMode
-          ? (item.redIcon ?? item.key[0].toUpperCase())
-          : (item.icon ?? '');
+        const labelColor = isActive ? activeColor : inactiveColor;
 
         return (
           <Pressable
@@ -63,52 +55,50 @@ export function BottomTab({ items, activeKey, onChange, style }: BottomTabProps)
             onPress={() => onChange(item.key)}
             style={({ pressed }) => [
               styles.tabItem,
-              { opacity: pressed ? 0.75 : 1 },
+              isActive && {
+                backgroundColor: theme.primaryGlowMuted,
+                borderRadius: 12,
+              },
+              pressed && !isActive && { opacity: 0.75 },
             ]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
+            accessibilityLabel={item.label}
           >
-            {/* 액티브 인디케이터: 상단 2px 라인 — Glow 없음 */}
-            <View
-              style={[
-                styles.indicator,
-                {
-                  backgroundColor: isActive ? activeColor : 'transparent',
-                  // ⚠️ shadow/glow 없음
-                },
-              ]}
-            />
-
-            {/* 아이콘 */}
-            {displayIcon ? (
-              <View style={{ position: 'relative' }}>
+            <View style={styles.iconWrap}>
+              {isRedMode ? (
                 <Text
                   style={[
-                    styles.icon,
-                    isRedMode && {
-                      fontFamily: 'SpaceMono-Regular',
-                      color:      labelColor,
-                    },
+                    styles.redIcon,
+                    { color: labelColor, fontFamily: 'SpaceMono-Regular' },
                   ]}
                 >
-                  {displayIcon}
+                  {item.redIcon ?? item.key[0].toUpperCase()}
                 </Text>
-
-                {/* 알림 닷 — 작고 절제 */}
-                {item.hasDot && !isActive && (
-                  <View
-                    style={[
-                      styles.dot,
-                      { backgroundColor: activeColor, borderColor: theme.background },
-                    ]}
-                  />
-                )}
-              </View>
-            ) : null}
-
-            {/* 라벨 — Space Mono */}
+              ) : (
+                <BottomTabIcon name={item.icon} color={labelColor} size={22} />
+              )}
+              {isActive && !isRedMode ? (
+                <View
+                  style={[
+                    styles.activeDot,
+                    {
+                      backgroundColor: activeColor,
+                      shadowColor: activeColor,
+                    },
+                  ]}
+                />
+              ) : null}
+            </View>
             <Text
               style={[
                 styles.label,
-                { color: labelColor },
+                typography.tab,
+                {
+                  color: labelColor,
+                  fontWeight: isActive ? '600' : '500',
+                },
+                isRedMode && { fontFamily: 'SpaceMono-Regular' },
               ]}
             >
               {item.label.toUpperCase()}
@@ -123,41 +113,46 @@ export function BottomTab({ items, activeKey, onChange, style }: BottomTabProps)
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
     borderTopWidth: 1,
-    paddingBottom:  20,   // safe area 대응
+    paddingTop: 6,
+    paddingBottom: 6,
+    paddingHorizontal: spacing.sm,
   },
   tabItem: {
-    flex:           1,
-    alignItems:     'center',
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingTop:      0,
-    paddingBottom:   2,
-    position:       'relative',
+    paddingVertical: 4,
+    paddingHorizontal: spacing.md,
+    gap: 4,
+    maxWidth: 96,
   },
-  indicator: {
-    height:       2,
-    width:        24,
-    borderRadius: 1,
-    marginBottom: 7,
-    // ⚠️ shadow 없음
+  iconWrap: {
+    position: 'relative',
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  icon: {
-    fontSize:   18,
-    lineHeight: 20,
+  redIcon: {
+    fontSize: 20,
+    lineHeight: 22,
   },
   label: {
-    fontFamily:    'SpaceMono-Regular',
-    fontSize:       8,
-    letterSpacing:  1,
-    marginTop:      3,
+    letterSpacing: 0.2,
   },
-  dot: {
-    position:     'absolute',
-    top:          -2,
-    right:        -5,
-    width:         5,
-    height:        5,
-    borderRadius:  3,
-    borderWidth:   1.5,
+  activeDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.85,
+    shadowRadius: 6,
+    elevation: 4,
   },
 });

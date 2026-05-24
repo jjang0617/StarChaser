@@ -1,16 +1,17 @@
 /**
  * StarChaser — Screen
- * 모든 화면의 기본 래퍼. ThemeProvider에서 배경색 가져옴.
+ * Figma: background #030712 · safe area
  */
 
 import React, { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 
 interface ScreenProps {
   children:    ReactNode;
-  noPadding?:  boolean;   // 지도 화면 등 full-bleed 용
+  noPadding?:  boolean;
 }
 
 export function Screen({ children, noPadding = false }: ScreenProps) {
@@ -37,8 +38,8 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex:             1,
-    paddingHorizontal: 16,
-    paddingTop:        20,
+    paddingHorizontal: spacing.lg,
+    paddingTop:        spacing.lg,
   },
   noPadding: {
     paddingHorizontal: 0,

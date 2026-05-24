@@ -8,8 +8,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { spacing, typography } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 import { useAuth } from '../../contexts/auth-context';
+import { AuthSegmentTabs } from './AuthSegmentTabs';
 import { Button, Input, Screen } from '../ui';
 import {
   ApiRequestError,
@@ -89,6 +92,7 @@ function StatusText({
 
 export function AuthScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { login, register } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
   const scrollRef = useRef<ScrollView>(null);
@@ -747,20 +751,25 @@ export function AuthScreen() {
     <Screen>
         <ScrollView
           ref={scrollRef}
-          contentContainerStyle={[styles.scroll, { paddingBottom: 48 + kbHeight }]}
+          contentContainerStyle={[
+            styles.scroll,
+            {
+              paddingTop: Math.max(insets.top, 12) + spacing.lg,
+              paddingBottom: 48 + kbHeight,
+              paddingHorizontal: spacing.xl,
+            },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.title, { color: theme.foreground }]}>
-            StarChaser
-          </Text>
-          <Text style={[styles.sub, { color: theme.mutedForeground }]}>
-            {subTitle}
-          </Text>
+          <View style={styles.brandBlock}>
+            <Text style={[styles.title, { color: theme.foreground }]}>StarChaser</Text>
+            <Text style={[styles.sub, { color: theme.mutedForeground }]}>{subTitle}</Text>
+          </View>
 
           {mode === 'resetPassword' || mode === 'findEmail' ? (
             (mode === 'resetPassword' ? !resetDone : !findEmailDone) && (
-              <Pressable onPress={() => goToLogin()} hitSlop={8}>
+              <Pressable onPress={() => goToLogin()} hitSlop={8} style={styles.backWrap}>
                 <Text style={[styles.backLink, { color: theme.mutedForeground }]}>
                   ← 로그인으로 돌아가기
                 </Text>
@@ -768,22 +777,15 @@ export function AuthScreen() {
             )
           ) : (
             <View style={styles.tabRow}>
-              <Button
-                label="로그인"
-                variant={mode === 'login' ? 'primary' : 'outline'}
-                size="sm"
-                onPress={() => {
+              <AuthSegmentTabs
+                active={mode === 'register' ? 'register' : 'login'}
+                onLogin={() => {
                   setMode('login');
                   setLoginError(null);
                   setLoginEmailError(null);
                   setLoginPasswordError(null);
                 }}
-              />
-              <Button
-                label="회원가입"
-                variant={mode === 'register' ? 'primary' : 'outline'}
-                size="sm"
-                onPress={() => {
+                onRegister={() => {
                   setMode('register');
                   resetRegisterForm();
                 }}
@@ -875,7 +877,7 @@ export function AuthScreen() {
                   <Text style={[styles.doneText, { color: theme.foreground }]}>
                     가입 시 사용한 로그인 이메일입니다.
                   </Text>
-                  <Text style={[styles.maskedEmail, { color: theme.starGold }]}>
+                  <Text style={[styles.maskedEmail, { color: theme.primaryGlow }]}>
                     {findMaskedEmail}
                   </Text>
                   <Button
@@ -956,7 +958,7 @@ export function AuthScreen() {
                     <StatusText
                       status={resetEmailStatus}
                       message={resetEmailMsg}
-                      successColor={theme.starGold}
+                      successColor={theme.primaryGlow}
                       errorColor={theme.dimRedFg}
                     />
                   )}
@@ -1011,7 +1013,7 @@ export function AuthScreen() {
                     <StatusText
                       status={resetCodeStatus}
                       message={resetCodeMsg}
-                      successColor={theme.starGold}
+                      successColor={theme.primaryGlow}
                       errorColor={theme.dimRedFg}
                     />
                   )}
@@ -1053,7 +1055,7 @@ export function AuthScreen() {
                     <StatusText
                       status={resetConfirmStatus}
                       message={resetConfirmMsg}
-                      successColor={theme.starGold}
+                      successColor={theme.primaryGlow}
                       errorColor={theme.dimRedFg}
                     />
                   )}
@@ -1093,7 +1095,7 @@ export function AuthScreen() {
                 <StatusText
                   status={regEmailStatus}
                   message={regEmailMsg}
-                  successColor={theme.starGold}
+                  successColor={theme.primaryGlow}
                   errorColor={theme.dimRedFg}
                 />
               )}
@@ -1145,7 +1147,7 @@ export function AuthScreen() {
                 <StatusText
                   status={codeStatus}
                   message={codeMsg}
-                  successColor={theme.starGold}
+                  successColor={theme.primaryGlow}
                   errorColor={theme.dimRedFg}
                 />
               )}
@@ -1188,7 +1190,7 @@ export function AuthScreen() {
                 <StatusText
                   status={confirmStatus}
                   message={confirmMsg}
-                  successColor={theme.starGold}
+                  successColor={theme.primaryGlow}
                   errorColor={theme.dimRedFg}
                 />
               )}
@@ -1210,7 +1212,7 @@ export function AuthScreen() {
                 <StatusText
                   status={nicknameStatus}
                   message={nicknameMsg}
-                  successColor={theme.starGold}
+                  successColor={theme.primaryGlow}
                   errorColor={theme.dimRedFg}
                 />
               )}
@@ -1229,10 +1231,6 @@ export function AuthScreen() {
               />
             </View>
           )}
-
-          <Text style={[styles.hint, { color: theme.mutedForeground }]}>
-            API: {process.env.EXPO_PUBLIC_API_URL?.trim() || 'http://127.0.0.1:3333 (기본)'}
-          </Text>
         </ScrollView>
     </Screen>
   );
@@ -1241,25 +1239,26 @@ export function AuthScreen() {
 const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
-    gap: 14,
+    gap: spacing.lg,
+  },
+  brandBlock: {
+    marginBottom: spacing.sm,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-    marginTop: 8,
+    ...typography.hero,
+    marginBottom: spacing.sm,
   },
   sub: {
-    fontSize: 13,
-    marginBottom: 4,
+    ...typography.bodySm,
+  },
+  backWrap: {
+    marginBottom: spacing.md,
   },
   tabRow: {
-    flexDirection: 'row',
-    gap: 8,
+    marginBottom: spacing.xl,
   },
   form: {
-    gap: 12,
-    marginTop: 8,
+    gap: spacing.md,
   },
   err: {
     fontSize: 12,
@@ -1278,11 +1277,6 @@ const styles = StyleSheet.create({
   },
   codeButtonWrap: {
     paddingBottom: 2,
-  },
-  hint: {
-    fontSize: 10,
-    marginTop: 16,
-    fontFamily: 'SpaceMono-Regular',
   },
   forgotLinksRow: {
     flexDirection: 'row',

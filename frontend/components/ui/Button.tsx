@@ -1,7 +1,6 @@
 /**
  * StarChaser — Button
- * Anti-AI: Shadow 없음 · Border 중심 · opacity 물리 반응
- * mono prop: Space Mono (수치 표시 버튼용)
+ * Figma: 아이스 글로우 아웃라인 primary · 둥근 xl 모서리
  */
 
 import React from 'react';
@@ -13,6 +12,7 @@ import {
   type PressableProps,
   type ViewStyle,
 } from 'react-native';
+import { primaryGlowButtonStyle } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 
 export type ButtonVariant =
@@ -49,19 +49,19 @@ export function Button({
 
   const variantStyle = {
     primary: {
-      bg:     theme.primary,
-      text:   theme.primaryForeground,
-      border: theme.primary,
+      bg:     theme.primaryGlowMuted,
+      text:   theme.foreground,
+      border: theme.primaryGlowBorder,
     },
     secondary: {
-      bg:     theme.secondary,
-      text:   theme.secondaryForeground,
-      border: theme.border,
+      bg:     'rgba(93, 173, 235, 0.15)',
+      text:   theme.secondary,
+      border: 'rgba(93, 173, 235, 0.35)',
     },
     outline: {
       bg:     'transparent',
       text:   theme.foreground,
-      border: theme.border,
+      border: theme.cardBorder,
     },
     ghost: {
       bg:     'transparent',
@@ -81,9 +81,9 @@ export function Button({
   }[variant];
 
   const sizeStyle = {
-    sm: { paddingVertical: 6,  paddingHorizontal: 10, fontSize: 12 },
-    md: { paddingVertical: 10, paddingHorizontal: 14, fontSize: 14 },
-    lg: { paddingVertical: 13, paddingHorizontal: 20, fontSize: 15 },
+    sm: { paddingVertical: 8,  paddingHorizontal: 12, fontSize: 13 },
+    md: { paddingVertical: 12, paddingHorizontal: 16, fontSize: 14 },
+    lg: { paddingVertical: 14, paddingHorizontal: 20, fontSize: 15 },
   }[size];
 
   return (
@@ -91,16 +91,25 @@ export function Button({
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.base,
-        {
-          backgroundColor:   variantStyle.bg,
-          borderColor:       variantStyle.border,
-          borderWidth:       variant === 'ghost' || variant === 'destructive' ? 0 : 1,
-          borderRadius:      theme.radius,
-          paddingVertical:   sizeStyle.paddingVertical,
-          paddingHorizontal: sizeStyle.paddingHorizontal,
-          opacity:           disabled ? 0.45 : pressed ? 0.82 : 1,
-          alignSelf:         fullWidth ? 'stretch' : 'flex-start',
-        },
+        variant === 'primary'
+          ? {
+              ...primaryGlowButtonStyle(theme, Boolean(pressed && !disabled)),
+              paddingVertical:   sizeStyle.paddingVertical,
+              paddingHorizontal: sizeStyle.paddingHorizontal,
+              opacity:           disabled ? 0.45 : 1,
+              alignSelf:         fullWidth ? 'stretch' : 'flex-start',
+            }
+          : {
+              backgroundColor:   variantStyle.bg,
+              borderColor:       variantStyle.border,
+              borderWidth:
+                variant === 'ghost' || variant === 'destructive' ? 0 : 1,
+              borderRadius:      theme.radiusLg,
+              paddingVertical:   sizeStyle.paddingVertical,
+              paddingHorizontal: sizeStyle.paddingHorizontal,
+              opacity:           disabled ? 0.45 : pressed ? 0.88 : 1,
+              alignSelf:         fullWidth ? 'stretch' : 'flex-start',
+            },
         style,
       ]}
       {...rest}
@@ -115,7 +124,7 @@ export function Button({
               color:         variantStyle.text,
               fontSize:      sizeStyle.fontSize,
               fontFamily:    mono ? 'SpaceMono-Regular' : undefined,
-              fontWeight:    variant === 'primary' ? '600' : '500',
+              fontWeight:    '500',
               letterSpacing: mono ? 0.5 : 0.1,
             },
           ]}
@@ -133,7 +142,6 @@ const styles = StyleSheet.create({
     flexDirection:  'row',
     justifyContent: 'center',
     gap:             6,
-    // ⚠️ elevation/shadowColor 없음 — Anti-AI
   },
   label: {
     textAlign: 'center',

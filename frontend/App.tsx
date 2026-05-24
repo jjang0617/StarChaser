@@ -28,11 +28,13 @@ import { ThemeProvider, useTheme } from './themes/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/auth-context';
 import { BottomTab, Button, Screen, type StatefulCardError } from './components/ui';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
+import { SplashScreen } from './components/splash/SplashScreen';
 import {
   KakaoMapWebView,
   type KakaoMapWebViewHandle,
 } from './components/map/KakaoMapWebView';
 import { MapClusterSpotsSheet } from './components/map/MapClusterSpotsSheet';
+import { MapFloatingControls } from './components/map/MapFloatingControls';
 import { MapSpotDetailModal } from './components/map/MapSpotDetailModal';
 import { ProfileTabScreen } from './components/profile/ProfileTabScreen';
 import {
@@ -245,6 +247,14 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     setSpotActivityRevision((r) => r + 1);
   }, []);
 
+  const onMapMyLocation = useCallback(() => {
+    if (deviceLat != null && deviceLng != null && Number.isFinite(deviceLat) && Number.isFinite(deviceLng)) {
+      mapWebViewRef.current?.focusMap(deviceLat, deviceLng, 7, '내 위치');
+      return;
+    }
+    void requestLocationPermission();
+  }, [deviceLat, deviceLng, requestLocationPermission]);
+
   const [top3Loading, setTop3Loading] = useState(false);
   const [top3Error, setTop3Error] = useState<string | null>(null);
   const [top3Items, setTop3Items] = useState<WeeklyTop3ItemDto[] | null>(null);
@@ -346,7 +356,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   );
 
   return (
-    <Screen>
+    <Screen noPadding={activeTab === 'map' || activeTab === 'sky'}>
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
         {/* 지도는 이 영역 안에서만 absoluteFill → 하단 탭과 레이아웃 겹침 없음 */}
@@ -399,41 +409,13 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               }}
             />
 
-            <View style={styles.mapViirsChip} pointerEvents="box-none">
-              {mapViirsEnabled ? (
-                <Button
-                  label="광공해 끄기"
-                  variant="primary"
-                  size="sm"
-                  onPress={() => setMapViirsEnabled(false)}
-                />
-              ) : (
-                <Pressable
-                  onPress={() => setMapViirsEnabled(true)}
-                  style={({ pressed }) => ({
-                    backgroundColor: theme.card,
-                    borderColor: theme.border,
-                    borderWidth: 1,
-                    borderRadius: theme.radius,
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    opacity: pressed ? 0.82 : 1,
-                    alignSelf: 'flex-start',
-                  })}
-                >
-                  <Text
-                    style={{
-                      color: theme.foreground,
-                      fontSize: 12,
-                      fontWeight: '500',
-                      letterSpacing: 0.1,
-                    }}
-                  >
-                    광공해 켜기
-                  </Text>
-                </Pressable>
-              )}
-            </View>
+            <MapFloatingControls
+              theme={theme}
+              viirsEnabled={mapViirsEnabled}
+              onToggleViirs={() => setMapViirsEnabled((v) => !v)}
+              onMyLocation={onMapMyLocation}
+              locationReady={deviceLat != null && deviceLng != null}
+            />
             </View>
           </View>
         ) : null}
@@ -524,15 +506,15 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
           onBookmarkChange={refreshMySpots}
         />
 
-        <View style={styles.tabWrap}>
+        <View>
           <BottomTab
             activeKey={activeTab}
             onChange={setActiveTab}
             items={[
-              { key: 'sky', label: 'Sky', icon: '🌌', redIcon: '◉' },
-              { key: 'map', label: 'Map', icon: '🗺', redIcon: '◈', hasDot: true },
-              { key: 'records', label: 'Log', icon: '📋', redIcon: '≡' },
-              { key: 'profile', label: 'Me', icon: '👤', redIcon: '○' },
+              { key: 'sky', label: 'SKY', icon: 'sky', redIcon: '◉' },
+              { key: 'map', label: 'MAP', icon: 'map', redIcon: '◈' },
+              { key: 'records', label: 'LOG', icon: 'log', redIcon: '≡' },
+              { key: 'profile', label: 'ME', icon: 'me', redIcon: '○' },
             ]}
           />
         </View>
@@ -546,7 +528,7 @@ function AppLoading() {
   return (
     <Screen>
       <View style={styles.loadingWrap}>
-        <ActivityIndicator color={theme.starGold} />
+        <ActivityIndicator color={theme.primaryGlow} />
         <Text
           style={[
             styles.loadingText,
@@ -560,12 +542,21 @@ function AppLoading() {
   );
 }
 
+/** Figma 스플래시 최소 노출 시간(ms) */
+const SPLASH_MIN_MS = 2200;
+
 /**
  * 인증 후 온보딩 여부만 분기 — 로그아웃 시 AuthScreen
  */
 function AppGate() {
   const { isHydrated, isAuthenticated, user } = useAuth();
   const [route, setRoute] = useState<'boot' | 'onboarding' | 'ready'>('boot');
+  const [splashMinDone, setSplashMinDone] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSplashMinDone(true), SPLASH_MIN_MS);
+    return () => clearTimeout(t);
+  }, []);
 
   const resetOnboarding = useCallback(async () => {
     const userId = user?.id;
@@ -610,9 +601,12 @@ function AppGate() {
     };
   }, [isHydrated, isAuthenticated, user?.id]);
 
-  if (!isHydrated) return <AppLoading />;
+  const resolvingAfterAuth = isAuthenticated && route === 'boot';
+  const showSplash = !splashMinDone || !isHydrated || resolvingAfterAuth;
+
+  if (showSplash) return <SplashScreen />;
+
   if (!isAuthenticated) return <AuthScreen />;
-  if (route === 'boot') return <AppLoading />;
   if (route === 'onboarding') {
     // userId가 없으면 (드물게) 로딩 유지
     if (!user?.id) return <AppLoading />;
@@ -642,14 +636,6 @@ const styles = StyleSheet.create({
   },
   mapTabLayerHidden: {
     opacity: 0,
-  },
-  mapViirsChip: {
-    position: 'absolute',
-    right: 12,
-    bottom: 12,
-  },
-  tabWrap: {
-    paddingTop: 4,
   },
   loadingWrap: {
     flex: 1,
