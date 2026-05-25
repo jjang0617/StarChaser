@@ -91,6 +91,9 @@ interface StarIndexInput {
 }
 
 /** star_index:{spotId} 캐시 페이로드 — 레거시 number 캐시는 스냅샷 폴백 불가 */
+/** FE star-index-display.ts 와 동일 — 이 미만이면 UI 「측정불가」 */
+const STAR_INDEX_DISPLAY_MIN_SCORE = 50;
+
 type StarIndexCachePayload = {
   score: number;
   weatherSnapshot: WeatherSnapshot;
@@ -142,7 +145,12 @@ export class StarIndexService {
         `Star-Index stale fallback — spot: ${spot.id}, cachedAt: ${stale.cachedAt ?? 'unknown'}`,
       );
       return {
-        score: stale.score,
+        score: this.recalcScoreFromWeatherSnapshot(
+          stale.weatherSnapshot,
+          spot.lat,
+          spot.lng,
+          atUtc,
+        ),
         weatherSnapshot: stale.weatherSnapshot,
         cacheKeys,
         isStale: true,
@@ -189,7 +197,12 @@ export class StarIndexService {
             `Star-Index GPS stale fallback — nearest: ${nearest.id}, cachedAt: ${stale.cachedAt ?? 'unknown'}`,
           );
           return {
-            score: stale.score,
+            score: this.recalcScoreFromWeatherSnapshot(
+              stale.weatherSnapshot,
+              lat,
+              lng,
+              atUtc,
+            ),
             weatherSnapshot: stale.weatherSnapshot,
             cacheKeys,
             nearestSpot: nearest,
@@ -247,7 +260,7 @@ export class StarIndexService {
     const memCached = await Promise.all(
       spots.map(async (spot) => ({
         spot,
-        score: await this.readCachedSpotScoreOnly(spot.id),
+        score: await this.readCachedSpotScoreForMap(spot),
       })),
     );
     for (const row of memCached) {
@@ -265,14 +278,11 @@ export class StarIndexService {
       const stillPending: Spot[] = [];
       for (const spot of pending) {
         const dayScore = daily.get(spot.id);
-        if (dayScore != null) {
+        if (dayScore != null && !this.shouldSkipDailyScoreForMap(spot, dayScore)) {
           scoreById.set(spot.id, dayScore);
         } else {
           stillPending.push(spot);
         }
-      }
-      if (daily.size) {
-        void this.warmSpotScoreCaches(daily);
       }
       pending.length = 0;
       pending.push(...stillPending);
@@ -347,12 +357,19 @@ export class StarIndexService {
           if (!weather || !dust || !moonRaw) {
             const stale = await this.readStarIndexSpotCache(spot.id);
             if (stale) {
-              scoreById.set(spot.id, stale.score);
+              scoreById.set(
+                spot.id,
+                this.recalcScoreFromWeatherSnapshot(
+                  stale.weatherSnapshot,
+                  spot.lat,
+                  spot.lng,
+                ),
+              );
             }
             return;
           }
           const moon = this.resolveMoonAt(spot.lat, spot.lng, moonRaw);
-          const { score } = this.calcStarIndexWithSnapshot({
+          const payload = this.calcStarIndexWithSnapshot({
             weather,
             dust,
             moon,
@@ -362,12 +379,19 @@ export class StarIndexService {
             lng: spot.lng,
             correctionScore: correctionById.get(spot.id) ?? 100,
           });
-          scoreById.set(spot.id, score);
-          await this.writeSpotScoreCache(spot.id, score);
+          scoreById.set(spot.id, payload.score);
+          await this.writeSpotScoreCache(spot.id, payload);
         } catch {
           const stale = await this.readStarIndexSpotCache(spot.id);
           if (stale) {
-            scoreById.set(spot.id, stale.score);
+            scoreById.set(
+              spot.id,
+              this.recalcScoreFromWeatherSnapshot(
+                stale.weatherSnapshot,
+                spot.lat,
+                spot.lng,
+              ),
+            );
           }
         }
       }),
@@ -412,7 +436,11 @@ export class StarIndexService {
    * `star_index:{spotId}` 캐시를 보지 않고, 현재 weather/dust/moon 캐시만으로 점수 계산.
    * 일별 스냅샷·주간 TOP3 집계 등 배치용.
    */
-  async computeFreshScoreFromCache(spot: Spot): Promise<number> {
+  /**
+   * 일별 스냅샷·알림·TOP3 집계용 — weather_snapshot 포함 캐시 저장
+   * (score만 저장하면 지도 읽기 시 태양 고도 재반영 불가)
+   */
+  async computeFreshPayloadFromCache(spot: Spot): Promise<StarIndexCachePayload> {
     await this.cacheHydration.ensureForStarIndexRequest(
       spot.lat,
       spot.lng,
@@ -443,7 +471,7 @@ export class StarIndexService {
     const moon = this.resolveMoonAt(spot.lat, spot.lng, moonRaw);
     const correctionScore = await this.correctionScoreForSpot(spot.id);
 
-    const { score } = this.calcStarIndexWithSnapshot({
+    const payload = this.calcStarIndexWithSnapshot({
       weather,
       dust,
       moon,
@@ -453,7 +481,12 @@ export class StarIndexService {
       lng: spot.lng,
       correctionScore,
     });
-    return score;
+    await this.writeSpotScoreCache(spot.id, payload);
+    return { ...payload, cachedAt: new Date().toISOString() };
+  }
+
+  async computeFreshScoreFromCache(spot: Spot): Promise<number> {
+    return (await this.computeFreshPayloadFromCache(spot)).score;
   }
 
   /**
@@ -553,17 +586,64 @@ export class StarIndexService {
     return { score, weatherSnapshot, cacheKeys };
   }
 
-  /** 지도 목록용 — 점수만 필요 */
-  private async readCachedSpotScoreOnly(spotId: string): Promise<number | null> {
-    const raw = await this.cache.get(this.spotIndexCacheKey(spotId));
+  /**
+   * 지도 목록용 — weather_snapshot 이 있으면 현재 시각 태양 고도로 재합산
+   * (낮에 저장된 점수만 쓰면 밤에도 측정불가로 보이는 문제 방지)
+   */
+  private async readCachedSpotScoreForMap(spot: Spot): Promise<number | null> {
+    const stale = await this.readStarIndexSpotCache(spot.id);
+    if (stale?.weatherSnapshot) {
+      return this.recalcScoreFromWeatherSnapshot(
+        stale.weatherSnapshot,
+        spot.lat,
+        spot.lng,
+      );
+    }
+    const raw = await this.cache.get(this.spotIndexCacheKey(spot.id));
     if (typeof raw === 'number' && Number.isFinite(raw)) {
-      return raw;
+      return null;
     }
     if (raw && typeof raw === 'object') {
-      const score = Number((raw as StarIndexCachePayload).score);
-      return Number.isFinite(score) ? score : null;
+      const o = raw as Record<string, unknown>;
+      if (o.weatherSnapshot && typeof o.weatherSnapshot === 'object') {
+        return null;
+      }
+      const score = Number(o.score);
+      if (Number.isFinite(score)) {
+        return null;
+      }
     }
     return null;
+  }
+
+  /** 일별 DB 점수 — 밤인데 낮 기준 측정불가면 실시간 계산으로 넘김 */
+  private shouldSkipDailyScoreForMap(spot: Spot, dayScore: number): boolean {
+    if (dayScore >= STAR_INDEX_DISPLAY_MIN_SCORE) {
+      return false;
+    }
+    const sunAlt = sunAltitudeAtObserver(spot.lat, spot.lng, new Date());
+    return sunAlt < -12;
+  }
+
+  /** 캐시된 10변수 스냅샷 + 현재 태양 고도로 최종 점수 재계산 */
+  private recalcScoreFromWeatherSnapshot(
+    snapshot: WeatherSnapshot,
+    lat: number,
+    lng: number,
+    atUtc?: Date,
+  ): number {
+    const sunAltDeg = sunAltitudeAtObserver(lat, lng, atUtc ?? new Date());
+    const cloudPercent =
+      snapshot.cloud_cover_pct ??
+      Math.min(100, Math.max(0, 100 - Math.round(snapshot.cloud_score)));
+    return aggregateStarIndexScore({
+      components: snapshot,
+      cloudPercent,
+      sunAltitudeDeg: sunAltDeg,
+      pop: snapshot.precipitation_probability ?? 0,
+      pty: snapshot.precipitation_type ?? 0,
+      visibilityKnown: snapshot.visibility_known === true,
+    });
   }
 
   /** DIARY·상세용 — weather_snapshot 포함 stale 폴백 */
@@ -625,25 +705,14 @@ export class StarIndexService {
     return out;
   }
 
-  /** DB 일별 점수 → 메모리 star_index 캐시 (다음 요청 가속) */
-  private async warmSpotScoreCaches(scores: Map<string, number>): Promise<void> {
-    const cachedAt = new Date().toISOString();
-    await Promise.all(
-      [...scores.entries()].map(([spotId, score]) =>
-        this.cache.set(
-          this.spotIndexCacheKey(spotId),
-          { score, cachedAt },
-          3600 * 1000,
-        ),
-      ),
-    );
-  }
-
-  /** 지도 배치 — 전체 스냅샷 없이 점수만 캐시 */
-  private async writeSpotScoreCache(spotId: string, score: number): Promise<void> {
+  /** 지도 배치 — weather_snapshot 포함 저장 (읽을 때 태양 고도 재반영) */
+  private async writeSpotScoreCache(
+    spotId: string,
+    payload: StarIndexCachePayload,
+  ): Promise<void> {
     await this.cache.set(
       this.spotIndexCacheKey(spotId),
-      { score, cachedAt: new Date().toISOString() },
+      { ...payload, cachedAt: new Date().toISOString() },
       3600 * 1000,
     );
   }
