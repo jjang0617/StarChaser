@@ -100,3 +100,19 @@ export function pickLatestPm25Reading(rows: AirKoreaStationRow[]): {
   });
   return pickBestPm25Reading(sorted);
 }
+
+/** 시도별 일괄 응답에서 특정 측정소명 PM2.5 추출 */
+export function pickPm25ForStationName(
+  rows: readonly AirKoreaStationRow[],
+  stationName: string,
+): {
+  pm25: number;
+  pm25Grade: number;
+  pm25Label: string;
+  stationName: string | null;
+} | null {
+  const target = stationName.trim();
+  if (!target) return null;
+  const matched = rows.filter((r) => r.stationName?.trim() === target);
+  return pickLatestPm25Reading(matched);
+}

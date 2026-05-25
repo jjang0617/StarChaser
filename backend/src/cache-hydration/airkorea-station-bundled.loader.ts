@@ -1,6 +1,10 @@
 import * as fs from 'fs';
 import { resolveBundledAssetPath } from '../common/resolve-bundled-asset.util';
-import type { AirKoreaStationCatalogEntry } from './airkorea-station.util';
+import {
+  pickRepresentativeStations,
+  REPRESENTATIVE_STATIONS_PER_SIDO,
+  type AirKoreaStationCatalogEntry,
+} from './airkorea-station.util';
 
 export type BundledStationCatalogFile = {
   version: number;
@@ -36,7 +40,10 @@ export function loadBundledStationCatalog(): AirKoreaStationCatalogEntry[] | nul
     if (!stations?.length) {
       return null;
     }
-    bundledCache = stations;
+    bundledCache = pickRepresentativeStations(
+      stations,
+      REPRESENTATIVE_STATIONS_PER_SIDO,
+    );
     return bundledCache;
   } catch {
     return null;

@@ -34,14 +34,47 @@ export class CorrectionsService {
    * 제보가 없으면 100(중립, 기존 가중치와 동일 효과).
    */
   async getAggregatedCorrectionScoreForSpot(spotId: string): Promise<number> {
-    const rows = await this.repo.find({
-      where: { spotId },
-      order: { createdAt: 'DESC' },
-      take: AGGREGATION_WINDOW,
-    });
-    if (rows.length === 0) return 100;
-    const sum = rows.reduce((acc, r) => acc + r.perceivedQuality, 0);
-    return Math.round(Math.min(100, Math.max(0, sum / rows.length)));
+    const map = await this.getAggregatedCorrectionScoresForSpots([spotId]);
+    return map.get(spotId) ?? 100;
+  }
+
+  /** 지도 클러스터 배치 — 명소 N곳 correction_score 1회 조회 */
+  async getAggregatedCorrectionScoresForSpots(
+    spotIds: string[],
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    const unique = [...new Set(spotIds.filter(Boolean))];
+    for (const id of unique) {
+      out.set(id, 100);
+    }
+    if (!unique.length) {
+      return out;
+    }
+
+    const rows = (await this.repo.query(
+      `
+      SELECT spot_id, ROUND(AVG(perceived_quality))::int AS score
+      FROM (
+        SELECT
+          spot_id,
+          perceived_quality,
+          ROW_NUMBER() OVER (PARTITION BY spot_id ORDER BY created_at DESC) AS rn
+        FROM star_index_correction_submissions
+        WHERE spot_id = ANY($1::uuid[])
+      ) ranked
+      WHERE rn <= $2
+      GROUP BY spot_id
+      `,
+      [unique, AGGREGATION_WINDOW],
+    )) as { spot_id: string; score: number }[];
+
+    for (const row of rows) {
+      const score = Number(row.score);
+      if (Number.isFinite(score)) {
+        out.set(String(row.spot_id), Math.min(100, Math.max(0, score)));
+      }
+    }
+    return out;
   }
 
   async create(userId: string, dto: CreateCorrectionSubmissionDto) {

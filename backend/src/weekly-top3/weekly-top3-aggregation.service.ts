@@ -52,6 +52,11 @@ export class WeeklyTop3AggregationService {
           { spotId: spot.id, day, score },
           ['spotId', 'day'],
         );
+        await this.cache.set(
+          `star_index:${spot.id}`,
+          { score, cachedAt: new Date().toISOString() },
+          3600 * 1000,
+        );
         ok++;
       } catch (e) {
         failed++;

@@ -12,7 +12,7 @@ import { moonStateAtObserver } from '../sky/moon-ephemeris.util';
 import { arpltnInforUrl } from './airkorea-api.util';
 import {
   extractAirKoreaItems,
-  pickLatestPm25Reading,
+  pickPm25ForStationName,
   type AirKoreaItemsBody,
 } from './airkorea.util';
 import { loadBundledStationCatalog } from './airkorea-station-bundled.loader';
@@ -26,10 +26,13 @@ import {
   AIRKOREA_SIDO_ADDRS,
   AIRKOREA_STATION_CATALOG_CACHE_KEY,
   dustStationCacheKey,
+  findDustStationInCatalog,
   findNearestStation,
   haversineKm,
   hasStationCoords,
   parseStationCatalogFromCtprvn,
+  pickRepresentativeStations,
+  REPRESENTATIVE_STATIONS_PER_SIDO,
   type AirKoreaStationCatalogEntry,
 } from './airkorea-station.util';
 import {
@@ -99,11 +102,26 @@ export class StarIndexCacheHydrationService {
   }
 
   /** 캐시된 전국 카탈로그 — 없거나 비었으면 ensureStationCatalog 후 재조회 */
-  private async getStationCatalogCached(): Promise<AirKoreaStationCatalogEntry[]> {
+  async getStationCatalogCached(): Promise<AirKoreaStationCatalogEntry[]> {
     const rows = await this.cache.get<AirKoreaStationCatalogEntry[]>(
       AIRKOREA_STATION_CATALOG_CACHE_KEY,
     );
     if (rows?.length) {
+      if (rows.length > AIRKOREA_SIDO_ADDRS.length * REPRESENTATIVE_STATIONS_PER_SIDO + 4) {
+        const slim = pickRepresentativeStations(
+          rows.filter(hasStationCoords),
+          REPRESENTATIVE_STATIONS_PER_SIDO,
+        );
+        await this.cache.set(
+          AIRKOREA_STATION_CATALOG_CACHE_KEY,
+          slim,
+          STATION_CATALOG_TTL_MS,
+        );
+        this.logger.log(
+          `측정소 카탈로그 슬림화 — ${rows.length}곳 → ${slim.length}곳`,
+        );
+        return slim;
+      }
       return rows;
     }
     await this.ensureStationCatalog();
@@ -237,14 +255,18 @@ export class StarIndexCacheHydrationService {
       }
     }
 
-    const catalog = this.mergeCatalogDedupe(merged);
+    const mergedCatalog = this.mergeCatalogDedupe(merged);
+    const catalog = pickRepresentativeStations(
+      mergedCatalog.filter(hasStationCoords),
+      REPRESENTATIVE_STATIONS_PER_SIDO,
+    );
     await this.cache.set(
       AIRKOREA_STATION_CATALOG_CACHE_KEY,
       catalog,
       STATION_CATALOG_TTL_MS,
     );
     this.logger.log(
-      `에어코리아 측정소 카탈로그(API 폴백) 저장 — ${catalog.length}곳`,
+      `에어코리아 측정소 카탈로그(API 폴백) 저장 — ${catalog.length}곳 (대표 ${REPRESENTATIVE_STATIONS_PER_SIDO}/시도)`,
     );
   }
 
@@ -296,11 +318,108 @@ export class StarIndexCacheHydrationService {
     return findNearestStation(withCoords, lat, lng);
   }
 
-  /** Star-Index·Cron 공통 — 해당 좌표의 미세먼지 캐시 키 */
-  async resolveDustCacheKey(lat: number, lng: number): Promise<string> {
+  /**
+   * 배치·지도 목록용 — 역지오코딩(Nominatim) 없이 시도 bbox + 최근접 측정소만 사용
+   */
+  resolveNearestStationFast(
+    lat: number,
+    lng: number,
+    catalog: AirKoreaStationCatalogEntry[],
+  ): AirKoreaStationCatalogEntry {
+    return findDustStationInCatalog(catalog, lat, lng);
+  }
+
+  /**
+   * Star-Index·Cron — dust:st:{측정소} 캐시 키
+   * @param fixedStationName spots.dust_station_name (시드 고정 시 역지오/탐색 생략)
+   */
+  async resolveDustCacheKey(
+    lat: number,
+    lng: number,
+    fixedStationName?: string | null,
+  ): Promise<string> {
+    if (fixedStationName?.trim()) {
+      return dustStationCacheKey(fixedStationName.trim());
+    }
     await this.ensureStationCatalog();
-    const nearest = await this.resolveNearestStation(lat, lng);
+    const catalog = await this.getStationCatalogCached();
+    const nearest = findDustStationInCatalog(catalog, lat, lng);
     return dustStationCacheKey(nearest.stationName);
+  }
+
+  /**
+   * 여러 좌표의 입력 캐시(weather/dust/moon)를 격자·측정소 단위로 dedupe 후 병렬 채움
+   */
+  async ensureForStarIndexBatch(
+    locations: {
+      lat: number;
+      lng: number;
+      dustStationName?: string | null;
+    }[],
+  ): Promise<void> {
+    if (!locations.length) {
+      return;
+    }
+
+    await this.ensureStationCatalog();
+    const catalog = await this.getStationCatalogCached();
+    const moonKey = `moon:${getKstYmd().replace(/-/g, '')}`;
+
+    const grids = new Map<string, { nx: number; ny: number }>();
+    const dustStationNames = new Set<string>();
+
+    for (const loc of locations) {
+      const { lat, lng, dustStationName } = loc;
+      const { nx, ny } = this.latLngToGrid(lat, lng);
+      grids.set(`${nx}:${ny}`, { nx, ny });
+      if (dustStationName?.trim()) {
+        dustStationNames.add(dustStationName.trim());
+        continue;
+      }
+      try {
+        const nearest = findDustStationInCatalog(catalog, lat, lng);
+        dustStationNames.add(nearest.stationName);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`배치 dust 측정소 결정 생략 lat=${lat}: ${msg}`);
+      }
+    }
+
+    const moonRaw = await this.cache.get(moonKey);
+
+    const tasks: Promise<void>[] = [];
+
+    for (const { nx, ny } of grids.values()) {
+      const weatherKey = `weather:${nx}:${ny}`;
+      tasks.push(
+        (async () => {
+          const hit = await this.cache.get(weatherKey);
+          if (!hit) {
+            await this.fetchAndStoreWeatherGrid(nx, ny);
+          }
+        })(),
+      );
+    }
+
+    const sidosNeedingDust = new Set<string>();
+    for (const stationName of dustStationNames) {
+      const dustKey = dustStationCacheKey(stationName);
+      const hit = await this.cache.get(dustKey);
+      if (hit) continue;
+      const entry = catalog.find((c) => c.stationName === stationName);
+      if (entry) {
+        sidosNeedingDust.add(entry.sidoName);
+      }
+    }
+    for (const sidoName of sidosNeedingDust) {
+      tasks.push(this.fetchAndStoreDustForSido(sidoName));
+    }
+
+    if (!moonRaw) {
+      tasks.push(this.fetchAndStoreMoonKstToday(REF_LAT, REF_LNG));
+    }
+
+    await Promise.all(tasks);
   }
 
   /** 단일 격자 기상 캐시 — KMA base 시각 해석 후 parseForecastNumbers */
@@ -372,55 +491,93 @@ export class StarIndexCacheHydrationService {
     this.logger.log(`weather 캐시 저장: ${cacheKey}`);
   }
 
-  /** 측정소별 실시간 농도 — getMsrstnAcctoRltmMesureDnsty */
-  async fetchAndStoreDustForStation(stationName: string): Promise<void> {
+  /** 시도별 실시간 농도 일괄 — getCtprvnRltmMesureDnsty 1회로 대표 측정소 PM2.5 저장 */
+  async fetchAndStoreDustForSido(sidoName: string): Promise<void> {
     const serviceKey = this.config.get<string>('AIRKOREA_API_KEY');
     if (!serviceKey) {
       throw new Error('AIRKOREA_API_KEY 없음');
     }
-    const cacheKey = dustStationCacheKey(stationName);
 
-    const url = arpltnInforUrl('getMsrstnAcctoRltmMesureDnsty', {
+    await this.ensureStationCatalog();
+    const catalog = await this.getStationCatalogCached();
+    const reps = catalog.filter(
+      (e) => e.sidoName === sidoName && hasStationCoords(e),
+    );
+    if (!reps.length) {
+      this.logger.warn(`dust 시도 수집 생략 — 대표 측정소 없음: ${sidoName}`);
+      return;
+    }
+
+    const items = await this.fetchCtprvnRowsForSido(sidoName, serviceKey);
+    const collectedAt = new Date().toISOString();
+    let saved = 0;
+
+    for (const rep of reps) {
+      const picked = pickPm25ForStationName(items, rep.stationName);
+      if (!picked) {
+        this.logger.warn(
+          `dust PM2.5 없음 — sido=${sidoName} station=${rep.stationName}`,
+        );
+        continue;
+      }
+      await this.cache.set(
+        dustStationCacheKey(rep.stationName),
+        {
+          pm25: picked.pm25,
+          pm25Label: picked.pm25Label,
+          stationName: rep.stationName,
+          collectedAt,
+        },
+        DUST_STATION_CACHE_TTL_MS,
+      );
+      saved += 1;
+    }
+
+    this.logger.log(
+      `dust 시도 캐시 저장 — ${sidoName} 대표 ${saved}/${reps.length}곳 (API 1회)`,
+    );
+  }
+
+  /** 단일 측정소 — 해당 시도 일괄 수집으로 위임 (레거시 per-station API 제거) */
+  async fetchAndStoreDustForStation(stationName: string): Promise<void> {
+    await this.ensureStationCatalog();
+    const catalog = await this.getStationCatalogCached();
+    const entry = catalog.find((c) => c.stationName === stationName);
+    if (entry) {
+      await this.fetchAndStoreDustForSido(entry.sidoName);
+      return;
+    }
+    throw new Error(
+      `대표 측정소 카탈로그에 없음: ${stationName} — 시도 일괄 수집만 지원합니다.`,
+    );
+  }
+
+  private async fetchCtprvnRowsForSido(
+    sidoName: string,
+    serviceKey: string,
+  ): Promise<ReturnType<typeof extractAirKoreaItems>> {
+    const url = arpltnInforUrl('getCtprvnRltmMesureDnsty', {
       serviceKey,
       returnType: 'json',
-      numOfRows: '300',
+      numOfRows: '500',
       pageNo: '1',
-      stationName,
+      sidoName,
       ver: '1.0',
-      dataTerm: 'DAILY',
     });
-
     const response = await fetch(url);
     const rawText = await response.text();
     if (!response.ok) {
-      throw new Error(`dust station HTTP ${response.status}: ${rawText.slice(0, 180)}`);
-    }
-
-    let parsed: {
-      response?: {
-        body?: AirKoreaItemsBody;
-      };
-    };
-    try {
-      parsed = JSON.parse(rawText) as typeof parsed;
-    } catch {
-      throw new Error(`dust station JSON 파싱 실패: ${rawText.slice(0, 120)}`);
-    }
-
-    const items = extractAirKoreaItems(parsed.response?.body);
-    const picked = pickLatestPm25Reading(items);
-    if (!picked) {
       throw new Error(
-        `${stationName} 측정소 유효 PM2.5가 없음 — 응답 ${items.length}행`,
+        `dust sido HTTP ${response.status} ${sidoName}: ${rawText.slice(0, 180)}`,
       );
     }
-
-    await this.cache.set(
-      cacheKey,
-      { pm25: picked.pm25, collectedAt: new Date().toISOString() },
-      DUST_STATION_CACHE_TTL_MS,
-    );
-    this.logger.log(`dust station 캐시 저장: ${cacheKey}`);
+    let body: { response?: { body?: AirKoreaItemsBody } };
+    try {
+      body = JSON.parse(rawText) as typeof body;
+    } catch {
+      throw new Error(`dust sido JSON 파싱 실패: ${sidoName}`);
+    }
+    return extractAirKoreaItems(body.response?.body);
   }
 
   /** KST 날짜 키 moon:YYYYMMDD — 기본 서울시청 근처 REF 좌표 (astronomy-engine) */
@@ -447,12 +604,16 @@ export class StarIndexCacheHydrationService {
   }
 
   /** GET /star-index 직전: 비어 있는 입력 캐시만 외부 API로 채움 */
-  async ensureForStarIndexRequest(lat: number, lng: number): Promise<void> {
+  async ensureForStarIndexRequest(
+    lat: number,
+    lng: number,
+    fixedDustStationName?: string | null,
+  ): Promise<void> {
     const { nx, ny } = this.latLngToGrid(lat, lng);
     const weatherKey = `weather:${nx}:${ny}`;
     let dustKey = '';
     try {
-      dustKey = await this.resolveDustCacheKey(lat, lng);
+      dustKey = await this.resolveDustCacheKey(lat, lng, fixedDustStationName);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.logger.warn(`dust 캐시 키 결정 실패: ${msg}`);
@@ -495,38 +656,20 @@ export class StarIndexCacheHydrationService {
     }
   }
 
-  /** Cron: 명소별로 필요한 서로 다른 dust:st:* 키만 중복 없이 수집 */
+  /** Cron: 시도 17회 API로 전국 대표 측정소 PM2.5 수집 (명소 수·625측정소와 무관) */
   async fetchAndStoreDustForAllSpots(): Promise<void> {
-    const serviceKey = this.config.get<string>('AIRKOREA_API_KEY');
-    if (!serviceKey) {
+    if (!this.config.get<string>('AIRKOREA_API_KEY')) {
       throw new Error('AIRKOREA_API_KEY 없음');
     }
 
     await this.ensureStationCatalog();
-    const spots = await this.spots.findAll();
-    if (!spots.length) {
-      this.logger.warn('명소 없음 — dust 일괄 수집 생략');
-      return;
-    }
 
-    const keys = new Set<string>();
-    for (const s of spots) {
+    for (const sidoName of AIRKOREA_SIDO_ADDRS) {
       try {
-        keys.add(await this.resolveDustCacheKey(s.lat, s.lng));
+        await this.fetchAndStoreDustForSido(sidoName);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        this.logger.warn(`명소 dust 키 생략 spot=${s.id}: ${msg}`);
-      }
-    }
-
-    for (const key of keys) {
-      const name = key.startsWith('dust:st:') ? key.slice('dust:st:'.length) : '';
-      if (!name) continue;
-      try {
-        await this.fetchAndStoreDustForStation(name);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        this.logger.warn(`dust 수집 실패(건너뜀) ${key}: ${msg}`);
+        this.logger.warn(`dust 시도 수집 실패(건너뜀) ${sidoName}: ${msg}`);
       }
     }
   }

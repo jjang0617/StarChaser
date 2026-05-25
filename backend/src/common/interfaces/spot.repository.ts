@@ -13,6 +13,8 @@ export interface Spot {
   hasParking: boolean;
   hasToilet: boolean;
   locationRadiusM: number;
+  /** 시드 시 고정 — PM2.5 dust:st:* 캐시 키 결정용 (에어코리아 측정소명) */
+  dustStationName?: string | null;
 }
 
 // SpotRepository 인터페이스 — 서비스는 이것만 바라봄

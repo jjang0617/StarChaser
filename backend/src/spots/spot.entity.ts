@@ -32,6 +32,9 @@ export class SpotEntity {
   @Column({ name: 'location_radius_m', type: 'int', nullable: true })
   locationRadiusM: number | null;
 
+  @Column({ name: 'dust_station_name', type: 'varchar', length: 100, nullable: true })
+  dustStationName: string | null;
+
   @Column({ name: 'search_vector', type: 'tsvector', nullable: true, select: false })
   searchVector: string | null;
 

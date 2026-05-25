@@ -513,7 +513,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
             items={[
               { key: 'sky', label: 'SKY', icon: 'sky', redIcon: '◉' },
               { key: 'map', label: 'MAP', icon: 'map', redIcon: '◈' },
-              { key: 'records', label: 'LOG', icon: 'log', redIcon: '≡' },
+              { key: 'records', label: 'DIARY', icon: 'log', redIcon: '≡' },
               { key: 'profile', label: 'ME', icon: 'me', redIcon: '○' },
             ]}
           />
