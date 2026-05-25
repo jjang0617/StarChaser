@@ -26,7 +26,8 @@ export class TypeOrmSpotRepository implements SpotRepository {
         elevation_m,
         has_parking,
         has_toilet,
-        location_radius_m
+        location_radius_m,
+        dust_station_name
       FROM spots
       WHERE id = $1::uuid
       `,
@@ -49,7 +50,8 @@ export class TypeOrmSpotRepository implements SpotRepository {
         elevation_m,
         has_parking,
         has_toilet,
-        location_radius_m
+        location_radius_m,
+        dust_station_name
       FROM spots
       WHERE ST_DWithin(
         location::geography,
@@ -79,7 +81,8 @@ export class TypeOrmSpotRepository implements SpotRepository {
         elevation_m,
         has_parking,
         has_toilet,
-        location_radius_m
+        location_radius_m,
+        dust_station_name
       FROM spots
       ORDER BY name
       `,
@@ -105,7 +108,8 @@ export class TypeOrmSpotRepository implements SpotRepository {
         elevation_m,
         has_parking,
         has_toilet,
-        location_radius_m
+        location_radius_m,
+        dust_station_name
       FROM spots
       WHERE
         search_vector @@ plainto_tsquery('simple', $1)
@@ -136,6 +140,10 @@ export class TypeOrmSpotRepository implements SpotRepository {
       hasParking: row.has_parking === true,
       hasToilet: row.has_toilet === true,
       locationRadiusM: Number(row.location_radius_m ?? 0),
+      dustStationName:
+        row.dust_station_name != null && String(row.dust_station_name).trim() !== ''
+          ? String(row.dust_station_name)
+          : null,
     };
   }
 }

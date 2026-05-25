@@ -47,9 +47,9 @@ export class WeeklyTop3AggregationService {
 
     for (const spot of all) {
       try {
-        const score = await this.starIndex.computeFreshScoreFromCache(spot);
+        const payload = await this.starIndex.computeFreshPayloadFromCache(spot);
         await this.dailyRepo.upsert(
-          { spotId: spot.id, day, score },
+          { spotId: spot.id, day, score: payload.score },
           ['spotId', 'day'],
         );
         ok++;

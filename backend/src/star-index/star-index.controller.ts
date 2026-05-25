@@ -56,19 +56,11 @@ export class StarIndexController {
       .filter(Boolean)
       .slice(0, 40);
 
-    const items: { spotId: string; score: number }[] = [];
+    const spots = (
+      await Promise.all(ids.map((id) => this.spots.findById(id)))
+    ).filter((s): s is NonNullable<typeof s> => s != null);
 
-    for (const id of ids) {
-      const spot = await this.spots.findById(id);
-      if (!spot) continue;
-      try {
-        const { score } =
-          await this.starIndexService.calculateForSpotFromCache(spot);
-        items.push({ spotId: spot.id, score });
-      } catch {
-        /* 개별 실패는 건너뜀 */
-      }
-    }
+    const items = await this.starIndexService.calculateSpotScoresBatch(spots);
 
     return {
       items,
@@ -107,9 +99,9 @@ export class StarIndexController {
       if (!spot) {
         throw new NotFoundException('해당 spotId의 명소가 없습니다.');
       }
-      const { score, weatherSnapshot, cacheKeys } =
+      const result =
         await this.starIndexService.calculateForSpotFromCache(spot, atUtc);
-      const display = buildStarIndexCardDisplay(weatherSnapshot);
+      const display = buildStarIndexCardDisplay(result.weatherSnapshot);
       return {
         spotId: spot.id,
         name: spot.name,
@@ -117,12 +109,16 @@ export class StarIndexController {
         lng: spot.lng,
         elevationM: spot.elevationM,
         bortleClass: spot.bortleClass,
-        score,
-        weatherSnapshot,
+        score: result.score,
+        weatherSnapshot: result.weatherSnapshot,
         display,
-        cacheKeys,
-        message:
-          '캐시(weather/dust/moon) 기반 Star-Index 계산 완료 — weather_snapshot 10키 합의 스키마',
+        cacheKeys: result.cacheKeys,
+        isStale: result.isStale ?? false,
+        cachedAt: result.cachedAt,
+        source: result.isStale ? 'stale_cache' : 'live',
+        message: result.isStale
+          ? '실시간 기상 캐시가 없어 직전 계산값을 표시합니다.'
+          : '캐시(weather/dust/moon) 기반 Star-Index 계산 완료 — weather_snapshot 10키 합의 스키마',
         requestedBy: user.email,
       };
     }
@@ -140,14 +136,21 @@ export class StarIndexController {
       throw new BadRequestException('lat·lng 범위가 올바르지 않습니다.');
     }
 
-    const { score, weatherSnapshot, cacheKeys, nearestSpot, distanceKm } =
-      await this.starIndexService.calculateForLatLngFromCache(lat, lng, atUtc);
-    const display = buildStarIndexCardDisplay(weatherSnapshot);
+    const result = await this.starIndexService.calculateForLatLngFromCache(
+      lat,
+      lng,
+      atUtc,
+    );
+    const display = buildStarIndexCardDisplay(result.weatherSnapshot);
 
-    const detailMsg =
+    const { nearestSpot, distanceKm } = result;
+    let detailMsg =
       nearestSpot && distanceKm != null
         ? `격자 기상 + 주변 참고: ${nearestSpot.name} (약 ${distanceKm.toFixed(1)}km) — 앱에서 행정구역 이름은 역지오코딩으로 표시합니다.`
         : '격자 기상 + 기본 광공해·고도';
+    if (result.isStale && nearestSpot) {
+      detailMsg = `실시간 캐시 없음 — ${nearestSpot.name} 직전 계산값 참고 (약 ${distanceKm?.toFixed(1) ?? '?'}km)`;
+    }
 
     return {
       spotId: nearestSpot?.id,
@@ -157,10 +160,13 @@ export class StarIndexController {
       lng,
       elevationM: nearestSpot?.elevationM ?? 100,
       bortleClass: nearestSpot?.bortleClass ?? 5,
-      score,
-      weatherSnapshot,
+      score: result.score,
+      weatherSnapshot: result.weatherSnapshot,
       display,
-      cacheKeys,
+      cacheKeys: result.cacheKeys,
+      isStale: result.isStale ?? false,
+      cachedAt: result.cachedAt,
+      source: result.isStale ? 'stale_cache' : 'live',
       message: detailMsg,
       requestedBy: user.email,
     };

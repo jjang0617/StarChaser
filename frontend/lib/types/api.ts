@@ -41,6 +41,10 @@ export interface StarIndexResponseDto {
   cacheKeys: { weatherKey: string; dustKey: string; moonKey: string };
   message: string;
   requestedBy: string;
+  /** 실시간 캐시 실패 시 직전 star_index:{spotId} 폴백 */
+  isStale?: boolean;
+  cachedAt?: string;
+  source?: 'live' | 'stale_cache';
 }
 
 export interface UserProfileDto {

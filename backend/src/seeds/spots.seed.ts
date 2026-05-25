@@ -1,5 +1,7 @@
 import dataSource from '../database/data-source';
 import { Logger } from '@nestjs/common';
+import { loadBundledStationCatalog } from '../cache-hydration/airkorea-station-bundled.loader';
+import { findDustStationInCatalog } from '../cache-hydration/airkorea-station.util';
 
 type SpotSeedRow = {
   name: string;
@@ -526,9 +528,25 @@ const SPOT_NAME_RENAMES: Array<{ from: string; to: string }> = [
   { from: '영월 별마로 천문대', to: '강원 영월 별마로 천문대' },
 ];
 
+function resolveDustStationNameForSeed(
+  lat: number,
+  lng: number,
+  catalog: ReturnType<typeof loadBundledStationCatalog>,
+): string | null {
+  if (!catalog?.length) {
+    return null;
+  }
+  try {
+    return findDustStationInCatalog(catalog, lat, lng).stationName;
+  } catch {
+    return null;
+  }
+}
+
 async function seedSpots(): Promise<void> {
   const logger = new Logger('SpotsSeed');
   await dataSource.initialize();
+  const dustCatalog = loadBundledStationCatalog();
 
   try {
     for (const { from, to } of SPOT_NAME_RENAMES) {
@@ -546,10 +564,16 @@ async function seedSpots(): Promise<void> {
     }
 
     for (const spot of spotsSeedData) {
+      const dustStationName = resolveDustStationNameForSeed(
+        spot.lat,
+        spot.lng,
+        dustCatalog,
+      );
       await dataSource.query(
         `
         INSERT INTO spots (
-          name, location, bortle_class, elevation_m, has_parking, has_toilet, location_radius_m
+          name, location, bortle_class, elevation_m, has_parking, has_toilet,
+          location_radius_m, dust_station_name
         )
         SELECT
           $1::varchar,
@@ -558,7 +582,8 @@ async function seedSpots(): Promise<void> {
           $5::int,
           $6::boolean,
           $7::boolean,
-          $8::int
+          $8::int,
+          $9::varchar
         WHERE NOT EXISTS (
           SELECT 1 FROM spots WHERE name = $1::varchar
         )
@@ -572,8 +597,36 @@ async function seedSpots(): Promise<void> {
           spot.hasParking,
           spot.hasToilet,
           spot.locationRadiusM,
+          dustStationName,
         ],
       );
+    }
+
+    if (dustCatalog?.length) {
+      const missing = (await dataSource.query(
+        `
+        SELECT
+          id,
+          ST_Y(location::geometry) AS lat,
+          ST_X(location::geometry) AS lng
+        FROM spots
+        WHERE dust_station_name IS NULL OR TRIM(dust_station_name) = ''
+        `,
+      )) as Array<{ id: string; lat: number; lng: number }>;
+
+      for (const row of missing) {
+        const name = resolveDustStationNameForSeed(
+          Number(row.lat),
+          Number(row.lng),
+          dustCatalog,
+        );
+        if (!name) continue;
+        await dataSource.query(
+          `UPDATE spots SET dust_station_name = $2::varchar WHERE id = $1::uuid`,
+          [row.id, name],
+        );
+      }
+      logger.log(`dust_station_name 백필 — ${missing.length}건 처리 시도`);
     }
 
     const countRows = (await dataSource.query(
