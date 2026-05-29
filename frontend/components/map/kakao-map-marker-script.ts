@@ -63,8 +63,24 @@ export const KAKAO_MAP_MARKER_SCRIPT = `
           return el;
         }
 
-        /** Figma single — 별 핀 */
-        function makeStarPinEl(active) {
+        /** 별 핀 아래에 붙는 명소 이름 라벨 (핀 위치는 그대로 유지) */
+        function appendStarPinLabel(wrap, labelText) {
+          if (!labelText) return;
+          var lb = document.createElement('div');
+          lb.textContent = String(labelText);
+          lb.style.cssText =
+            'position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:1px;' +
+            'white-space:nowrap;max-width:128px;overflow:hidden;text-overflow:ellipsis;' +
+            'padding:2px 7px;border-radius:8px;background:rgba(7,17,31,0.82);' +
+            'color:#EAF6FF;font-size:11px;font-weight:600;line-height:1.3;' +
+            'letter-spacing:-0.02em;pointer-events:none;' +
+            'box-shadow:0 2px 8px rgba(0,0,0,0.3),0 0 0 1px rgba(141,220,255,0.18);' +
+            'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+          wrap.appendChild(lb);
+        }
+
+        /** Figma single — 별 핀 (labelText 있으면 핀 아래 이름 표시) */
+        function makeStarPinEl(active, labelText) {
           var wrap = document.createElement('div');
           var isOn = !!active;
           var bg = isOn ? SC.glow : SC.deepNavy;
@@ -86,6 +102,7 @@ export const KAKAO_MAP_MARKER_SCRIPT = `
             ';display:flex;align-items:center;justify-content:center;">' +
             starSvg(starColor, starColor) +
             '</div>';
+          appendStarPinLabel(wrap, labelText);
           return wrap;
         }
 

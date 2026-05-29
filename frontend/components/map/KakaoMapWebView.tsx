@@ -41,7 +41,7 @@ export type SpotListMode = 'nearby' | 'all';
 const DEFAULT_VIIRS_LAYER_ID = 'VIIRS_Black_Marble';
 
 /** map-site/kakao.html(GitHub Pages) 캐시 무효화 — hosted 폴백 시에만 사용 */
-const HOSTED_MAP_CACHE_VERSION = 'figma-markers-v3';
+const HOSTED_MAP_CACHE_VERSION = 'figma-markers-v4';
 
 function hostedMapPageUri(url: string): string {
   const base = url.trim();

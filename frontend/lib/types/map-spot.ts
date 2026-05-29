@@ -10,6 +10,8 @@ export type MapSpot = {
   regionKey?: string;
   /** 지도에만 쓰는 짧은 이름(주차장 등 생략) */
   shortTitle?: string;
+  /** 마커에 항상 표시할 라벨 — 시·도 + 시·군 접두 제거한 핵심 명칭 */
+  markerLabel?: string;
 };
 
 /** WebView CLUSTER_SPOTS 메시지 한 줄 — 문자열 필드는 빈 문자열 가능 */
