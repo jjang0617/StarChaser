@@ -42,6 +42,8 @@ import {
   saveLocationEnabled,
 } from './lib/location-preferences';
 import { recordSpotDetailView } from './lib/spot-activity-storage';
+import { fetchSpotById } from './lib/spots-api';
+import { spotNameWithoutRegionPrefix } from './lib/spot-display-name';
 import { RecordsTabScreen } from './components/records/RecordsTabScreen';
 import { SkyTabScreen } from './components/sky/SkyTabScreen';
 import { AuthScreen } from './components/auth/auth-screen';
@@ -89,6 +91,14 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const [locationToggleBusy, setLocationToggleBusy] = useState(false);
 
   const mapWebViewRef = useRef<KakaoMapWebViewHandle>(null);
+  /** 지도 webview 준비 여부 + 준비 전에 들어온 포커스 요청 보류 */
+  const mapReadyRef = useRef(false);
+  const pendingMapFocusRef = useRef<{
+    lat: number;
+    lng: number;
+    label: string;
+    spotId: string;
+  } | null>(null);
 
   // Map: 마커 클릭 → 상세 시트
   const [mapSpotId, setMapSpotId] = useState<string | null>(null);
@@ -355,6 +365,28 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     [user?.id, loadMapSpotStarIndex, refreshMySpots],
   );
 
+  /** 상세 시트는 열지 않고 MAP 탭으로 전환해 해당 명소 위치로만 이동(포커스). 조회수 미집계. */
+  const focusMapOnSpot = useCallback((spotId: string) => {
+    setActiveTab('map');
+    setMapLayerMounted(true);
+    setFocusSpotId(spotId);
+    void (async () => {
+      try {
+        const spot = await fetchSpotById(spotId);
+        const label = spotNameWithoutRegionPrefix(spot.name) || spot.name;
+        const focus = { lat: spot.lat, lng: spot.lng, label, spotId: spot.id };
+        if (mapReadyRef.current) {
+          mapWebViewRef.current?.focusMap(focus.lat, focus.lng, 7, focus.label, focus.spotId);
+        } else {
+          // 지도 준비 전이면 MAP_READY 이후 적용
+          pendingMapFocusRef.current = focus;
+        }
+      } catch {
+        // 좌표 조회 실패 시 포커스는 생략 (탭 전환은 유지)
+      }
+    })();
+  }, []);
+
   return (
     <Screen noPadding={activeTab === 'map' || activeTab === 'sky'}>
       <StatusBar style="light" />
@@ -403,6 +435,20 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                   }
                   return;
                 }
+                if (msg.type === 'MAP_READY') {
+                  mapReadyRef.current = true;
+                  const pending = pendingMapFocusRef.current;
+                  if (pending) {
+                    pendingMapFocusRef.current = null;
+                    mapWebViewRef.current?.focusMap(
+                      pending.lat,
+                      pending.lng,
+                      7,
+                      pending.label,
+                      pending.spotId,
+                    );
+                  }
+                }
                 if (msg.type === 'MARKER_CLICK') {
                   openMapSpotDetail(msg.data.spotId);
                 }
@@ -442,7 +488,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               top3Error={top3Error}
               top3Items={top3Items}
               selectedSpotId={focusSpotId}
-              onSelectTop3Spot={(id: string) => setFocusSpotId(id)}
+              onSelectTop3Spot={focusMapOnSpot}
             />
           ) : activeTab === 'records' ? (
             <RecordsTabScreen
