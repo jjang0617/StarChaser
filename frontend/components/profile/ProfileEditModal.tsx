@@ -19,6 +19,7 @@ import {
 import type { UserProfileDto } from '../../lib/types/api';
 import { Button, Input } from '../ui';
 import { ProfileAvatar } from './ProfileAvatar';
+import { ProfileImageCropModal, type PickedImage } from './ProfileImageCropModal';
 
 export function ProfileEditModal({
   visible,
@@ -37,6 +38,7 @@ export function ProfileEditModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<UserProfileDto>(profile);
+  const [cropTarget, setCropTarget] = useState<PickedImage | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -44,6 +46,7 @@ export function ProfileEditModal({
     setPreview(profile);
     setNicknameError(null);
     setError(null);
+    setCropTarget(null);
   }, [visible, profile]);
 
   const validateNickname = useCallback(async (value: string): Promise<boolean> => {
@@ -85,17 +88,25 @@ export function ProfileEditModal({
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
+      allowsEditing: false,
+      quality: 1,
     });
     if (result.canceled || !result.assets[0]) return;
 
     const asset = result.assets[0];
-    const mime = asset.mimeType ?? 'image/jpeg';
+    setCropTarget({
+      uri: asset.uri,
+      width: asset.width,
+      height: asset.height,
+    });
+  }, []);
+
+  const uploadCropped = useCallback(async (uri: string) => {
+    setCropTarget(null);
+    setError(null);
     setBusy(true);
     try {
-      const updated = await uploadMyAvatar(asset.uri, mime);
+      const updated = await uploadMyAvatar(uri, 'image/jpeg');
       setPreview(updated);
       onSaved(updated);
     } catch (e) {
@@ -226,6 +237,13 @@ export function ProfileEditModal({
           </View>
         </Pressable>
       </Pressable>
+
+      <ProfileImageCropModal
+        visible={cropTarget !== null}
+        image={cropTarget}
+        onCancel={() => setCropTarget(null)}
+        onCropped={(uri) => void uploadCropped(uri)}
+      />
     </Modal>
   );
 }
