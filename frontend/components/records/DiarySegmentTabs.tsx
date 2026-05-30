@@ -15,9 +15,9 @@ interface DiarySegmentTabsProps {
 }
 
 const SECTIONS: { key: DiarySectionKey; label: string; accessibilityLabel: string }[] = [
-  { key: 'write', label: 'DIARY 작성', accessibilityLabel: 'DIARY 작성' },
-  { key: 'browse', label: '펼쳐보기', accessibilityLabel: 'DIARY 펼쳐보기' },
-  { key: 'register-spot', label: '명소 등록', accessibilityLabel: '명소 등록하기' },
+  { key: 'write', label: '일기 작성', accessibilityLabel: '일기 작성' },
+  { key: 'browse', label: '펼쳐보기', accessibilityLabel: '일기 펼쳐보기' },
+  { key: 'register-spot', label: '명소 제보', accessibilityLabel: '명소 제보하기' },
 ];
 
 export function DiarySegmentTabs({ active, onChange }: DiarySegmentTabsProps) {

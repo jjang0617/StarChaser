@@ -26,6 +26,12 @@ export class ObservationEntity {
   @Column({ type: 'varchar', length: 16 })
   result: 'success' | 'partial' | 'fail';
 
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  title: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  content: string | null;
+
   @Column({ name: 'observed_at', type: 'timestamptz', default: () => 'now()' })
   observedAt: Date;
 

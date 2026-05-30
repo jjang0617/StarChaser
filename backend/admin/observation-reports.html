@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StarChaser — 불일치 제보 관리</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #030712;
+      --card: rgba(8, 15, 30, 0.92);
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #8ddcff;
+      --danger: #ef4444;
+      --ok: #34d399;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 22px; margin: 0 0 6px; }
+    .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    input, select, textarea, button {
+      font: inherit;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text);
+      padding: 10px 12px;
+    }
+    input, select { width: 100%; }
+    textarea { width: 100%; min-height: 72px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    button {
+      cursor: pointer;
+      background: rgba(141, 220, 255, 0.12);
+      border-color: rgba(141, 220, 255, 0.35);
+    }
+    button.primary { color: var(--accent); }
+    button.danger { color: var(--danger); border-color: rgba(239,68,68,.4); background: rgba(239,68,68,.08); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .err { color: var(--danger); font-size: 12px; margin-top: 8px; }
+    .ok { color: var(--ok); font-size: 12px; margin-top: 8px; }
+    .report {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .report h3 { margin: 0 0 6px; font-size: 15px; }
+    .meta { font-size: 12px; color: var(--muted); }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      margin-right: 6px;
+    }
+    .badge.pending { color: #fbbf24; border-color: rgba(251,191,36,.4); }
+    .badge.reviewed { color: var(--ok); border-color: rgba(52,211,153,.4); }
+    .stats { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+    .stat {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>불일치 제보 관리</h1>
+    <p class="sub">Star-Index와 관측 결과가 맞지 않다고 사용자가 제보한 일기 목록입니다.</p>
+
+    <div class="panel" id="loginPanel">
+      <div class="row">
+        <div>
+          <label>API Base URL</label>
+          <input id="apiBase" placeholder="http://localhost:3333" />
+        </div>
+        <div>
+          <label>상태 필터</label>
+          <select id="statusFilter">
+            <option value="">전체</option>
+            <option value="pending" selected>대기</option>
+            <option value="reviewed">처리 완료</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div>
+          <label>관리자 이메일</label>
+          <input id="email" type="email" autocomplete="username" />
+        </div>
+        <div>
+          <label>비밀번호</label>
+          <input id="password" type="password" autocomplete="current-password" />
+        </div>
+      </div>
+      <div class="actions">
+        <button class="primary" id="loginBtn">로그인 후 불러오기</button>
+        <button id="refreshBtn" disabled>새로고침</button>
+      </div>
+      <div id="loginMsg"></div>
+    </div>
+
+    <div id="list"></div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'starchaser_admin_token';
+    const apiBaseInput = document.getElementById('apiBase');
+    const statusFilter = document.getElementById('statusFilter');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const loginBtn = document.getElementById('loginBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const loginMsg = document.getElementById('loginMsg');
+    const listEl = document.getElementById('list');
+
+    apiBaseInput.value = localStorage.getItem('starchaser_admin_api') || window.location.origin;
+
+    function setMsg(el, text, ok) {
+      el.textContent = text || '';
+      el.className = ok ? 'ok' : 'err';
+    }
+
+    function token() {
+      return localStorage.getItem(STORAGE_KEY);
+    }
+
+    async function login() {
+      const base = apiBaseInput.value.replace(/\/$/, '');
+      localStorage.setItem('starchaser_admin_api', base);
+      setMsg(loginMsg, '로그인 중…', true);
+      const res = await fetch(base + '/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          email: emailInput.value.trim(),
+          password: passwordInput.value,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg(loginMsg, body.message || '로그인 실패', false);
+        return null;
+      }
+      localStorage.setItem(STORAGE_KEY, body.accessToken);
+      refreshBtn.disabled = false;
+      setMsg(loginMsg, '로그인 성공', true);
+      return body.accessToken;
+    }
+
+    async function fetchReports() {
+      const base = apiBaseInput.value.replace(/\/$/, '');
+      let t = token();
+      if (!t) t = await login();
+      if (!t) return;
+
+      const status = statusFilter.value;
+      const qs = status ? '?status=' + encodeURIComponent(status) : '';
+      const res = await fetch(base + '/admin/observation-reports' + qs, {
+        headers: { Authorization: 'Bearer ' + t, Accept: 'application/json' },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        listEl.innerHTML = '<div class="panel err">' + (body.message || '목록 조회 실패') + '</div>';
+        return;
+      }
+      renderList(body);
+    }
+
+    function resultLabel(r) {
+      if (r === 'success') return '성공';
+      if (r === 'partial') return '부분';
+      return '실패';
+    }
+
+    function renderList(items) {
+      if (!items.length) {
+        listEl.innerHTML = '<div class="panel meta">제보가 없습니다.</div>';
+        return;
+      }
+      listEl.innerHTML = items.map(function (item) {
+        const obs = item.observation || {};
+        return (
+          '<article class="report">' +
+          '<h3>' + escapeHtml(obs.title || '(제목 없음)') + '</h3>' +
+          '<div class="meta">' +
+          '<span class="badge ' + item.status + '">' + (item.status === 'pending' ? '대기' : '처리 완료') + '</span>' +
+          escapeHtml(item.mismatchLabel) + ' · ' + new Date(item.createdAt).toLocaleString('ko-KR') +
+          '</div>' +
+          '<div class="stats">' +
+          '<span class="stat">Star-Index ' + obs.starIndexVal + '</span>' +
+          '<span class="stat">관측 ' + resultLabel(obs.result) + '</span>' +
+          '<span class="stat">' + escapeHtml(item.user.nickname || item.user.email) + '</span>' +
+          '</div>' +
+          '<p style="font-size:13px;margin:8px 0 0">' + escapeHtml((obs.content || '').slice(0, 200)) + '</p>' +
+          (item.message ? '<p class="meta" style="margin-top:6px">제보 메모: ' + escapeHtml(item.message) + '</p>' : '') +
+          (item.status === 'pending'
+            ? '<div class="actions"><button class="primary" data-id="' + item.id + '">처리 완료</button></div>'
+            : '') +
+          '</article>'
+        );
+      }).join('');
+
+      listEl.querySelectorAll('button[data-id]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          void markReviewed(btn.getAttribute('data-id'));
+        });
+      });
+    }
+
+    async function markReviewed(id) {
+      const base = apiBaseInput.value.replace(/\/$/, '');
+      const t = token();
+      const res = await fetch(base + '/admin/observation-reports/' + id, {
+        method: 'PATCH',
+        headers: {
+          Authorization: 'Bearer ' + t,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ status: 'reviewed' }),
+      });
+      if (!res.ok) {
+        alert('상태 변경 실패');
+        return;
+      }
+      await fetchReports();
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    loginBtn.addEventListener('click', function () { void fetchReports(); });
+    refreshBtn.addEventListener('click', function () { void fetchReports(); });
+    statusFilter.addEventListener('change', function () { if (token()) void fetchReports(); });
+
+    if (token()) {
+      refreshBtn.disabled = false;
+      void fetchReports();
+    }
+  </script>
+</body>
+</html>

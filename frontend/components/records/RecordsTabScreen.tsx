@@ -11,14 +11,14 @@ import {
 import { screenHeaderText, screenSubheaderText, spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 import { Button, Card } from '../ui';
-import { spotNameWithoutRegionPrefix, spotRegionSubtitle } from '../../lib/spot-display-name';
-import { fetchSpotsAll } from '../../lib/spots-api';
-import type { SpotDto } from '../../lib/types/api';
 import { DiarySegmentTabs, type DiarySectionKey } from './DiarySegmentTabs';
-import { ObservationLogCard } from './ObservationLogCard';
+import { DiaryDetailModal } from './DiaryDetailModal';
+import { DiaryEntryCard } from './DiaryEntryCard';
+import { DiaryWriteModal } from './DiaryWriteModal';
+import { SpotReportSection } from './SpotReportSection';
+import { ObservationResultPicker, type ObservationResult } from './ObservationResultPicker';
 import {
   ApiRequestError,
-  createObservation,
   fetchMyObservations,
   fetchStarIndex,
   fetchStarIndexAtLocation,
@@ -55,7 +55,6 @@ export function RecordsTabScreen({
   const [list, setList] = useState<ObservationRowDto[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listErr, setListErr] = useState<string | null>(null);
-  const [spotById, setSpotById] = useState<Map<string, SpotDto>>(() => new Map());
 
   const [siData, setSiData] = useState<StarIndexResponseDto | null>(null);
   const [siLoading, setSiLoading] = useState(false);
@@ -65,16 +64,16 @@ export function RecordsTabScreen({
   /** true면 저장 시 spotId 없이 좌표 스냅샷만 (잘못된 명소 연결 방지) */
   const [siFromGps, setSiFromGps] = useState(false);
 
-  const [result, setResult] = useState<'success' | 'partial' | 'fail'>('success');
-  const [saveBusy, setSaveBusy] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [result, setResult] = useState<ObservationResult>('success');
+  const [writeModalOpen, setWriteModalOpen] = useState(false);
+  const [detailRow, setDetailRow] = useState<ObservationRowDto | null>(null);
 
   const loadList = useCallback(async () => {
     setListLoading(true);
     setListErr(null);
     try {
       const rows = await fetchMyObservations();
-      setList(rows);
+      setList(rows.map((row) => ({ ...row, photos: row.photos ?? [] })));
     } catch (e) {
       if (e instanceof SessionExpiredError) {
         await onSessionInvalidated();
@@ -201,77 +200,20 @@ export function RecordsTabScreen({
   }, [loadList]);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const spots = await fetchSpotsAll();
-        if (cancelled) return;
-        setSpotById(new Map(spots.map((s) => [s.id, s])));
-      } catch {
-        /* 명소 이름 없이 카드만 표시 */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const resolveLogCardLabels = useCallback(
-    (row: ObservationRowDto): { title: string; regionSubtitle?: string } => {
-      if (row.spotId) {
-        const spot = spotById.get(row.spotId);
-        if (spot) {
-          return {
-            title: spotNameWithoutRegionPrefix(spot.name),
-            regionSubtitle: spotRegionSubtitle(spot.name) || undefined,
-          };
-        }
-        return { title: `관측지 …${row.spotId.slice(-6)}` };
-      }
-      return { title: 'GPS 관측' };
-    },
-    [spotById],
-  );
-
-  useEffect(() => {
     void loadSi();
   }, [loadSi]);
 
-  const onSave = async () => {
-    if (!siData) return;
-    setSaveBusy(true);
-    setSaveMsg(null);
-    try {
-      const spotForRow = siFromGps
-        ? undefined
-        : siData.spotId && siData.spotId.length > 0
-          ? siData.spotId
-          : activeSpotId ?? undefined;
-      await createObservation({
-        spotId: spotForRow,
-        starIndexVal: siData.score,
-        weatherSnapshot: siData.weatherSnapshot as unknown as Record<
-          string,
-          unknown
-        >,
-        result,
-      });
-      setSaveMsg('저장했습니다.');
-      await loadList();
-    } catch (e) {
-      if (e instanceof SessionExpiredError) {
-        await onSessionInvalidated();
-        return;
-      }
-      if (e instanceof ApiRequestError) {
-        setSaveMsg(e.message);
-      } else {
-        setSaveMsg('저장에 실패했습니다.');
-      }
-    } finally {
-      setSaveBusy(false);
-    }
-  };
+  const resolveSpotIdForSave = useCallback((): string | undefined => {
+    if (!siData) return undefined;
+    if (siFromGps) return undefined;
+    if (siData.spotId && siData.spotId.length > 0) return siData.spotId;
+    return activeSpotId ?? undefined;
+  }, [activeSpotId, siData, siFromGps]);
+
+  const onDiarySaved = useCallback(async () => {
+    await loadList();
+    setDiarySection('browse');
+  }, [loadList]);
 
   const hasObserverGps =
     observerLat != null &&
@@ -283,171 +225,167 @@ export function RecordsTabScreen({
     Platform.OS !== 'web' || hasObserverGps || Boolean(activeSpotId);
 
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.inner}
-      showsVerticalScrollIndicator={false}
-    >
-      <Text style={[styles.title, screenHeaderText(theme.foreground)]}>관측 기록</Text>
-      <Text style={[styles.sub, screenSubheaderText(theme.mutedForeground)]}>
-        별자리 촬영 히스토리 · Star-Index 스냅샷으로 저장합니다.
-      </Text>
+    <>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.inner}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={[styles.title, screenHeaderText(theme.foreground)]}>관측 일기</Text>
+        <Text style={[styles.sub, screenSubheaderText(theme.mutedForeground)]}>
+          오늘의 밤하늘을 기록하고, Star-Index와 함께 남겨 보세요.
+        </Text>
 
-      <DiarySegmentTabs active={diarySection} onChange={setDiarySection} />
+        <DiarySegmentTabs active={diarySection} onChange={setDiarySection} />
 
-      {diarySection === 'write' ? (
-        <>
-          {!canLoadStarIndex ? (
-            <Card title="위치·명소 필요" description="위치 권한을 허용하거나 지도에서 명소를 고르세요">
-              <Text style={{ color: theme.mutedForeground, fontSize: 13 }}>
-                GPS가 켜지면 현재 위치 격자로 Star-Index를 불러옵니다. 없으면 EXPO_PUBLIC_DEFAULT_SPOT_ID
-                또는 지도 마커로 명소를 정할 수 있어요.
-              </Text>
-            </Card>
-          ) : (
-            <Card
-              title="현재 Star-Index"
-              description={
-                siPlaceLabel
-                  ? `${siPlaceLabel} 기준`
-                  : siData?.name ?? 'GPS·격자 기준으로 불러옵니다'
-              }
-            >
-              {siLoading ? (
-                <ActivityIndicator color={theme.primaryGlow} />
-              ) : siErr ? (
-                <Text style={{ color: theme.destructive }}>{siErr}</Text>
-              ) : siData ? (
-                <View>
-                  {(() => {
-                    const si = getStarIndexScoreDisplay(siData.score);
-                    return (
+        {diarySection === 'write' ? (
+          <>
+            {!canLoadStarIndex ? (
+              <Card title="위치·명소 필요" description="위치 권한을 허용하거나 지도에서 명소를 고르세요">
+                <Text style={{ color: theme.mutedForeground, fontSize: 13 }}>
+                  GPS가 켜지면 현재 위치 격자로 Star-Index를 불러옵니다. 없으면 EXPO_PUBLIC_DEFAULT_SPOT_ID
+                  또는 지도 마커로 명소를 정할 수 있어요.
+                </Text>
+              </Card>
+            ) : (
+              <Card
+                title="현재 Star-Index"
+                description={
+                  siPlaceLabel
+                    ? `${siPlaceLabel} 기준`
+                    : siData?.name ?? 'GPS·격자 기준으로 불러옵니다'
+                }
+              >
+                {siLoading ? (
+                  <ActivityIndicator color={theme.primaryGlow} />
+                ) : siErr ? (
+                  <Text style={{ color: theme.destructive }}>{siErr}</Text>
+                ) : siData ? (
+                  <View>
+                    {(() => {
+                      const si = getStarIndexScoreDisplay(siData.score);
+                      return (
+                        <Text
+                          style={{
+                            color: si.measurable ? theme.primaryGlow : theme.destructive,
+                            fontSize: si.measurable ? 28 : 20,
+                            fontWeight: '300',
+                          }}
+                        >
+                          {si.label}
+                        </Text>
+                      );
+                    })()}
+                    <Text style={{ color: theme.mutedForeground, fontSize: 12, marginTop: 6 }}>
+                      {(siPlaceLabel ?? siData.name) +
+                        ` · 구름 ${siData.weatherSnapshot.cloud_score}`}
+                    </Text>
+                    {siData.isStale ? (
                       <Text
                         style={{
-                          color: si.measurable ? theme.primaryGlow : theme.destructive,
-                          fontSize: si.measurable ? 28 : 20,
-                          fontWeight: '300',
+                          color: theme.primaryGlow,
+                          fontSize: 11,
+                          marginTop: 8,
+                          lineHeight: 16,
                         }}
                       >
-                        {si.label}
+                        {formatStarIndexStaleHint(siData.cachedAt)}
                       </Text>
-                    );
-                  })()}
-                  <Text style={{ color: theme.mutedForeground, fontSize: 12, marginTop: 6 }}>
-                    {(siPlaceLabel ?? siData.name) +
-                      ` · 구름 ${siData.weatherSnapshot.cloud_score}`}
-                  </Text>
-                  {siData.isStale ? (
-                    <Text
-                      style={{
-                        color: theme.primaryGlow,
-                        fontSize: 11,
-                        marginTop: 8,
-                        lineHeight: 16,
-                      }}
-                    >
-                      {formatStarIndexStaleHint(siData.cachedAt)}
-                    </Text>
-                  ) : null}
+                    ) : null}
+                  </View>
+                ) : null}
+                <View style={{ marginTop: 8 }}>
+                  <Button
+                    label="다시 불러오기"
+                    variant="outline"
+                    size="sm"
+                    onPress={() => void loadSi()}
+                    disabled={siLoading}
+                  />
                 </View>
-              ) : null}
-              <View style={{ marginTop: 8 }}>
+              </Card>
+            )}
+
+            <Card
+              title="일기 작성"
+              description={
+                siData?.isStale
+                  ? '참고 점수·스냅샷과 함께 일기를 남깁니다'
+                  : '오늘의 관측 결과를 선택하고 일기를 작성하세요'
+              }
+            >
+              <ObservationResultPicker value={result} onChange={setResult} />
+              <View style={{ marginTop: spacing.md }}>
                 <Button
-                  label="다시 불러오기"
-                  variant="outline"
-                  size="sm"
-                  onPress={() => void loadSi()}
-                  disabled={siLoading}
+                  label="오늘의 일기 쓰기"
+                  fullWidth
+                  disabled={!siData}
+                  onPress={() => setWriteModalOpen(true)}
                 />
               </View>
             </Card>
-          )}
+          </>
+        ) : null}
 
-          <Card
-            title="새 기록"
-            description={
-              siData?.isStale
-                ? '참고 점수·스냅샷으로 저장 (실시간 기상 캐시 없음)'
-                : '결과 선택 후 저장'
-            }
-          >
-            <View style={styles.row}>
-              {(
-                [
-                  ['success', '성공'],
-                  ['partial', '부분'],
-                  ['fail', '실패'],
-                ] as const
-              ).map(([key, label]) => (
-                <Button
-                  key={key}
-                  label={label}
-                  variant={result === key ? 'primary' : 'outline'}
-                  size="sm"
-                  onPress={() => setResult(key)}
-                />
-              ))}
-            </View>
-            <View style={{ marginTop: 12 }}>
-              <Button
-                label="이 스냅샷으로 저장"
-                fullWidth
-                loading={saveBusy}
-                disabled={!siData || saveBusy}
-                onPress={() => void onSave()}
-              />
-            </View>
-            {saveMsg ? (
-              <Text style={{ color: theme.mutedForeground, marginTop: 8, fontSize: 12 }}>
-                {saveMsg}
+        {diarySection === 'register-spot' ? (
+          <SpotReportSection
+            observerLat={observerLat}
+            observerLng={observerLng}
+            useDeviceLocation={useDeviceLocation}
+            onSessionInvalidated={onSessionInvalidated}
+          />
+        ) : null}
+
+        {diarySection === 'browse' ? (
+          <Card title="내 일기" description={listLoading ? '불러오는 중…' : `${list.length}건`}>
+            {listLoading ? (
+              <ActivityIndicator color={theme.primaryGlow} />
+            ) : listErr ? (
+              <Text style={{ color: theme.destructive }}>{listErr}</Text>
+            ) : list.length === 0 ? (
+              <Text style={{ color: theme.mutedForeground, fontSize: 13 }}>
+                아직 작성한 일기가 없습니다. DIARY 작성에서 첫 일기를 남겨 보세요.
               </Text>
-            ) : null}
-          </Card>
-        </>
-      ) : null}
-
-      {diarySection === 'register-spot' ? (
-        <Card
-          title="명소가 목록에 없나요?"
-          description="추후 GPS 또는 지역 선택으로 새 명소를 제안·등록할 수 있게 준비 중입니다."
-        >
-          <Text style={{ color: theme.mutedForeground, fontSize: 13, lineHeight: 19 }}>
-            DB에 없는 관측지도 커뮤니티와 함께 채워 나갈 예정이에요.
-          </Text>
-        </Card>
-      ) : null}
-
-      {diarySection === 'browse' ? (
-        <Card title="내 기록" description={listLoading ? '불러오는 중…' : `${list.length}건`}>
-          {listLoading ? (
-            <ActivityIndicator color={theme.primaryGlow} />
-          ) : listErr ? (
-            <Text style={{ color: theme.destructive }}>{listErr}</Text>
-          ) : list.length === 0 ? (
-            <Text style={{ color: theme.mutedForeground, fontSize: 13 }}>기록이 없습니다.</Text>
-          ) : (
-            <View style={styles.logList}>
-              {list.map((row) => {
-                const labels = resolveLogCardLabels(row);
-                return (
-                  <ObservationLogCard
+            ) : (
+              <View style={styles.logList}>
+                {list.map((row) => (
+                  <DiaryEntryCard
                     key={row.id}
                     row={row}
-                    title={labels.title}
-                    regionSubtitle={labels.regionSubtitle}
+                    onPress={() => setDetailRow(row)}
                   />
-                );
-              })}
-            </View>
-          )}
-          {!listLoading ? (
-            <View style={{ marginTop: 8 }}>
-              <Button label="목록 새로고침" variant="ghost" size="sm" onPress={() => void loadList()} />
-            </View>
-          ) : null}
-        </Card>
+                ))}
+              </View>
+            )}
+            {!listLoading ? (
+              <View style={{ marginTop: 8 }}>
+                <Button label="목록 새로고침" variant="ghost" size="sm" onPress={() => void loadList()} />
+              </View>
+            ) : null}
+          </Card>
+        ) : null}
+      </ScrollView>
+
+      {siData ? (
+        <DiaryWriteModal
+          visible={writeModalOpen}
+          result={result}
+          starIndexData={siData}
+          spotId={resolveSpotIdForSave()}
+          onClose={() => setWriteModalOpen(false)}
+          onSaved={() => void onDiarySaved()}
+          onSessionInvalidated={onSessionInvalidated}
+        />
       ) : null}
-    </ScrollView>
+
+      <DiaryDetailModal
+        visible={detailRow != null}
+        row={detailRow}
+        onClose={() => setDetailRow(null)}
+        onDeleted={() => void loadList()}
+        onSessionInvalidated={onSessionInvalidated}
+      />
+    </>
   );
 }
 
@@ -456,7 +394,6 @@ const styles = StyleSheet.create({
   inner: { padding: spacing.lg, paddingBottom: 32 },
   title: { marginBottom: 4 },
   sub: { marginBottom: spacing.lg },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   logList: {
     marginTop: spacing.xs,
   },

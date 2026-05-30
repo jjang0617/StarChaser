@@ -19,6 +19,10 @@ import { ViirsModule } from './viirs/viirs.module';
 import { WeeklyTop3Module } from './weekly-top3/weekly-top3.module';
 import { UsersModule } from './users/users.module';
 import { KakaoPageController } from './kakao-page.controller';
+import { ObservationReportsModule } from './observation-reports/observation-reports.module';
+import { AdminModule } from './admin/admin.module';
+import { AdminPageController } from './admin/admin-page.controller';
+import { SpotReportsModule } from './spot-reports/spot-reports.module';
 
 @Module({
   imports: [
@@ -74,8 +78,11 @@ import { KakaoPageController } from './kakao-page.controller';
     ViirsModule,
     WeeklyTop3Module,
     UsersModule,
+    ObservationReportsModule,
+    SpotReportsModule,
+    AdminModule,
   ],
-  controllers: [AppController, KakaoPageController],
+  controllers: [AppController, KakaoPageController, AdminPageController],
   providers: [AppService],
 })
 export class AppModule {}

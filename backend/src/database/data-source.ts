@@ -7,6 +7,8 @@ import { PhotoEntity } from '../photos/photo.entity';
 import { SpotEntity } from '../spots/spot.entity';
 import { UserEntity } from '../users/user.entity';
 import { EmailVerificationEntity } from '../auth/email-verification.entity';
+import { ObservationMismatchReportEntity } from '../observation-reports/observation-mismatch-report.entity';
+import { SpotReportEntity } from '../spot-reports/spot-report.entity';
 import { config } from 'dotenv';
 
 // TypeORM CLI 실행 시에도 backend/.env를 자동 로드한다.
@@ -31,6 +33,8 @@ export default new DataSource({
     NotificationPreferenceEntity,
     StarIndexCorrectionSubmissionEntity,
     EmailVerificationEntity,
+    ObservationMismatchReportEntity,
+    SpotReportEntity,
   ],
   migrations: ['src/migrations/*.ts'],
   synchronize: false,

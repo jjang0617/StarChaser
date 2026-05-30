@@ -31,6 +31,8 @@ export class TypeOrmObservationRepository implements ObservationRepository {
       starIndexVal: data.starIndexVal,
       weatherSnapshot: data.weatherSnapshot,
       result: data.result,
+      title: data.title,
+      content: data.content,
       observedAt: data.observedAt ?? new Date(),
     });
     const row = await this.repo.save(entity);
@@ -49,6 +51,8 @@ export class TypeOrmObservationRepository implements ObservationRepository {
       starIndexVal: row.starIndexVal,
       weatherSnapshot: row.weatherSnapshot,
       result: row.result,
+      title: row.title,
+      content: row.content,
       observedAt: row.observedAt,
     };
   }
