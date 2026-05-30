@@ -117,4 +117,63 @@ describe('star-index-scoring.util', () => {
     expect(calcPrecipitationScore(3, 0)).toBe(5);
     expect(calcPrecipitationScore(0, 0)).toBe(100);
   });
+
+  it('blend 가중치 합계는 1.0이다 (모든 하위 점수 100·gate 무손실이면 100)', () => {
+    const score = aggregateStarIndexScore({
+      components: nightComponents({
+        cloud_score: 100,
+        pm25_score: 100,
+        light_pollution_score: 100,
+        moon_effect_score: 100,
+        humidity_score: 100,
+        elevation_score: 100,
+        wind_score: 100,
+        visibility_score: 100,
+        temperature_score: 100,
+        correction_score: 100,
+        precipitation_score: 100,
+      }),
+      cloudPercent: 10, // gate = 1.0
+      sunAltitudeDeg: -25, // multiplier = 1.0
+      pop: 0,
+      pty: 0,
+      visibilityKnown: true,
+    });
+    expect(score).toBe(100);
+  });
+
+  it('correction_score는 최종 점수에 영향을 주지 않는다 (자동 반영 비활성화)', () => {
+    const base = (correction: number) =>
+      aggregateStarIndexScore({
+        components: nightComponents({ correction_score: correction }),
+        cloudPercent: 15,
+        sunAltitudeDeg: -25,
+        pop: 0,
+        pty: 0,
+        visibilityKnown: false,
+      });
+    // 제보 집계값(0/50/100)이 달라도 점수는 동일해야 한다
+    expect(base(0)).toBe(base(100));
+    expect(base(50)).toBe(base(100));
+  });
+
+  it('PM2.5 매우나쁨은 보통보다 총점을 더 크게 끌어내린다', () => {
+    const moderate = aggregateStarIndexScore({
+      components: nightComponents({ pm25_score: 78 }),
+      cloudPercent: 15,
+      sunAltitudeDeg: -25,
+      pop: 0,
+      pty: 0,
+      visibilityKnown: false,
+    });
+    const veryBad = aggregateStarIndexScore({
+      components: nightComponents({ pm25_score: 5 }),
+      cloudPercent: 15,
+      sunAltitudeDeg: -25,
+      pop: 0,
+      pty: 0,
+      visibilityKnown: false,
+    });
+    expect(moderate).toBeGreaterThan(veryBad);
+  });
 });
