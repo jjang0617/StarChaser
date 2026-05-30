@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const AVATAR_BUCKET = 'avatars';
+const DIARY_PHOTOS_BUCKET = 'diary-photos';
 /** 업로드 시 사용하는 확장자와 동일 (jpeg → jpg) */
 const AVATAR_OBJECT_PATHS = ['jpg', 'png', 'webp'] as const;
 
@@ -36,6 +37,61 @@ export class SupabaseStorageService {
     if (mime === 'image/png') return 'png';
     if (mime === 'image/webp') return 'webp';
     return 'jpg';
+  }
+
+  /** 일기 사진 — observation별 고유 경로 */
+  private diaryPhotoPath(
+    userId: string,
+    observationId: string,
+    photoId: string,
+    ext: string,
+  ): string {
+    return `${userId}/${observationId}/${photoId}.${ext}`;
+  }
+
+  async uploadDiaryPhoto(
+    userId: string,
+    observationId: string,
+    photoId: string,
+    buffer: Buffer,
+    mimeType: string,
+  ): Promise<string> {
+    const client = this.requireClient();
+    const ext = this.extensionFromMime(mimeType);
+    const path = this.diaryPhotoPath(userId, observationId, photoId, ext);
+
+    const { error } = await client.storage
+      .from(DIARY_PHOTOS_BUCKET)
+      .upload(path, buffer, {
+        contentType: mimeType,
+        upsert: false,
+      });
+    if (error) {
+      this.logger.error(`일기 사진 업로드 실패: ${error.message}`);
+      throw new ServiceUnavailableException('일기 사진 업로드에 실패했습니다.');
+    }
+
+    const { data } = client.storage.from(DIARY_PHOTOS_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  async removeDiaryPhotos(userId: string, observationId: string): Promise<void> {
+    if (!this.client) return;
+    const client = this.requireClient();
+    const prefix = `${userId}/${observationId}`;
+    const { data, error: listError } = await client.storage
+      .from(DIARY_PHOTOS_BUCKET)
+      .list(prefix);
+    if (listError) {
+      this.logger.warn(`일기 사진 목록 조회 경고: ${listError.message}`);
+      return;
+    }
+    if (!data?.length) return;
+    const paths = data.map((f) => `${prefix}/${f.name}`);
+    const { error } = await client.storage.from(DIARY_PHOTOS_BUCKET).remove(paths);
+    if (error) {
+      this.logger.warn(`일기 사진 삭제 경고: ${error.message}`);
+    }
   }
 
   private objectPath(userId: string, ext: string): string {

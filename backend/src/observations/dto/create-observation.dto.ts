@@ -4,8 +4,10 @@ import {
   IsInt,
   IsObject,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -31,4 +33,16 @@ export class CreateObservationDto {
   @ApiProperty({ enum: ['success', 'partial', 'fail'] })
   @IsIn(['success', 'partial', 'fail'])
   result: 'success' | 'partial' | 'fail';
+
+  @ApiPropertyOptional({ description: '일기 제목', maxLength: 120 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  title?: string;
+
+  @ApiPropertyOptional({ description: '일기 본문' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  content?: string;
 }

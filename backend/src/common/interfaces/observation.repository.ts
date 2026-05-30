@@ -11,6 +11,8 @@ export interface Observation {
   starIndexVal: number;
   weatherSnapshot: WeatherSnapshot;
   result: 'success' | 'partial' | 'fail';
+  title: string | null;
+  content: string | null;
   observedAt: Date;
 }
 
