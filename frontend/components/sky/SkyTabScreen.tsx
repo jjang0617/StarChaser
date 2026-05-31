@@ -1,7 +1,7 @@
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { Accelerometer, Gyroscope } from 'expo-sensors';
+import { Gyroscope } from 'expo-sensors';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,7 +20,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, {
   Circle,
   Defs,
-  Ellipse,
   G,
   Line,
   LinearGradient,
@@ -55,10 +54,12 @@ import { getConstellationLore } from './constellation-lore';
 import { SkyGlCanvas } from './SkyGlCanvas';
 import { sunAltAzDeg } from '../../lib/sun-position';
 import {
-  azAltToNorm,
+  computeViewBasis,
+  GL_TAN_HALF_FOV,
   magToRadius,
   normToLayoutSlice,
-  rotateSkyNorm,
+  projectPerspectiveClip,
+  projectToView,
 } from './sky-projection';
 import { skyBackdropFromSunAlt } from './sky-appearance';
 import { namedStarLabelKo } from './named-star-labels';
@@ -368,27 +369,386 @@ function formatKstHm(isoUtc: string): string {
   }
 }
 
-/** 스타렐리움식 지평선 위 나무·언덕 실루엣(회전 천구 위에 덮어 별이 지평선 아래 가려짐) */
-const STELLARIUM_HILL_BASE =
-  'M0,100 L0,93 Q12,90 28,91 Q42,88 50,90 Q62,87 78,90 Q90,88 100,91 L100,100 Z';
-const STELLARIUM_TREE_LINE =
-  'M0,100 L0,91 L4,92 L7,87 L11,89 L14,84 L18,86 L22,81 L27,84 L31,79 L36,82 L42,76 L48,80 L55,73 L62,78 L68,74 L75,77 L82,71 L90,75 L96,70 L100,73 L100,100 Z';
-const STELLARIUM_BOKEH = [
-  { cx: 78, cy: 94.5, r: 1.15, o: 0.45 },
-  { cx: 86, cy: 93.2, r: 0.85, o: 0.38 },
-  { cx: 72, cy: 95.8, r: 0.7, o: 0.32 },
-  { cx: 91, cy: 95.5, r: 1.6, o: 0.18 },
-  { cx: 83, cy: 96.8, r: 0.9, o: 0.28 },
-] as const;
-
 const SKY_RENDER_STORAGE_KEY = 'starChaser:skyRenderMode';
 const SKY_CONTROLS_EXPANDED_KEY = 'starChaser:skyControlsExpanded';
 
 const HEADING_LOWPASS = 0.88;
 /** 자이로 보조 시 나침반에 가끔 붙는 가중(드리프트 억제) */
 const COMPASS_BLEND_MOTION = 0.07;
-/** 가속도계 롤 → 천구 회전에 더하는 비율(세로 기기 기준 실험값) */
-const TILT_GAIN = 0.09;
+
+/** 1인칭 자유 시점 카메라 — 드래그 감도(°/px)와 시선 고도 범위 */
+const VIEW_YAW_GAIN = 0.2;
+const VIEW_PITCH_GAIN = 0.2;
+/** 시선 고도: 지평선(0°, 정면)부터 천정(90°, 수직으로 올려다봄)까지만 */
+const VIEW_ALT_MIN = 0;
+const VIEW_ALT_MAX = 90;
+/** 처음 시선: 남쪽 지평선을 정면으로(서서 앞을 보는 느낌) */
+const VIEW_DEFAULT_YAW = 180;
+const VIEW_DEFAULT_PITCH = 0;
+
+function clampNum(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
+function normYaw(deg: number): number {
+  let d = deg % 360;
+  if (d < 0) d += 360;
+  return d;
+}
+
+/** 한 타일 폭(viewBox 단위). 360°↔2타일이라 좌우로 끝없이 돌려도 이음새가 없음 */
+const CAMP_TILE = 90;
+/** 지평선 화면 높이: 정면(0°)에서 하단에 낮게, 올려다볼수록 아래로 내려가 사라짐 */
+const CAMP_HORIZON_BASE = 82;
+const CAMP_HORIZON_SLOPE = 0.5;
+
+type CampColors = {
+  pine: string;
+  trunk: string;
+  tent: string;
+  accent: string;
+};
+
+/** 16진수 색을 f배 어둡게(0~1) — 같은 색 계열로 지붕/도어 음영을 만든다 */
+function darkenHex(hex: string, f: number): string {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const cl = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  const r = cl(((n >> 16) & 255) * f);
+  const g = cl(((n >> 8) & 255) * f);
+  const b = cl((n & 255) * f);
+  const h2 = (x: number) => x.toString(16).padStart(2, '0');
+  return `#${h2(r)}${h2(g)}${h2(b)}`;
+}
+
+/**
+ * 디테일 있는 글램핑 텐트(단색). round=true면 둥근 벨 텐트, false면 박공형 캐빈 텐트.
+ * 본체는 한 가지 색, 지붕·도어는 그 색의 음영으로만 표현(한 텐트=한 색).
+ * 굴뚝·당김줄·도어 분할선·입구 빛으로 디테일을 더한다. lightOpacity로 입구 빛만 점등.
+ */
+function GlampTent({
+  cx,
+  foot,
+  hw,
+  h,
+  body,
+  round,
+  lightOpacity,
+}: {
+  cx: number;
+  foot: number;
+  hw: number;
+  h: number;
+  body: string;
+  round: boolean;
+  lightOpacity: number;
+}) {
+  const wallTop = foot - h * 0.42;
+  const peak = foot - h;
+  const shoulder = foot - h * 0.8;
+  const roofShade = darkenHex(body, 0.82);
+  const seam = darkenHex(body, 0.7);
+  const doorShade = darkenHex(body, 0.52);
+  const doorSplit = darkenHex(body, 0.38);
+  const dw = hw * 0.32;
+  const doorTop = foot - h * 0.5;
+  const f = (n: number) => n.toFixed(1);
+
+  const bodyPath = round
+    ? `M ${f(cx - hw)} ${f(foot)} L ${f(cx - hw)} ${f(wallTop)} Q ${f(cx - hw)} ${f(peak)} ${f(cx)} ${f(peak)} Q ${f(cx + hw)} ${f(peak)} ${f(cx + hw)} ${f(wallTop)} L ${f(cx + hw)} ${f(foot)} Z`
+    : `M ${f(cx - hw)} ${f(foot)} L ${f(cx - hw)} ${f(wallTop)} L ${f(cx - hw * 0.5)} ${f(shoulder)} L ${f(cx)} ${f(peak)} L ${f(cx + hw * 0.5)} ${f(shoulder)} L ${f(cx + hw)} ${f(wallTop)} L ${f(cx + hw)} ${f(foot)} Z`;
+  const roofPath = round
+    ? `M ${f(cx - hw)} ${f(wallTop)} Q ${f(cx - hw)} ${f(peak)} ${f(cx)} ${f(peak)} Q ${f(cx + hw)} ${f(peak)} ${f(cx + hw)} ${f(wallTop)} Z`
+    : `M ${f(cx - hw)} ${f(wallTop)} L ${f(cx - hw * 0.5)} ${f(shoulder)} L ${f(cx)} ${f(peak)} L ${f(cx + hw * 0.5)} ${f(shoulder)} L ${f(cx + hw)} ${f(wallTop)} Z`;
+  const doorPath = `M ${f(cx - dw)} ${f(foot)} L ${f(cx - dw)} ${f(doorTop + 1.6)} Q ${f(cx)} ${f(doorTop)} ${f(cx + dw)} ${f(doorTop + 1.6)} L ${f(cx + dw)} ${f(foot)} Z`;
+  const glowPath = `M ${f(cx - dw * 0.66)} ${f(foot)} L ${f(cx - dw * 0.66)} ${f(doorTop + 2.4)} Q ${f(cx)} ${f(doorTop + 1.2)} ${f(cx + dw * 0.66)} ${f(doorTop + 2.4)} L ${f(cx + dw * 0.66)} ${f(foot)} Z`;
+
+  return (
+    <>
+      {/* 당김줄(가이라인) */}
+      <Path
+        d={`M ${f(cx - hw)} ${f(wallTop + 1)} L ${f(cx - hw - 3.5)} ${f(foot)}`}
+        stroke={roofShade}
+        strokeWidth={0.3}
+        opacity={0.5}
+      />
+      <Path
+        d={`M ${f(cx + hw)} ${f(wallTop + 1)} L ${f(cx + hw + 3.5)} ${f(foot)}`}
+        stroke={roofShade}
+        strokeWidth={0.3}
+        opacity={0.5}
+      />
+      {/* 본체 */}
+      <Path d={bodyPath} fill={body} />
+      {/* 지붕 음영(두 톤) */}
+      <Path d={roofPath} fill={roofShade} />
+      {/* 벽 이음선 */}
+      <Path d={`M ${f(cx - hw * 0.5)} ${f(wallTop)} L ${f(cx - hw * 0.5)} ${f(foot)}`} stroke={seam} strokeWidth={0.25} opacity={0.6} />
+      <Path d={`M ${f(cx + hw * 0.5)} ${f(wallTop)} L ${f(cx + hw * 0.5)} ${f(foot)}`} stroke={seam} strokeWidth={0.25} opacity={0.6} />
+      {/* 도어 */}
+      <Path d={doorPath} fill={doorShade} />
+      <Path d={`M ${f(cx)} ${f(foot)} L ${f(cx)} ${f(doorTop + 0.8)}`} stroke={doorSplit} strokeWidth={0.3} />
+      {/* 입구에서 새어 나오는 빛 */}
+      <Path d={glowPath} fill="url(#tentGlow)" opacity={lightOpacity} />
+    </>
+  );
+}
+
+/**
+ * 돔 텐트(첨부 일러스트 참조) — 넓고 둥근 돔 본체(살짝 뾰족한 꼭대기), 옆면 패널 솔기,
+ * 가운데 큰 아치형 입구(밝은 테두리 + 어두운 내부 + 밤엔 안쪽 빛), 바닥 고정 스테이크.
+ * 단색 본체에 같은 색의 명암으로만 디테일을 준다.
+ */
+function DomeTent({
+  cx,
+  foot,
+  hw,
+  h,
+  body,
+  lightOpacity,
+}: {
+  cx: number;
+  foot: number;
+  hw: number;
+  h: number;
+  body: string;
+  lightOpacity: number;
+}) {
+  const peak = foot - h;
+  const seam = darkenHex(body, 0.78);
+  const frameLight = darkenHex(body, 1.16);
+  const interior = darkenHex(body, 0.24);
+  const baseLine = darkenHex(body, 0.55);
+  const stake = darkenHex(body, 0.45);
+  const f = (n: number) => n.toFixed(1);
+  // 아치(문/내부) path: 수직 옆선 + 둥근 윗부분, 바닥 평평
+  const arch = (acx: number, aw: number, ayTop: number, ayBot: number) => {
+    const sh = ayTop + aw * 0.8;
+    return `M ${f(acx - aw)} ${f(ayBot)} L ${f(acx - aw)} ${f(sh)} Q ${f(acx - aw)} ${f(ayTop)} ${f(acx)} ${f(ayTop)} Q ${f(acx + aw)} ${f(ayTop)} ${f(acx + aw)} ${f(sh)} L ${f(acx + aw)} ${f(ayBot)} Z`;
+  };
+  const frameW = hw * 0.58;
+  const frameTop = foot - h * 0.84;
+  const intW = frameW - 1;
+  const intTop = frameTop + 1.3;
+  return (
+    <>
+      {/* 넓고 둥근 돔 본체 — 어깨가 둥글고 위가 부드럽게 둥근 반타원형 외곽선 */}
+      <Path
+        d={`M ${f(cx - hw)} ${f(foot)} C ${f(cx - hw)} ${f(foot - h * 0.9)} ${f(cx - hw * 0.52)} ${f(peak)} ${f(cx)} ${f(peak)} C ${f(cx + hw * 0.52)} ${f(peak)} ${f(cx + hw)} ${f(foot - h * 0.9)} ${f(cx + hw)} ${f(foot)} Z`}
+        fill={body}
+      />
+      {/* 윗부분 크라운 패널 솔기 */}
+      <Path
+        d={`M ${f(cx - hw * 0.55)} ${f(foot - h * 0.74)} Q ${f(cx)} ${f(foot - h * 1.0)} ${f(cx + hw * 0.55)} ${f(foot - h * 0.74)}`}
+        stroke={seam}
+        strokeWidth={0.35}
+        fill="none"
+        opacity={0.55}
+      />
+      {/* 가운데 패널을 감싸는 좌·우 솔기(꼭대기 → 바닥) */}
+      <Path
+        d={`M ${f(cx)} ${f(peak + 0.5)} Q ${f(cx - hw * 0.5)} ${f(foot - h * 0.45)} ${f(cx - hw * 0.62)} ${f(foot)}`}
+        stroke={seam}
+        strokeWidth={0.35}
+        fill="none"
+        opacity={0.55}
+      />
+      <Path
+        d={`M ${f(cx)} ${f(peak + 0.5)} Q ${f(cx + hw * 0.5)} ${f(foot - h * 0.45)} ${f(cx + hw * 0.62)} ${f(foot)}`}
+        stroke={seam}
+        strokeWidth={0.35}
+        fill="none"
+        opacity={0.55}
+      />
+      {/* 바닥 그림자선 */}
+      <Path d={`M ${f(cx - hw)} ${f(foot)} L ${f(cx + hw)} ${f(foot)}`} stroke={baseLine} strokeWidth={0.4} opacity={0.6} />
+      {/* 입구: 밝은 테두리 → 어두운 내부 → (밤) 안쪽 빛 */}
+      <Path d={arch(cx, frameW, frameTop, foot)} fill={frameLight} />
+      <Path d={arch(cx, intW, intTop, foot)} fill={interior} />
+      <Path d={arch(cx, intW, intTop, foot)} fill="url(#tentGlow)" opacity={lightOpacity} />
+      {/* 바닥 고정 스테이크(좌·우) */}
+      <Path d={`M ${f(cx - hw)} ${f(foot)} L ${f(cx - hw - 2.4)} ${f(foot + 1.4)}`} stroke={stake} strokeWidth={0.45} />
+      <Path d={`M ${f(cx - hw - 3)} ${f(foot + 1.4)} L ${f(cx - hw - 1.8)} ${f(foot + 1.4)}`} stroke={stake} strokeWidth={0.45} />
+      <Path d={`M ${f(cx + hw)} ${f(foot)} L ${f(cx + hw + 2.4)} ${f(foot + 1.4)}`} stroke={stake} strokeWidth={0.45} />
+      <Path d={`M ${f(cx + hw + 3)} ${f(foot + 1.4)} L ${f(cx + hw + 1.8)} ${f(foot + 1.4)}`} stroke={stake} strokeWidth={0.45} />
+    </>
+  );
+}
+
+/**
+ * 침엽수(전나무) 잎 실루엣 path — tiers 단의 가지가 바깥 끝으로 살짝 처지는(droop) 모양.
+ * 아래로 갈수록 넓어지고, 단끼리 겹쳐 자연스러운 전나무 윤곽을 만든다(3단/5단 등).
+ */
+function pinePath(cx: number, footY: number, h: number, w: number, tiers: number): string {
+  const trunkH = h * 0.12;
+  const top = footY - h;
+  const foliageBot = footY - trunkH * 0.3;
+  const foliageH = foliageBot - top;
+  const step = foliageH / tiers;
+  const F = (n: number) => n.toFixed(1);
+  let d = '';
+  for (let i = 0; i < tiers; i += 1) {
+    const apexY = top + i * step;
+    const baseY = apexY + step * 1.95;
+    const hw = (w / 2) * (0.34 + 0.66 * ((i + 1) / tiers));
+    const droop = hw * 0.42; // 바깥 가지 끝이 가운데보다 아래로 처짐
+    d += `M ${F(cx)} ${F(apexY)} L ${F(cx - hw)} ${F(baseY)} Q ${F(cx)} ${F(baseY - droop)} ${F(cx + hw)} ${F(baseY)} Z `;
+  }
+  return d;
+}
+
+/** 침엽수 한 그루: 갈색 줄기 + 다층 처진 잎(tiers로 3단/5단 등 다양하게) */
+function PineTree({
+  cx,
+  footY,
+  h,
+  w,
+  colors,
+  tiers = 4,
+  opacity = 1,
+}: {
+  cx: number;
+  footY: number;
+  h: number;
+  w: number;
+  colors: CampColors;
+  tiers?: number;
+  opacity?: number;
+}) {
+  const trunkH = h * 0.12;
+  const trunkW = Math.max(0.8, w * 0.12);
+  return (
+    <G opacity={opacity}>
+      <Rect x={cx - trunkW / 2} y={footY - trunkH} width={trunkW} height={trunkH + 0.4} fill={colors.trunk} />
+      <Path d={pinePath(cx, footY, h, w, tiers)} fill={colors.pine} />
+    </G>
+  );
+}
+
+/**
+ * 활엽수(첨부 이미지 참조) — 가는 줄기 위로 키가 크고 꽉 찬 타원형(달걀형) 수관.
+ * 수관은 여러 작은 덩이를 위→아래로 쌓아 가운데가 가장 넓은 자연스러운 윤곽을 만든다.
+ */
+function BroadleafTree({
+  cx,
+  footY,
+  h,
+  colors,
+}: {
+  cx: number;
+  footY: number;
+  h: number;
+  colors: CampColors;
+}) {
+  const trunkH = h * 0.26;
+  const crownTop = footY - h;
+  const crownH = h * 0.82;
+  const rMax = h * 0.24;
+  const F = (n: number) => n.toFixed(1);
+  // [세로위치(0=꼭대기,1=아래), 가로offset(rMax비율), 반지름(rMax비율)]
+  const blobs: Array<[number, number, number]> = [
+    [0.05, 0, 0.45],
+    [0.18, -0.55, 0.5],
+    [0.18, 0.55, 0.52],
+    [0.3, 0.05, 0.72],
+    [0.4, -0.8, 0.55],
+    [0.42, 0.85, 0.56],
+    [0.52, -0.36, 0.78],
+    [0.54, 0.46, 0.76],
+    [0.68, -0.74, 0.6],
+    [0.7, 0.78, 0.62],
+    [0.72, 0.05, 0.74],
+    [0.86, -0.4, 0.56],
+    [0.88, 0.44, 0.56],
+  ];
+  return (
+    <>
+      {/* 가는 줄기(살짝 테이퍼) + 낮은 가지 */}
+      <Path
+        d={`M ${F(cx - 1.2)} ${F(footY)} L ${F(cx - 0.5)} ${F(footY - trunkH)} L ${F(cx + 0.5)} ${F(footY - trunkH)} L ${F(cx + 1.2)} ${F(footY)} Z`}
+        fill={colors.trunk}
+      />
+      <Path d={`M ${F(cx)} ${F(footY - trunkH * 0.7)} L ${F(cx - 2.2)} ${F(footY - trunkH * 1.35)}`} stroke={colors.trunk} strokeWidth={0.6} />
+      <Path d={`M ${F(cx)} ${F(footY - trunkH * 0.8)} L ${F(cx + 2.4)} ${F(footY - trunkH * 1.45)}`} stroke={colors.trunk} strokeWidth={0.6} />
+      {/* 키 큰 타원형 수관 */}
+      {blobs.map((b, i) => (
+        <Circle
+          key={`leaf-${i}`}
+          cx={cx + b[1] * rMax}
+          cy={crownTop + b[0] * crownH}
+          r={b[2] * rMax}
+          fill={colors.pine}
+        />
+      ))}
+    </>
+  );
+}
+
+/**
+ * 별 보러 온 캠핑 명소의 전경 한 타일. 평평한 땅 위에 나무들과 텐트가 서 있고 텐트·랜턴에서
+ * 빛이 새어 나온다(언덕은 없음 — 이미 언덕 위에 서 있다는 설정). x[0,CAMP_TILE] 로컬
+ * 좌표로 그려 가로로 이어붙이면(타일링) 시선 회전 시 매끄럽게 흐른다. 땅(바닥)은 따로 한
+ * 겹으로 그리므로 여기선 나무·텐트·불빛만 그린다.
+ *
+ * variant(0/1)로 서로 다른 캠프 두 종류(A형 텐트 / 돔형 텐트, 나무 배치도 다름)를 그린다.
+ * 한 바퀴(360°)에 정확히 캠프 2개가 있어, 인접한 두 캠프는 항상 다른 모습이다.
+ * colors는 시각(밤=검정 실루엣 → 낮=본연의 색)에 따라 바뀌고, lightOpacity로 조명
+ * (텐트 입구·랜턴·모닥불)을 낮엔 끄고 밤엔 켠다.
+ */
+function CampSceneTile({
+  y,
+  variant,
+  lightOpacity,
+  colors,
+}: {
+  y: number;
+  variant: number;
+  lightOpacity: number;
+  colors: CampColors;
+}) {
+  const foot = y + 0.5;
+  if (variant === 1) {
+    // 캠프 B — 주황 벨(돔) 텐트 + 왼쪽 활엽수·침엽수 무리, 오른쪽 큰 침엽수
+    return (
+      <>
+        <PineTree cx={28} footY={y - 1} h={9} w={6} colors={colors} tiers={3} opacity={0.62} />
+        <PineTree cx={62} footY={y - 1} h={10} w={6.5} colors={colors} tiers={4} opacity={0.62} />
+        {/* 텐트 주변 분위기 글로우 */}
+        <Circle cx={50} cy={y - 2} r={16} fill="url(#campGlow)" opacity={lightOpacity} />
+        {/* 왼쪽 나무들 */}
+        <BroadleafTree cx={12} footY={foot} h={19} colors={colors} />
+        <PineTree cx={22} footY={foot} h={17} w={9} colors={colors} tiers={5} />
+        <PineTree cx={31} footY={foot} h={12} w={7.5} colors={colors} tiers={3} />
+        {/* 주황 돔 텐트(단색) */}
+        <DomeTent cx={50} foot={foot} hw={9.1} h={10.4} body={colors.accent} lightOpacity={lightOpacity} />
+        {/* 오른쪽 큰 침엽수 무리 */}
+        <PineTree cx={72} footY={foot} h={22} w={11} colors={colors} tiers={5} />
+        <PineTree cx={82} footY={foot} h={14} w={7} colors={colors} tiers={3} />
+        {/* 랜턴 불씨 */}
+        <Circle cx={38} cy={y - 0.3} r={1.3} fill="#ffd9a0" opacity={0.95 * lightOpacity} />
+      </>
+    );
+  }
+  // 캠프 A — 베이지 캐빈(박공) 텐트 + 왼쪽 큰 침엽수·활엽수, 오른쪽 침엽수 무리
+  return (
+    <>
+      <PineTree cx={33} footY={y - 1} h={10} w={6.5} colors={colors} tiers={4} opacity={0.62} />
+      <PineTree cx={58} footY={y - 1} h={9} w={6} colors={colors} tiers={3} opacity={0.62} />
+      {/* 텐트 주변 분위기 글로우 */}
+      <Circle cx={44} cy={y - 2} r={15} fill="url(#campGlow)" opacity={lightOpacity} />
+      {/* 왼쪽 나무들 */}
+      <PineTree cx={10} footY={foot} h={21} w={11} colors={colors} tiers={5} />
+      <BroadleafTree cx={24} footY={foot} h={19} colors={colors} />
+      {/* 오른쪽 나무 무리 */}
+      <PineTree cx={66} footY={foot} h={16} w={8.5} colors={colors} tiers={3} />
+      <PineTree cx={73} footY={foot} h={22} w={11} colors={colors} tiers={5} />
+      <PineTree cx={85} footY={foot} h={13} w={7} colors={colors} tiers={3} />
+      {/* 베이지 캐빈 텐트(단색 + 음영 디테일) */}
+      <GlampTent cx={44} foot={foot} hw={9} h={15} body={colors.tent} round={false} lightOpacity={lightOpacity} />
+      {/* 모닥불 불씨 */}
+      <Circle cx={56} cy={y - 0.3} r={1.3} fill="#ffd9a0" opacity={0.95 * lightOpacity} />
+    </>
+  );
+}
 
 export function SkyTabScreen({
   observerLat,
@@ -422,12 +782,12 @@ export function SkyTabScreen({
   const [lineSegments, setLineSegments] = useState<ConstellationLineSegmentDto[]>([]);
   const [alignHeading, setAlignHeading] = useState(false);
   const [motionAssist, setMotionAssist] = useState(false);
-  const [tiltRollDeg, setTiltRollDeg] = useState(0);
   /**
-   * 손가락 가로 드래그로 “고개를 돌린 것처럼” 별·은하·별선만 방위 이동(°).
-   * 지평 실루엣·나침반 정렬(skyRotation)은 그대로 둠.
+   * 1인칭 시선 — 방위(좌우)·고도(상하). 수평선은 항상 수평(롤 없음)으로 유지.
+   * 가로 드래그=방위 회전(둘러보기), 세로 드래그=고도(0°지평선~90°천정).
    */
-  const [viewAzPanDeg, setViewAzPanDeg] = useState(0);
+  const [viewYawDeg, setViewYawDeg] = useState(VIEW_DEFAULT_YAW);
+  const [viewPitchDeg, setViewPitchDeg] = useState(VIEW_DEFAULT_PITCH);
   const [renderEngine, setRenderEngine] = useState<'svg' | 'gl'>('svg');
 
   useEffect(() => {
@@ -568,7 +928,8 @@ export function SkyTabScreen({
   }, [load]);
 
   useEffect(() => {
-    setViewAzPanDeg(0);
+    setViewYawDeg(VIEW_DEFAULT_YAW);
+    setViewPitchDeg(VIEW_DEFAULT_PITCH);
   }, [obsLat, obsLng]);
 
   useEffect(() => {
@@ -653,7 +1014,6 @@ export function SkyTabScreen({
     const wasMotion = prevMotionAssistRef.current;
     if (!motionAssist) {
       fusedHeadingRef.current = null;
-      setTiltRollDeg(0);
       if (wasMotion && headingDeg != null) {
         headingSmoothRef.current = headingDeg;
       }
@@ -726,18 +1086,6 @@ export function SkyTabScreen({
     return () => sub.remove();
   }, [alignHeading, motionAssist]);
 
-  useEffect(() => {
-    if (!alignHeading || !motionAssist || Platform.OS === 'web') {
-      return;
-    }
-    Accelerometer.setUpdateInterval(Platform.OS === 'android' ? 200 : 50);
-    const sub = Accelerometer.addListener((a) => {
-      const roll = (Math.atan2(a.x, a.y) * 180) / Math.PI;
-      setTiltRollDeg(roll);
-    });
-    return () => sub.remove();
-  }, [alignHeading, motionAssist]);
-
   const starsByHip = useMemo(() => {
     const m = new Map<number, SkyViewStarDto>();
     if (!data) return m;
@@ -745,38 +1093,81 @@ export function SkyTabScreen({
     return m;
   }, [data]);
 
-  /** 나침반 = 자북에서 기기 상단까지 시계방향° → 천구 도표는 반시계 보정. 자이로 보조 시 가속도 롤을 소량 가산 */
-  const skyRotation =
+  /** 시선 방위: 나침반(방위 맞춤) 켜지면 기기 방향, 아니면 드래그로 누적한 yaw */
+  const viewAz =
     alignHeading && Platform.OS !== 'web' && headingDeg != null
-      ? -headingDeg + (motionAssist ? tiltRollDeg * TILT_GAIN : 0)
-      : 0;
+      ? normYaw(headingDeg)
+      : viewYawDeg;
+  const viewAlt = viewPitchDeg;
 
-  const celestialRot = skyRotation + viewAzPanDeg;
+  /** 항상 수평인(롤 0) 시선 기저 — 모든 천체 투영에 사용 */
+  const viewBasis = useMemo(
+    () => computeViewBasis(viewAz, viewAlt),
+    [viewAz, viewAlt],
+  );
 
-  const skyPanLastX = useRef<number | null>(null);
+  const useGlView = renderEngine === 'gl' && Platform.OS !== 'web';
+
+  /**
+   * (az,alt) → 레이아웃 픽셀. RN 라벨/히트 오버레이가 실제 렌더와 같은 투영을 쓰도록
+   * GL이면 원근(perspective), SVG면 어안(azimuthal)으로 분기한다.
+   */
+  const projectOverlayPx = useCallback(
+    (azDeg: number, altDeg: number): { x: number; y: number } | null => {
+      if (skyVp.w <= 0 || skyVp.h <= 0) return null;
+      if (useGlView) {
+        const r = projectPerspectiveClip(
+          azDeg,
+          altDeg,
+          viewBasis,
+          GL_TAN_HALF_FOV,
+          skyVp.w / skyVp.h,
+        );
+        if (!r.visible) return null;
+        return {
+          x: ((r.cx + 1) / 2) * skyVp.w,
+          y: ((1 - r.cy) / 2) * skyVp.h,
+        };
+      }
+      const p = projectToView(azDeg, altDeg, viewBasis);
+      if (!p.visible) return null;
+      return normToLayoutSlice(p.nx, p.ny, skyVp.w, skyVp.h);
+    },
+    [useGlView, viewBasis, skyVp.w, skyVp.h],
+  );
+
+  const skyPanLast = useRef<{ x: number; y: number } | null>(null);
   const skyPanResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (_, g) =>
-          data != null &&
-          Math.abs(g.dx) > 16 &&
-          Math.abs(g.dx) > Math.abs(g.dy) * 0.65,
+          data != null && (Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8),
         onPanResponderGrant: (e) => {
-          skyPanLastX.current = e.nativeEvent.pageX;
+          skyPanLast.current = {
+            x: e.nativeEvent.pageX,
+            y: e.nativeEvent.pageY,
+          };
         },
         onPanResponderMove: (e) => {
-          if (skyPanLastX.current == null) return;
+          if (skyPanLast.current == null) return;
           const x = e.nativeEvent.pageX;
-          const dx = x - skyPanLastX.current;
-          skyPanLastX.current = x;
-          setViewAzPanDeg((deg) => deg + dx * 0.32);
+          const y = e.nativeEvent.pageY;
+          const dx = x - skyPanLast.current.x;
+          const dy = y - skyPanLast.current.y;
+          skyPanLast.current = { x, y };
+          // 가로: 손가락 방향으로 둘러보기(왼쪽으로 끌면 오른쪽 별이 왼쪽으로 이동)
+          setViewYawDeg((deg) => normYaw(deg - dx * VIEW_YAW_GAIN));
+          // 세로: 아래로 끌면 더 위를 올려다봄(고도↑). 0°(지평선)~90°(천정)로 제한
+          setViewPitchDeg((deg) =>
+            clampNum(deg + dy * VIEW_PITCH_GAIN, VIEW_ALT_MIN, VIEW_ALT_MAX),
+          );
         },
         onPanResponderRelease: () => {
-          skyPanLastX.current = null;
+          skyPanLast.current = null;
         },
         onPanResponderTerminate: () => {
-          skyPanLastX.current = null;
+          skyPanLast.current = null;
         },
       }),
     [data],
@@ -805,19 +1196,18 @@ export function SkyTabScreen({
       if (!s.visible) continue;
       const ko = namedStarLabelKo(s.hip);
       if (!ko) continue;
-      const base = azAltToNorm(s.azDeg, s.altDeg);
-      const { nx, ny } = rotateSkyNorm(base.nx, base.ny, celestialRot);
-      const { x, y } = normToLayoutSlice(nx, ny, skyVp.w, skyVp.h);
+      const px = projectOverlayPx(s.azDeg, s.altDeg);
+      if (!px) continue;
       anchors.push({
         id: String(s.hip),
-        anchorX: x,
-        anchorY: y + 7,
+        anchorX: px.x,
+        anchorY: px.y + 7,
         label: ko,
         mag: s.mag,
       });
     }
     return layoutNamedStarLabels(anchors);
-  }, [data, skyVp.w, skyVp.h, celestialRot]);
+  }, [data, skyVp.w, skyVp.h, projectOverlayPx]);
 
   /** 겹칠 때 어두운 별이 위 레이어를 받도록 시각등급 내림차순 */
   const starHitTargets = useMemo(() => {
@@ -826,18 +1216,50 @@ export function SkyTabScreen({
     const rows: Array<{ star: SkyViewStarDto; left: number; top: number }> = [];
     for (const s of data.stars) {
       if (!s.visible) continue;
-      const base = azAltToNorm(s.azDeg, s.altDeg);
-      const { nx, ny } = rotateSkyNorm(base.nx, base.ny, celestialRot);
-      const { x, y } = normToLayoutSlice(nx, ny, skyVp.w, skyVp.h);
-      rows.push({ star: s, left: x - half, top: y - half });
+      const px = projectOverlayPx(s.azDeg, s.altDeg);
+      if (!px) continue;
+      rows.push({ star: s, left: px.x - half, top: px.y - half });
     }
     rows.sort((a, b) => b.star.mag - a.star.mag);
     return rows;
-  }, [data, skyVp.w, skyVp.h, celestialRot]);
+  }, [data, skyVp.w, skyVp.h, projectOverlayPx]);
+
+  /**
+   * 지평선 전경(캠핑 명소): 평평한 땅 + 나무·텐트·불빛 실루엣. 시선 고도(viewAlt)에 따라
+   * 정면(0°)에선 하단 ~1/4를 차지하고, 위로 올려다볼수록 아래로 내려가며 옅어져 사라진다.
+   * 좌우로 돌리면 전경이 가로로 흐른다(시차). 땅은 평평하다 — 이미 언덕 위라는 설정.
+   */
+  const groundScene = useMemo(() => {
+    if (!data) return null;
+    // 위로 올려다볼수록 옅어짐: 정면 또렷 → 40°↑ 하늘만(지평선은 그 전에 화면 아래로)
+    const fade = clampNum((40 - viewAlt) / 22, 0, 1);
+    if (fade <= 0.02) return null;
+    const horizonY = CAMP_HORIZON_BASE + viewAlt * CAMP_HORIZON_SLOPE;
+    // 좌우로 돌면 전경도 흐른다(지평선 부근 별 이동량과 비슷). 0~CAMP_TILE 로 래핑
+    const offset = (viewAz * 0.5) % CAMP_TILE;
+    const scroll = -offset;
+    // 현재 스크롤된 타일 수(연속). 변종(텐트 디자인)을 이 index로 정해 북쪽을 넘어
+    // 한 바퀴 돌아도(360°=2타일) 같은 방향엔 늘 같은 캠프가 보이게 한다.
+    const worldTile = Math.floor((viewAz * 0.5) / CAMP_TILE);
+    return { fade, horizonY, scroll, worldTile };
+  }, [data, viewAlt, viewAz]);
+
+  const yawDelta = Math.abs(((viewYawDeg - VIEW_DEFAULT_YAW + 540) % 360) - 180);
+  const viewIsDefault =
+    yawDelta < 0.6 && Math.abs(viewPitchDeg - VIEW_DEFAULT_PITCH) < 0.6;
+  /** 시선이 천정(수직)에 도달 — UI로 알려줌 */
+  const atZenith = viewAlt >= 89.5;
+
+  /** 하늘 그라데이션의 지평선(따뜻한 색) 위치를 전경 지평선에 맞춤 — 시선 올리면 함께 내려감 */
+  const skyHorizonPct = clampNum(
+    CAMP_HORIZON_BASE + viewAlt * CAMP_HORIZON_SLOPE,
+    48,
+    100,
+  );
+  const skyMidPct = Math.min(46, skyHorizonPct * 0.58);
 
   const kstPrimary = formatKstFull(observeAtIso);
   const utcNote = formatUtcFootnote(observeAtIso);
-  const useGlView = renderEngine === 'gl' && Platform.OS !== 'web';
 
   const win = Dimensions.get('window');
   const stageW = skyStage.w > 0 ? skyStage.w : win.width;
@@ -878,7 +1300,8 @@ export function SkyTabScreen({
           gradientUnits="userSpaceOnUse"
         >
           <Stop offset="0%" stopColor={skyBackdrop.zenith} />
-          <Stop offset="46%" stopColor={skyBackdrop.mid} />
+          <Stop offset={`${skyMidPct.toFixed(1)}%`} stopColor={skyBackdrop.mid} />
+          <Stop offset={`${skyHorizonPct.toFixed(1)}%`} stopColor={skyBackdrop.horizon} />
           <Stop offset="100%" stopColor={skyBackdrop.horizon} />
         </LinearGradient>
         <RadialGradient
@@ -907,120 +1330,128 @@ export function SkyTabScreen({
           <Stop offset="52%" stopColor="#9098d0" stopOpacity="0.095" />
           <Stop offset="100%" stopColor="#5860a0" stopOpacity="0" />
         </LinearGradient>
-        <RadialGradient id="mwDustA" cx="32" cy="34" r="38" gradientUnits="userSpaceOnUse">
-          <Stop offset="0%" stopColor="#c8d0f8" stopOpacity="0.28" />
-          <Stop offset="45%" stopColor="#7080b0" stopOpacity="0.12" />
-          <Stop offset="100%" stopColor="#283050" stopOpacity="0" />
+        {/* 캠프 불빛이 번지는 따뜻한 광원 — 텐트 주변/랜턴 */}
+        <RadialGradient id="campGlow" cx="50%" cy="50%" rx="50%" ry="50%">
+          <Stop offset="0%" stopColor="#ffb061" stopOpacity="0.5" />
+          <Stop offset="55%" stopColor="#ff8a3d" stopOpacity="0.16" />
+          <Stop offset="100%" stopColor="#ff8a3d" stopOpacity="0" />
         </RadialGradient>
-        <RadialGradient id="mwDustB" cx="70" cy="46" r="32" gradientUnits="userSpaceOnUse">
-          <Stop offset="0%" stopColor="#a8b0e0" stopOpacity="0.26" />
-          <Stop offset="100%" stopColor="#202840" stopOpacity="0" />
+        {/* 텐트 입구에서 새어 나오는 빛 */}
+        <RadialGradient id="tentGlow" cx="50%" cy="100%" rx="75%" ry="100%">
+          <Stop offset="0%" stopColor="#ffe0a6" stopOpacity="0.95" />
+          <Stop offset="60%" stopColor="#ffac55" stopOpacity="0.5" />
+          <Stop offset="100%" stopColor="#ff8a3d" stopOpacity="0" />
         </RadialGradient>
       </Defs>
-      {/* 하늘 배경·은하 — 태양 고도(관측 시각·위치)에 따라 낮/황혼/밤 */}
-      <G transform={`rotate(${skyRotation}, 50, 50)`}>
-        <Rect x="0" y="0" width="100" height="100" fill="url(#dynSkyMain)" />
-        <Rect
-          x="0"
-          y="0"
-          width="100"
-          height="100"
-          fill="url(#zenithCool)"
-          opacity={skyBackdrop.zenithCoolOpacity}
-        />
-        <Rect
-          x="0"
-          y="0"
-          width="100"
-          height="100"
-          fill="url(#milkyWayBand)"
-          opacity={skyBackdrop.milkyOpacity}
-        />
-        <Ellipse
-          cx="34"
-          cy="36"
-          rx="27"
-          ry="11"
-          fill="url(#mwDustA)"
-          opacity={skyBackdrop.milkyOpacity * 0.45}
-        />
-        <Ellipse
-          cx="64"
-          cy="46"
-          rx="22"
-          ry="8"
-          fill="url(#mwDustB)"
-          opacity={skyBackdrop.milkyOpacity * 0.37}
-        />
-      </G>
-      {/* 별·태양·별선·행성 — 나침반 + 패닝 */}
-      <G transform={`rotate(${celestialRot}, 50, 50)`}>
-        {sunAltAzForSky ? (
-          <SunGlyph
-            nx={azAltToNorm(sunAltAzForSky.azDeg, sunAltAzForSky.altDeg).nx}
-            ny={azAltToNorm(sunAltAzForSky.azDeg, sunAltAzForSky.altDeg).ny}
-            altDeg={sunAltAzForSky.altDeg}
+      {/* 하늘 배경·은하 — 태양 고도(관측 시각·위치)에 따라 낮/황혼/밤. 시선 이동과 무관한 분위기 레이어 */}
+      <Rect x="0" y="0" width="100" height="100" fill="url(#dynSkyMain)" />
+      <Rect
+        x="0"
+        y="0"
+        width="100"
+        height="100"
+        fill="url(#zenithCool)"
+        opacity={skyBackdrop.zenithCoolOpacity}
+      />
+      <Rect
+        x="0"
+        y="0"
+        width="100"
+        height="100"
+        fill="url(#milkyWayBand)"
+        opacity={skyBackdrop.milkyOpacity}
+      />
+      {/* 별·태양·별선·행성 — 시선(viewAz/viewAlt) 기준 1인칭 투영 */}
+      {sunAltAzForSky
+        ? (() => {
+            const p = projectToView(
+              sunAltAzForSky.azDeg,
+              sunAltAzForSky.altDeg,
+              viewBasis,
+            );
+            if (!p.visible) return null;
+            return <SunGlyph nx={p.nx} ny={p.ny} altDeg={sunAltAzForSky.altDeg} />;
+          })()
+        : null}
+      {lineSegments.map((seg, i) => {
+        const a = starsByHip.get(seg.fromHip);
+        const b = starsByHip.get(seg.toHip);
+        if (!a?.visible || !b?.visible) return null;
+        const pa = projectToView(a.azDeg, a.altDeg, viewBasis);
+        const pb = projectToView(b.azDeg, b.altDeg, viewBasis);
+        if (!pa.visible || !pb.visible) return null;
+        return (
+          <Line
+            key={`${seg.fromHip}-${seg.toHip}-${i}`}
+            x1={pa.nx}
+            y1={pa.ny}
+            x2={pb.nx}
+            y2={pb.ny}
+            stroke="#c4b8e8"
+            strokeOpacity={skyBackdrop.lineOpacity}
+            strokeWidth={0.4}
           />
-        ) : null}
-        {lineSegments.map((seg, i) => {
-          const a = starsByHip.get(seg.fromHip);
-          const b = starsByHip.get(seg.toHip);
-          if (!a?.visible || !b?.visible) return null;
-          const pa = azAltToNorm(a.azDeg, a.altDeg);
-          const pb = azAltToNorm(b.azDeg, b.altDeg);
+        );
+      })}
+      {data.stars
+        .filter((s) => s.visible)
+        .map((s) => {
+          const p = projectToView(s.azDeg, s.altDeg, viewBasis);
+          if (!p.visible) return null;
           return (
-            <Line
-              key={`${seg.fromHip}-${seg.toHip}-${i}`}
-              x1={pa.nx}
-              y1={pa.ny}
-              x2={pb.nx}
-              y2={pb.ny}
-              stroke="#c4b8e8"
-              strokeOpacity={skyBackdrop.lineOpacity}
-              strokeWidth={0.4}
+            <CompactStarGlyph
+              key={s.hip}
+              nx={p.nx}
+              ny={p.ny}
+              mag={s.mag}
+              opacityScale={skyBackdrop.starOpacity}
             />
           );
         })}
-        {data.stars
-          .filter((s) => s.visible)
-          .map((s) => {
-            const { nx, ny } = azAltToNorm(s.azDeg, s.altDeg);
-            return (
-              <CompactStarGlyph
-                key={s.hip}
-                nx={nx}
-                ny={ny}
-                mag={s.mag}
-                opacityScale={skyBackdrop.starOpacity}
-              />
-            );
-          })}
-        {(data.bodies ?? [])
-          .filter((b: SkyViewBodyDto) => b.visible)
-          .map((b: SkyViewBodyDto) => {
-            const { nx, ny } = azAltToNorm(b.azDeg, b.altDeg);
-            return <CelestialBodyMarker key={b.id} nx={nx} ny={ny} body={b} />;
-          })}
-      </G>
-      <G transform={`rotate(${skyRotation}, 50, 50)`}>
-        <Path d={STELLARIUM_HILL_BASE} fill="#030308" opacity={skyBackdrop.hillOpacity} />
-        <Path d={STELLARIUM_TREE_LINE} fill="#020205" opacity={skyBackdrop.hillOpacity} />
-        {STELLARIUM_BOKEH.map((b, i) => (
-          <Circle
-            key={`bokeh-${i}`}
-            cx={b.cx}
-            cy={b.cy}
-            r={b.r}
-            fill="#ffe8c8"
-            opacity={b.o * skyBackdrop.hillOpacity}
+      {(data.bodies ?? [])
+        .filter((b: SkyViewBodyDto) => b.visible)
+        .map((b: SkyViewBodyDto) => {
+          const p = projectToView(b.azDeg, b.altDeg, viewBasis);
+          if (!p.visible) return null;
+          return <CelestialBodyMarker key={b.id} nx={p.nx} ny={p.ny} body={b} />;
+        })}
+      {/* 지평선 전경(캠핑 명소): 평평한 땅 한 겹 + 가로로 타일링되는 나무·텐트·불빛.
+          실루엣은 낮에도 선명하게(투명도는 시선 고도 페이드만), 불빛은 lightOpacity로 낮엔 꺼짐 */}
+      {groundScene ? (
+        <G opacity={groundScene.fade}>
+          <Rect
+            x={0}
+            y={groundScene.horizonY}
+            width={100}
+            height={150 - groundScene.horizonY}
+            fill={skyBackdrop.campGround}
           />
-        ))}
-      </G>
+          {[-1, 0, 1, 2].map((k) => (
+            <G
+              key={`camp-${k}`}
+              transform={`translate(${(groundScene.scroll + k * CAMP_TILE).toFixed(2)} 0)`}
+            >
+              <CampSceneTile
+                y={groundScene.horizonY}
+                variant={(((groundScene.worldTile + k) % 2) + 2) % 2}
+                lightOpacity={skyBackdrop.lightOpacity}
+                colors={{
+                  pine: skyBackdrop.campPine,
+                  trunk: skyBackdrop.campTrunk,
+                  tent: skyBackdrop.campTent,
+                  accent: skyBackdrop.campTentAccent,
+                }}
+              />
+            </G>
+          ))}
+        </G>
+      ) : null}
       {data.constellationLabels.map((lb, idx) => {
-        const base = azAltToNorm(lb.azDeg, lb.altDeg);
-        const { nx, ny } = rotateSkyNorm(base.nx, base.ny, celestialRot);
+        const p = projectToView(lb.azDeg, lb.altDeg, viewBasis);
+        if (!p.visible) return null;
+        const nx = p.nx;
         const label = CON_LABEL_KO[lb.con] ?? lb.con;
-        const ly = Math.max(5, ny - 4);
+        const ly = p.ny - 4;
         return (
           <SvgText
             key={`${lb.con}-${idx}`}
@@ -1056,10 +1487,9 @@ export function SkyTabScreen({
     data && skyVp.w > 0 && skyVp.h > 0 ? (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none" collapsable={false}>
         {data.constellationLabels.map((lb, idx) => {
-          const base = azAltToNorm(lb.azDeg, lb.altDeg);
-          const { nx, ny } = rotateSkyNorm(base.nx, base.ny, celestialRot);
-          const ly = Math.max(5, ny - 4);
-          const { x, y } = normToLayoutSlice(nx, ly, skyVp.w, skyVp.h);
+          const px = projectOverlayPx(lb.azDeg, lb.altDeg);
+          if (!px) return null;
+          const { x, y } = px;
           const labelKo = CON_LABEL_KO[lb.con] ?? lb.con;
           return (
             <Pressable
@@ -1270,13 +1700,16 @@ export function SkyTabScreen({
               ) : null}
               <View style={{ marginTop: 8 }}>
                 <Button
-                  label="시야 원위치 (좌우 패닝 초기화)"
+                  label="시야 원위치"
                   variant="outline"
                   size="sm"
-                  disabled={Math.abs(viewAzPanDeg) < 0.25}
-                  onPress={() => setViewAzPanDeg(0)}
+                  disabled={viewIsDefault}
+                  onPress={() => {
+                    setViewYawDeg(VIEW_DEFAULT_YAW);
+                    setViewPitchDeg(VIEW_DEFAULT_PITCH);
+                  }}
                 />
-                {Math.abs(viewAzPanDeg) >= 0.25 ? (
+                {!viewIsDefault ? (
                   <Text
                     style={{
                       color: theme.mutedForeground,
@@ -1285,7 +1718,8 @@ export function SkyTabScreen({
                       lineHeight: 13,
                     }}
                   >
-                    가로로 드래그해 천구만 돌려 본 상태입니다. 버튼으로 처음 각도로 돌아갑니다.
+                    화면을 드래그해 시선을 돌려 본 상태입니다(좌우=방위, 위아래=고도). 버튼으로 처음
+                    방향으로 돌아갑니다.
                   </Text>
                 ) : null}
               </View>
@@ -1462,8 +1896,7 @@ export function SkyTabScreen({
                   layoutWidth={skyVp.w}
                   layoutHeight={skyVp.h}
                   hideCaption
-                  skyRotationDeg={skyRotation}
-                  celestialPanDeg={viewAzPanDeg}
+                  viewBasis={viewBasis}
                   data={data}
                   lineSegments={lineSegments}
                   starsByHip={starsByHip}
@@ -1471,6 +1904,7 @@ export function SkyTabScreen({
                   lineColorHex="#c4b8e8"
                   bodyPlanetHex="#f4e6d8"
                   bodyMoonHex="#fff6dc"
+                  sunAltAz={sunAltAzForSky}
                 />
               ) : !useGlView ? (
                 <View style={{ flex: 1, position: 'relative' }}>{skySvg}</View>
@@ -1509,6 +1943,24 @@ export function SkyTabScreen({
                 </View>
               ) : null}
               {constellationHitOverlay}
+            </View>
+          ) : null}
+
+          {data && atZenith ? (
+            <View pointerEvents="none" style={styles.zenithBadgeWrap}>
+              <View
+                style={[
+                  styles.zenithBadge,
+                  { borderColor: theme.starGold, backgroundColor: 'rgba(6,8,18,0.66)' },
+                ]}
+              >
+                <Text style={[styles.zenithBadgeText, { color: theme.starGold }]}>
+                  천정 · 90°
+                </Text>
+                <Text style={[styles.zenithBadgeSub, { color: theme.mutedForeground }]}>
+                  머리 위를 보는 중
+                </Text>
+              </View>
             </View>
           ) : null}
 
@@ -1760,6 +2212,34 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontFamily: 'SpaceMono-Regular',
     opacity: 0.85,
+  },
+  zenithBadgeWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 6,
+  },
+  zenithBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    alignItems: 'center',
+  },
+  zenithBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: 'SpaceMono-Regular',
+    letterSpacing: 0.6,
+  },
+  zenithBadgeSub: {
+    fontSize: 9,
+    marginTop: 2,
+    letterSpacing: 0.3,
   },
   skyMetaFloat: {
     position: 'absolute',

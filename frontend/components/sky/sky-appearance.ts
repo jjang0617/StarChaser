@@ -38,7 +38,12 @@ export function skyBackdropFromSunAlt(altDeg: number): {
   starOpacity: number;
   lineOpacity: number;
   labelOpacity: number;
-  hillOpacity: number;
+  lightOpacity: number;
+  campGround: string;
+  campPine: string;
+  campTrunk: string;
+  campTent: string;
+  campTentAccent: string;
 } {
   /** 0 = 한밤, 1 = 대낮에 가까움 */
   const dayFactor = clamp01((altDeg - (-10)) / (28 - (-10)));
@@ -74,7 +79,23 @@ export function skyBackdropFromSunAlt(altDeg: number): {
 
   const lineOpacity = Math.max(0.14, 0.28 * starOpacity);
   const labelOpacity = Math.max(0.38, 0.88 * starOpacity);
-  const hillOpacity = 0.55 + (1 - dayFactor) * 0.43;
+  /**
+   * 캠프 조명(텐트·랜턴·모닥불 불빛) 세기. 밤=1, 박명에 걸쳐 사그라들고 낮=0.
+   * 땅·나무·텐트 자체는 색만 바뀌고(아래) 불빛만 이 값으로 끈다.
+   */
+  const lightOpacity = clamp01(1 - dayFactor * 2);
+
+  /**
+   * 전경(땅·나무·텐트) 색: 한밤엔 검은 실루엣, 새벽(해 ~-6°)부터 점점 본연의 색으로,
+   * 해가 ~12° 뜨면 완전한 낮 색. 색만 변할 뿐 형태/선명도는 그대로.
+   */
+  const colorT = clamp01((altDeg + 6) / 18);
+  const campNight: [number, number, number] = [4, 5, 12];
+  const campGround = mixRgb(campNight, [74, 72, 54], colorT); // 흙·풀 섞인 자연색 땅
+  const campPine = mixRgb(campNight, [46, 84, 52], colorT); // 초록 침엽수
+  const campTrunk = mixRgb(campNight, [88, 60, 40], colorT); // 갈색 줄기
+  const campTent = mixRgb(campNight, [212, 184, 138], colorT); // 베이지 텐트
+  const campTentAccent = mixRgb(campNight, [226, 124, 54], colorT); // 주황 텐트
 
   return {
     zenith,
@@ -85,6 +106,11 @@ export function skyBackdropFromSunAlt(altDeg: number): {
     starOpacity,
     lineOpacity,
     labelOpacity,
-    hillOpacity,
+    lightOpacity,
+    campGround,
+    campPine,
+    campTrunk,
+    campTent,
+    campTentAccent,
   };
 }
