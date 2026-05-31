@@ -356,7 +356,7 @@ ${KAKAO_MAP_MARKER_SCRIPT}
               return;
             }
 
-            var el = makeStarPinEl(false);
+            var el = makeStarPinEl(false, s.markerLabel || s.shortTitle || '');
             el.addEventListener('click', function () {
               post({ type: 'MARKER_CLICK', data: { spotId: sid } });
             });

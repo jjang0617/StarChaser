@@ -1,5 +1,6 @@
 import { authorizedGetJson, SessionExpiredError } from './api-client';
 import { parseSpotMapLabels } from './spot-map-labels';
+import { spotNameWithoutRegionPrefix } from './spot-display-name';
 import type { MapSpot } from './types/map-spot';
 import type { SpotDto } from './types/api';
 
@@ -12,6 +13,7 @@ export function spotDtoToMapSpot(s: SpotDto): MapSpot {
     lng: s.lng,
     regionKey,
     shortTitle,
+    markerLabel: spotNameWithoutRegionPrefix(s.name),
   };
 }
 
