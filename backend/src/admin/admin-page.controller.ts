@@ -30,4 +30,19 @@ export class AdminPageController {
     res.setHeader('Cache-Control', 'no-store');
     return res.end(html);
   }
+
+  /** Star-Index 보정 제보 — http://localhost:3333/admin/correction-reports.html */
+  @Get('admin/correction-reports.html')
+  correctionReportsAdmin(@Res() res: Response) {
+    const filePath = path.resolve(
+      process.cwd(),
+      'admin',
+      'correction-reports.html',
+    );
+    const html = fs.readFileSync(filePath, 'utf8');
+    res.status(200);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.end(html);
+  }
 }

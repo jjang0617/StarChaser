@@ -14,8 +14,10 @@ import type { ThemeTokens } from '../../themes/themes';
 import { GlassCard } from '../ui/GlassCard';
 
 interface SkyTop3PanelProps {
-  top: number;
-  maxWidth: number;
+  /** floating: 우상단 오버레이 · inline: 시트·카드 안에 삽입 */
+  layout?: 'floating' | 'inline';
+  top?: number;
+  maxWidth?: number;
   top3Loading: boolean;
   top3Error: string | null;
   top3Items: WeeklyTop3ItemDto[] | null;
@@ -59,8 +61,9 @@ function formatTop3Score(avgStarIndex: number): string {
 }
 
 export function SkyTop3Panel({
-  top,
-  maxWidth,
+  layout = 'floating',
+  top = 0,
+  maxWidth = 148,
   top3Loading,
   top3Error,
   top3Items,
@@ -68,14 +71,24 @@ export function SkyTop3Panel({
   onSelectTop3Spot,
 }: SkyTop3PanelProps) {
   const { theme } = useTheme();
+  const isInline = layout === 'inline';
 
   return (
-    <View style={[styles.wrap, { top, width: maxWidth }]} pointerEvents="box-none">
-      <GlassCard glow padding={10} style={styles.card}>
-        <View style={styles.header}>
-          <Feather name="trending-up" size={14} color={theme.primaryGlow} />
-          <Text style={[styles.title, { color: theme.foreground }]}>주간 TOP3</Text>
-        </View>
+    <View
+      style={
+        isInline
+          ? styles.wrapInline
+          : [styles.wrap, { top, width: maxWidth }]
+      }
+      pointerEvents="box-none"
+    >
+      <GlassCard glow={!isInline} padding={10} style={styles.card}>
+        {isInline ? null : (
+          <View style={styles.header}>
+            <Feather name="trending-up" size={14} color={theme.primaryGlow} />
+            <Text style={[styles.title, { color: theme.foreground }]}>주간 TOP3</Text>
+          </View>
+        )}
 
         {top3Loading ? (
           <ActivityIndicator size="small" color={theme.primaryGlow} style={styles.loader} />
@@ -167,6 +180,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: spacing.sm,
     zIndex: 20,
+  },
+  wrapInline: {
+    width: '100%',
   },
   card: {
     width: '100%',

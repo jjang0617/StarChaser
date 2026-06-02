@@ -9,7 +9,7 @@ export class CreateCorrectionSubmissionDto {
   @ApiProperty({
     minimum: 0,
     maximum: 100,
-    description: '현장 체감 가시도(별이 잘 보였는지) 0~100',
+    description: '현장에서 느낀 Star-Index 점수 0~100',
   })
   @IsInt()
   @Min(0)

@@ -699,7 +699,6 @@ export function fetchConstellationLines(): Promise<ConstellationLinesResponseDto
 export interface CorrectionAggregateDto {
   spotId: string;
   submissionCount: number;
-  aggregatedCorrectionScore: number;
 }
 
 export function fetchCorrectionAggregate(
@@ -747,6 +746,7 @@ export interface ObservationRowDto {
   result: 'success' | 'partial' | 'fail';
   title: string | null;
   content: string | null;
+  placeLabel: string | null;
   observedAt: string;
   photos: ObservationPhotoDto[];
 }
@@ -762,6 +762,7 @@ export interface CreateObservationPayload {
   result: 'success' | 'partial' | 'fail';
   title?: string;
   content?: string;
+  placeLabel?: string;
 }
 
 export function createObservation(

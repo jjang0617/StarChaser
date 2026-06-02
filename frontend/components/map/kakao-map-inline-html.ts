@@ -20,7 +20,7 @@ export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
       #map { height: 100%; width: 100%; }
       #fallback { padding: 12px; font-family: -apple-system, system-ui, Segoe UI, Roboto; }
     </style>
-    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoJavascriptKey}&autoload=false"></script>
+    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoJavascriptKey}&autoload=false&libraries=services"></script>
   </head>
   <body>
     <div id="map"></div>
@@ -52,6 +52,10 @@ export function buildKakaoMapInlineHtml(kakaoJavascriptKey: string): string {
           time: '',
           layer: 'VIIRS_Black_Marble',
         };
+
+        var pickModeEnabled = false;
+        var pickMarker = null;
+        var pickClickListener = null;
 
         function escapeHtml(str) {
           if (str == null || str === '') return '';
@@ -384,6 +388,96 @@ ${KAKAO_MAP_MARKER_SCRIPT}
           }
         }
 
+        function clearPickMarker() {
+          if (pickMarker) {
+            try {
+              pickMarker.setMap(null);
+            } catch (e) {}
+            pickMarker = null;
+          }
+        }
+
+        function applyPickMarker(data) {
+          if (!map || !data) return;
+          if (typeof data.lat !== 'number' || typeof data.lng !== 'number') return;
+          var pos = new kakao.maps.LatLng(data.lat, data.lng);
+          clearPickMarker();
+          pickMarker = new kakao.maps.Marker({ position: pos });
+          pickMarker.setMap(map);
+          var lb = data.label != null ? String(data.label).trim() : '';
+          if (lb) showHighlightLabel(data.lat, data.lng, lb);
+          else clearHighlightLabel();
+        }
+
+        function setPickMode(enabled) {
+          pickModeEnabled = !!enabled;
+          if (!map || !ensureKakao()) return;
+          if (pickClickListener) {
+            try {
+              kakao.maps.event.removeListener(map, 'click', pickClickListener);
+            } catch (e) {}
+            pickClickListener = null;
+          }
+          if (!pickModeEnabled) return;
+          pickClickListener = function (mouseEvent) {
+            var latlng = mouseEvent.latLng;
+            if (!latlng) return;
+            var lat = latlng.getLat();
+            var lng = latlng.getLng();
+            applyPickMarker({ lat: lat, lng: lng });
+            post({ type: 'MAP_CLICK', data: { lat: lat, lng: lng } });
+          };
+          kakao.maps.event.addListener(map, 'click', pickClickListener);
+        }
+
+        function searchPlace(query) {
+          var q = query != null ? String(query).trim() : '';
+          if (!q) {
+            post({ type: 'PLACE_SEARCH_RESULT', data: { items: [] } });
+            return;
+          }
+          if (!ensureKakao() || !kakao.maps.services) {
+            post({ type: 'PLACE_SEARCH_ERROR', data: { message: 'SERVICES_NOT_READY' } });
+            return;
+          }
+          var finish = function (items) {
+            post({ type: 'PLACE_SEARCH_RESULT', data: { items: items } });
+          };
+          var ps = new kakao.maps.services.Places();
+          ps.keywordSearch(q, function (data, status) {
+            if (status === kakao.maps.services.Status.OK && data && data.length) {
+              finish(
+                data.slice(0, 10).map(function (d) {
+                  return {
+                    lat: parseFloat(d.y),
+                    lng: parseFloat(d.x),
+                    name: d.place_name || q,
+                    address: d.road_address_name || d.address_name || '',
+                  };
+                }),
+              );
+              return;
+            }
+            var geocoder = new kakao.maps.services.Geocoder();
+            geocoder.addressSearch(q, function (result, status2) {
+              if (status2 === kakao.maps.services.Status.OK && result && result.length) {
+                finish(
+                  result.slice(0, 10).map(function (r) {
+                    return {
+                      lat: parseFloat(r.y),
+                      lng: parseFloat(r.x),
+                      name: r.address_name || q,
+                      address: r.address_name || '',
+                    };
+                  }),
+                );
+              } else {
+                finish([]);
+              }
+            });
+          });
+        }
+
         function showHighlightLabel(lat, lng, labelText) {
           clearHighlightLabel();
           if (!map || !labelText) return;
@@ -466,6 +560,19 @@ ${KAKAO_MAP_MARKER_SCRIPT}
               break;
             case 'CLEAR_MAP_FOCUS':
               clearMapFocus();
+              break;
+            case 'SET_PICK_MODE':
+              setPickMode(msg.data && msg.data.enabled);
+              break;
+            case 'SET_PICK_MARKER':
+              applyPickMarker(msg.data || {});
+              break;
+            case 'CLEAR_PICK_MARKER':
+              clearPickMarker();
+              clearHighlightLabel();
+              break;
+            case 'SEARCH_PLACE':
+              searchPlace(msg.data && msg.data.query);
               break;
           }
         }

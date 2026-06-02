@@ -32,6 +32,9 @@ export class ObservationEntity {
   @Column({ type: 'text', nullable: true })
   content: string | null;
 
+  @Column({ name: 'place_label', type: 'varchar', length: 120, nullable: true })
+  placeLabel: string | null;
+
   @Column({ name: 'observed_at', type: 'timestamptz', default: () => 'now()' })
   observedAt: Date;
 

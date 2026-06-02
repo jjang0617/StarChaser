@@ -45,4 +45,10 @@ export class CreateObservationDto {
   @IsString()
   @MaxLength(5000)
   content?: string;
+
+  @ApiPropertyOptional({ description: '관측 장소 표시명 (시·도 포함)', maxLength: 120 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  placeLabel?: string;
 }

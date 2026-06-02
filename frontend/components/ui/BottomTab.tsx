@@ -55,11 +55,7 @@ export function BottomTab({ items, activeKey, onChange, style }: BottomTabProps)
             onPress={() => onChange(item.key)}
             style={({ pressed }) => [
               styles.tabItem,
-              isActive && {
-                backgroundColor: theme.primaryGlowMuted,
-                borderRadius: 12,
-              },
-              pressed && !isActive && { opacity: 0.75 },
+              pressed && { opacity: 0.75 },
             ]}
             accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}

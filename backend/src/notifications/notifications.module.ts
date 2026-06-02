@@ -12,9 +12,7 @@ import { NotificationTokenEntity } from './notification-token.entity';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { StarIndexPushSentEntity } from './star-index-push-sent.entity';
-import { AstroEventPushSentEntity } from './astro-event-push-sent.entity';
 import { TypeOrmNotificationRepository } from './typeorm-notification.repository';
-import { AstronomyEventsCatalogService } from '../astronomy-events/astronomy-events-catalog.service';
 
 @Module({
   imports: [
@@ -22,7 +20,6 @@ import { AstronomyEventsCatalogService } from '../astronomy-events/astronomy-eve
       NotificationTokenEntity,
       NotificationPreferenceEntity,
       StarIndexPushSentEntity,
-      AstroEventPushSentEntity,
     ]),
     AuthModule,
     WeeklyTop3Module,
@@ -32,7 +29,6 @@ import { AstronomyEventsCatalogService } from '../astronomy-events/astronomy-eve
   controllers: [NotificationsController],
   providers: [
     FcmPushService,
-    AstronomyEventsCatalogService,
     NotificationsService,
     NotificationSchedulerService,
     TypeOrmNotificationRepository,

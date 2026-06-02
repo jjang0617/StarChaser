@@ -1,6 +1,6 @@
 import type { StarIndexResponseDto } from './types/api';
 
-/** 가중 합산 점수가 이 값 미만이면 UI에 숫자 대신 측정불가 */
+/** 가중 합산 점수가 이 값 미만이면 UI에 측정불가(점수) 표시 */
 export const STAR_INDEX_DISPLAY_MIN_SCORE = 50;
 
 export type StarIndexScoreDisplay = {
@@ -9,10 +9,21 @@ export type StarIndexScoreDisplay = {
   gaugePercent: number;
 };
 
+/** 50점 미만 — 원점수를 괄호에 표시 (예: 측정불가(42)) */
+export function formatUnmeasurableStarIndexLabel(score: number): string {
+  const n = Math.round(score);
+  if (!Number.isFinite(n)) return '측정불가';
+  return `측정불가(${n})`;
+}
+
 export function getStarIndexScoreDisplay(score: number): StarIndexScoreDisplay {
   const n = Math.round(score);
   if (!Number.isFinite(n) || n < STAR_INDEX_DISPLAY_MIN_SCORE) {
-    return { measurable: false, label: '측정불가', gaugePercent: 0 };
+    return {
+      measurable: false,
+      label: formatUnmeasurableStarIndexLabel(score),
+      gaugePercent: 0,
+    };
   }
   return {
     measurable: true,
@@ -68,6 +79,46 @@ export function pm25LevelFromUgM3(pm25: number): string {
   if (pm25 <= 35) return '보통';
   if (pm25 <= 75) return '나쁨';
   return '매우나쁨';
+}
+
+/** MAIN 하단 PM2.5 칩 — 수치 + 등급 분리 */
+export function formatPm25Stat(
+  snap: StarIndexResponseDto['weatherSnapshot'],
+  displayOverride?: string,
+): { value: string; grade: string } {
+  const pm25Raw = coerceFiniteNumber(snap.pm25_ug_m3);
+  if (pm25Raw !== undefined) {
+    const num =
+      Math.abs(pm25Raw - Math.round(pm25Raw)) < 0.05
+        ? String(Math.round(pm25Raw))
+        : pm25Raw.toFixed(1);
+    const grade =
+      snap.pm25_label?.trim() || pm25LevelFromUgM3(pm25Raw);
+    return { value: `${num} µg/m³`, grade };
+  }
+
+  const fromDisplay = displayOverride?.trim();
+  if (fromDisplay) {
+    const ugMatch = fromDisplay.match(/([\d.]+)\s*㎍/);
+    if (ugMatch) {
+      const n = Number(ugMatch[1]);
+      const grade =
+        fromDisplay.replace(/[\d.]+\s*㎍\/㎥/g, '').replace(/[·\s]+/g, ' ').trim() ||
+        (Number.isFinite(n) ? pm25LevelFromUgM3(n) : '—');
+      return {
+        value: `${ugMatch[1]} µg/m³`,
+        grade: grade || pm25LevelFromUgM3(n),
+      };
+    }
+    return { value: '—', grade: fromDisplay };
+  }
+
+  const grade =
+    snap.pm25_label?.trim() ||
+    pm25LevelFromUgM3(
+      snap.pm25_score >= 100 ? 10 : snap.pm25_score >= 75 ? 20 : 50,
+    );
+  return { value: '—', grade };
 }
 
 export function formatPm25ForCard(

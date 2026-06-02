@@ -31,11 +31,9 @@ import Svg, {
 } from 'react-native-svg';
 import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
-import type { WeeklyTop3ItemDto } from '../../lib/types/api';
 import { spotNameWithoutRegionPrefix } from '../../lib/spot-display-name';
 import { Button, Card } from '../ui';
 import { GlassCard } from '../ui/GlassCard';
-import { SkyTop3Panel } from './SkyTop3Panel';
 import {
   ApiRequestError,
   fetchConstellationLines,
@@ -114,11 +112,6 @@ export interface SkyTabScreenProps {
   locationPermissionStatus?: Location.PermissionResponse['status'] | null;
   /** 위치 권한 시스템 다이얼로그 재요청 */
   onRequestLocationPermission?: () => void | Promise<void>;
-  top3Loading: boolean;
-  top3Error: string | null;
-  top3Items: WeeklyTop3ItemDto[] | null;
-  selectedSpotId: string | null;
-  onSelectTop3Spot: (spotId: string) => void;
 }
 
 /** astronomy-engine 기반 위상 — 이분 원형 오버레이 근사 */
@@ -762,11 +755,6 @@ export function SkyTabScreen({
   locationFeaturesEnabled = true,
   locationPermissionStatus = null,
   onRequestLocationPermission,
-  top3Loading,
-  top3Error,
-  top3Items,
-  selectedSpotId,
-  onSelectTop3Spot,
 }: SkyTabScreenProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -1266,21 +1254,7 @@ export function SkyTabScreen({
   const stageH = skyStage.h > 0 ? skyStage.h : win.height;
   /** Screen SafeAreaView 안이므로 insets.top 중복 적용하지 않음 */
   const skyOverlayTop = spacing.xs;
-  /** Figma 컴팩트 폭 — 2줄 레이아웃으로 긴 명소명은 말줄임 */
-  const top3MaxWidth = Math.min(148, Math.max(132, stageW * 0.36));
-  const controlsMaxW = Math.min(168, Math.max(120, stageW - top3MaxWidth - 24));
-
-  const top3Floating = (
-    <SkyTop3Panel
-      top={skyOverlayTop}
-      maxWidth={top3MaxWidth}
-      top3Loading={top3Loading}
-      top3Error={top3Error}
-      top3Items={top3Items}
-      selectedSpotId={selectedSpotId}
-      onSelectTop3Spot={onSelectTop3Spot}
-    />
-  );
+  const controlsMaxW = Math.min(168, Math.max(120, stageW * 0.42));
 
   const skySvg = data ? (
     <Svg
@@ -1835,7 +1809,7 @@ export function SkyTabScreen({
         >
           <Text style={[styles.title, { color: theme.foreground }]}>가상 밤하늘</Text>
           <Text style={[styles.sub, { color: theme.mutedForeground }]}>
-            위치를 잡으면 천구가 화면을 채웁니다. 명소는 오른쪽 TOP3에서 고를 수 있어요.
+            위치를 잡으면 천구가 화면을 채웁니다. 명소는 MAIN의 주간 TOP3에서 고를 수 있어요.
           </Text>
           {Platform.OS !== 'web' &&
           locationFeaturesEnabled &&
@@ -1864,10 +1838,10 @@ export function SkyTabScreen({
           ) : null}
           <Card
             title="관측 위치 필요"
-            description="위치 권한을 허용하거나 지도·TOP3에서 명소를 고르세요"
+            description="위치 권한을 허용하거나 MAIN·지도에서 명소를 고르세요"
           >
             <Text style={{ color: theme.mutedForeground, fontSize: 13 }}>
-              GPS가 꺼져 있으면 기본 명소나 TOP3 좌표로 천구를 그립니다.
+              GPS가 꺼져 있으면 기본 명소나 MAIN TOP3 좌표로 천구를 그립니다.
             </Text>
           </Card>
         </ScrollView>
@@ -1967,8 +1941,6 @@ export function SkyTabScreen({
           {data ? controlsPanel : null}
         </View>
       )}
-      {top3Floating}
-
       <Modal
         visible={overlaySheet != null}
         transparent

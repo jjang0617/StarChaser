@@ -12,12 +12,17 @@ import {
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  locationStarIndexAlertMeSubtitle,
+  WEEKLY_TOP3_PUSH_TIME_LABEL,
+} from '../../lib/notification-copy';
+import { normalizeStarIndexAlertThreshold } from '../../lib/star-index-alert-threshold';
+import {
   glassCardStyle,
   spacing,
   typography,
 } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
-import type { ThemeTokens } from '../../themes/themes';
+import { dangerAccent, type ThemeTokens } from '../../themes/themes';
 import {
   ApiRequestError,
   SessionExpiredError,
@@ -199,6 +204,10 @@ export function ProfileTabScreen({
     return [...spots].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   }, [spots]);
 
+  const starIndexThreshold = normalizeStarIndexAlertThreshold(
+    prefs?.starIndexAlertThreshold,
+  );
+
   const persistPrefs = useCallback(
     async (next: NotificationPreferenceDto) => {
       setPrefsSaving(true);
@@ -209,7 +218,8 @@ export function ProfileTabScreen({
           {
             alertsEnabled: next.alertsEnabled,
             starIndexAlertEnabled: next.starIndexAlertEnabled,
-            astronomyEventAlertEnabled: next.astronomyEventAlertEnabled,
+            locationStarIndexAlertEnabled: next.locationStarIndexAlertEnabled ?? true,
+            starIndexAlertThreshold: next.starIndexAlertThreshold ?? 90,
             top3AlertEnabled: next.top3AlertEnabled,
             alertSpotId: next.alertSpotId ?? null,
           },
@@ -236,8 +246,8 @@ export function ProfileTabScreen({
       key: keyof Pick<
         NotificationPreferenceDto,
         | 'alertsEnabled'
+        | 'locationStarIndexAlertEnabled'
         | 'starIndexAlertEnabled'
-        | 'astronomyEventAlertEnabled'
         | 'top3AlertEnabled'
       >,
       value: boolean,
@@ -245,8 +255,8 @@ export function ProfileTabScreen({
       if (!prefs) return;
       const next = { ...prefs, [key]: value };
       if (key === 'alertsEnabled' && value === false) {
+        next.locationStarIndexAlertEnabled = false;
         next.starIndexAlertEnabled = false;
-        next.astronomyEventAlertEnabled = false;
         next.top3AlertEnabled = false;
         next.alertSpotId = null;
       }
@@ -351,13 +361,42 @@ export function ProfileTabScreen({
                 <View style={styles.nested}>
                   <SettingRow
                     theme={theme}
+                    icon="navigation"
+                    title="위치한 곳 알림"
+                    subtitle={locationStarIndexAlertMeSubtitle(
+                      starIndexThreshold,
+                      Boolean(
+                        prefs.locationStarIndexAlertEnabled && prefs.alertsEnabled,
+                      ),
+                    )}
+                    trailingText={
+                      prefs.locationStarIndexAlertEnabled && prefs.alertsEnabled
+                        ? `${starIndexThreshold}점+`
+                        : undefined
+                    }
+                    toggle
+                    value={prefs.locationStarIndexAlertEnabled ?? true}
+                    disabled={prefsSaving}
+                    onToggle={(v) => toggleField('locationStarIndexAlertEnabled', v)}
+                  />
+                  <SettingRow
+                    theme={theme}
                     icon="star"
                     title="Star-Index 알림"
-                    subtitle="별 관측 지수 업데이트"
+                    subtitle={
+                      prefs.starIndexAlertEnabled && !prefs.alertSpotId
+                        ? '기준 명소를 선택해야 알림이 발송됩니다'
+                        : `기준 명소 Star-Index가 ${starIndexThreshold}점 이상이면 하루 1회 알려 드려요`
+                    }
                     toggle
                     value={prefs.starIndexAlertEnabled}
                     disabled={prefsSaving}
-                    onToggle={(v) => toggleField('starIndexAlertEnabled', v)}
+                    onToggle={(v) => {
+                      toggleField('starIndexAlertEnabled', v);
+                      if (v && !prefs.alertSpotId) {
+                        setSpotPickerOpen(true);
+                      }
+                    }}
                   />
                   <View style={styles.spotPickBlock}>
                     <Text style={[styles.spotPickLabel, { color: theme.mutedForeground }]}>
@@ -387,19 +426,9 @@ export function ProfileTabScreen({
                   </View>
                   <SettingRow
                     theme={theme}
-                    icon="camera"
-                    title="천문 이벤트"
-                    subtitle="유성우, 일식 등"
-                    toggle
-                    value={prefs.astronomyEventAlertEnabled}
-                    disabled={prefsSaving}
-                    onToggle={(v) => toggleField('astronomyEventAlertEnabled', v)}
-                  />
-                  <SettingRow
-                    theme={theme}
                     icon="map-pin"
-                    title="주간 TOP5 명소"
-                    subtitle="인기 관측지 알림"
+                    title="주간 TOP3 명소"
+                    subtitle={`${WEEKLY_TOP3_PUSH_TIME_LABEL}, 주간 TOP3 순위가 발표되면 알려 드려요`}
                     toggle
                     value={prefs.top3AlertEnabled}
                     disabled={prefsSaving}
@@ -497,6 +526,8 @@ export function ProfileTabScreen({
               title="회원 탈퇴"
               subtitle="계정과 데이터가 삭제됩니다"
               chevron
+              danger
+              isRedMode={isRedMode}
               onPress={() => setDeleteOpen(true)}
             />
           </GlassCard>
@@ -628,6 +659,8 @@ function SettingRow({
   onToggle,
   chevron,
   trailingText,
+  danger = false,
+  isRedMode = false,
   onPress,
 }: {
   theme: ThemeTokens;
@@ -640,22 +673,40 @@ function SettingRow({
   onToggle?: (v: boolean) => void;
   chevron?: boolean;
   trailingText?: string;
+  danger?: boolean;
+  isRedMode?: boolean;
   onPress?: () => void;
 }) {
+  const accent = danger ? dangerAccent(theme, isRedMode) : null;
   const inner = (
     <>
       <View
         style={[
           styles.iconCircle,
-          { backgroundColor: theme.primaryGlowMuted, borderColor: theme.primaryGlowBorder },
+          danger && accent
+            ? { backgroundColor: accent.iconBg, borderColor: accent.iconBorder }
+            : { backgroundColor: theme.primaryGlowMuted, borderColor: theme.primaryGlowBorder },
         ]}
       >
-        <ProfileSettingIcon name={icon} color={theme.primaryGlow} size={16} />
+        <ProfileSettingIcon
+          name={icon}
+          color={accent?.icon ?? theme.primaryGlow}
+          size={16}
+        />
       </View>
       <View style={styles.rowText}>
-        <Text style={[styles.rowTitle, { color: theme.foreground }]}>{title}</Text>
+        <Text style={[styles.rowTitle, { color: accent?.title ?? theme.foreground }]}>
+          {title}
+        </Text>
         {subtitle ? (
-          <Text style={[styles.rowSub, { color: theme.mutedForeground }]}>{subtitle}</Text>
+          <Text
+            style={[
+              styles.rowSub,
+              { color: accent?.subtitle ?? theme.mutedForeground },
+            ]}
+          >
+            {subtitle}
+          </Text>
         ) : null}
       </View>
       {toggle && value !== undefined && onToggle ? (
@@ -663,7 +714,11 @@ function SettingRow({
       ) : trailingText ? (
         <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>{trailingText}</Text>
       ) : chevron ? (
-        <ProfileSettingIcon name="chevron-right" color={theme.mutedForeground} size={18} />
+        <ProfileSettingIcon
+          name="chevron-right"
+          color={accent?.icon ?? theme.mutedForeground}
+          size={18}
+        />
       ) : null}
     </>
   );

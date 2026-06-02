@@ -11,6 +11,7 @@ export type ProfileSettingIconName =
   | 'star'
   | 'camera'
   | 'map-pin'
+  | 'navigation'
   | 'eye'
   | 'info'
   | 'shield'
@@ -27,6 +28,7 @@ const FEATHER_ICONS: Record<
   star: 'star',
   camera: 'camera',
   'map-pin': 'map-pin',
+  navigation: 'navigation',
   eye: 'eye',
   info: 'info',
   shield: 'shield',

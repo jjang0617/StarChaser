@@ -33,15 +33,28 @@ export type KakaoMapWebViewHandle = {
   ) => void;
   /** 포커스 칩/별도 라벨 제거 — 다른 탭으로 나갈 때 호출 */
   clearMapFocus: () => void;
+  /** 지도 탭으로 위치 고르기 */
+  setPickMode: (enabled: boolean) => void;
+  setPickMarker: (lat: number, lng: number, label?: string) => void;
+  clearPickMarker: () => void;
+  /** 카카오 장소·주소 검색 (WebView services) */
+  searchPlace: (query: string) => void;
 };
 
-export type SpotListMode = 'nearby' | 'all';
+export type PlaceSearchItem = {
+  lat: number;
+  lng: number;
+  name: string;
+  address: string;
+};
+
+export type SpotListMode = 'nearby' | 'all' | 'none';
 
 /** VIIRS Black Marble 합성(구름 영향 적고 “도시빛”에 가까움). */
 const DEFAULT_VIIRS_LAYER_ID = 'VIIRS_Black_Marble';
 
 /** map-site/kakao.html(GitHub Pages) 캐시 무효화 — hosted 폴백 시에만 사용 */
-const HOSTED_MAP_CACHE_VERSION = 'figma-markers-v4';
+const HOSTED_MAP_CACHE_VERSION = 'place-search-v1';
 
 function hostedMapPageUri(url: string): string {
   const base = url.trim();
@@ -61,6 +74,10 @@ type RNToWebMessage =
   | { type: 'SET_SPOTS'; data: MapSpot[] }
   | { type: 'FOCUS_MAP'; data: { lat: number; lng: number; level?: number; label?: string; spotId?: string } }
   | { type: 'CLEAR_MAP_FOCUS' }
+  | { type: 'SET_PICK_MODE'; data: { enabled: boolean } }
+  | { type: 'SET_PICK_MARKER'; data: { lat: number; lng: number; label?: string } }
+  | { type: 'CLEAR_PICK_MARKER' }
+  | { type: 'SEARCH_PLACE'; data: { query: string } }
   | {
       type: 'SET_VIIRS_LAYER';
       data: {
@@ -85,7 +102,10 @@ type WebToRNMessage =
         | { kind: 'grid'; spots: ClusterSpotRnDto[] };
     }
   | { type: 'VIIRS_LAYER_READY'; data?: Record<string, unknown> }
-  | { type: 'VIIRS_LAYER_ERROR'; data?: { message?: string } };
+  | { type: 'VIIRS_LAYER_ERROR'; data?: { message?: string } }
+  | { type: 'MAP_CLICK'; data: { lat: number; lng: number } }
+  | { type: 'PLACE_SEARCH_RESULT'; data: { items: PlaceSearchItem[] } }
+  | { type: 'PLACE_SEARCH_ERROR'; data?: { message?: string } };
 
 function safeJsonParse<T>(raw: string): T | null {
   try {
@@ -126,6 +146,8 @@ export type KakaoMapWebViewProps = {
   onMessage?: (msg: WebToRNMessage) => void;
   showUserLocation?: boolean;
   spotListMode?: SpotListMode;
+  /** true면 지도 탭으로 좌표 선택 (MAP_CLICK) */
+  pickModeEnabled?: boolean;
   spotsNearbyRadiusM?: number;
   onSessionExpired?: () => void | Promise<void>;
   viirsLayerEnabled?: boolean;
@@ -144,6 +166,7 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
       onMessage,
       showUserLocation = true,
       spotListMode = 'nearby' as SpotListMode,
+      pickModeEnabled = false,
       spotsNearbyRadiusM = 50000,
       onSessionExpired,
       viirsLayerEnabled = false,
@@ -179,6 +202,33 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
       clearMapFocus() {
         injectWebMessage(webViewRef.current, { type: 'CLEAR_MAP_FOCUS' });
       },
+      setPickMode(enabled: boolean) {
+        injectWebMessage(webViewRef.current, {
+          type: 'SET_PICK_MODE',
+          data: { enabled },
+        });
+      },
+      setPickMarker(lat: number, lng: number, label?: string) {
+        injectWebMessage(webViewRef.current, {
+          type: 'SET_PICK_MARKER',
+          data: {
+            lat,
+            lng,
+            ...(label != null && String(label).trim() !== ''
+              ? { label: String(label).trim() }
+              : {}),
+          },
+        });
+      },
+      clearPickMarker() {
+        injectWebMessage(webViewRef.current, { type: 'CLEAR_PICK_MARKER' });
+      },
+      searchPlace(query: string) {
+        injectWebMessage(webViewRef.current, {
+          type: 'SEARCH_PLACE',
+          data: { query: String(query).trim() },
+        });
+      },
     }),
     [],
   );
@@ -213,6 +263,14 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
   const useBundledInlineMap = canUseInlineFallback && !hasHostedPage;
 
   const viirsBackendBaseResolved = useMemo(() => getApiBaseUrlFromEnv(), []);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    sendToWeb({ type: 'SET_PICK_MODE', data: { enabled: pickModeEnabled } });
+    if (!pickModeEnabled) {
+      sendToWeb({ type: 'CLEAR_PICK_MARKER' });
+    }
+  }, [mapReady, pickModeEnabled, sendToWeb]);
 
   // VIIRS 타일 오버레이 토글 (MAP_READY 이후). WebView ref/브리지 준비용으로 한 번 재전송한다.
   useEffect(() => {

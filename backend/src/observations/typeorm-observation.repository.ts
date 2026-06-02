@@ -33,6 +33,7 @@ export class TypeOrmObservationRepository implements ObservationRepository {
       result: data.result,
       title: data.title,
       content: data.content,
+      placeLabel: data.placeLabel,
       observedAt: data.observedAt ?? new Date(),
     });
     const row = await this.repo.save(entity);
@@ -53,6 +54,7 @@ export class TypeOrmObservationRepository implements ObservationRepository {
       result: row.result,
       title: row.title,
       content: row.content,
+      placeLabel: row.placeLabel,
       observedAt: row.observedAt,
     };
   }

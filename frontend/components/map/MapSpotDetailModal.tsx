@@ -13,13 +13,16 @@ import {
   fetchCorrectionAggregate,
   SessionExpiredError,
   submitStarIndexCorrection,
-  type CorrectionAggregateDto,
 } from '../../lib/api-client';
 import type { StarIndexResponseDto } from '../../lib/types/api';
 import { useAuth } from '../../contexts/auth-context';
 import { isSpotBookmarked, toggleSpotBookmark } from '../../lib/spot-activity-storage';
-import { starIndexResponseToCardModel } from '../../lib/star-index-display';
+import {
+  getStarIndexScoreDisplay,
+  starIndexResponseToCardModel,
+} from '../../lib/star-index-display';
 import { Button, Card, SpotCard, StarIndexCard, StatefulCard, type StatefulCardError } from '../ui';
+import { CorrectionScoreInput } from './CorrectionScoreInput';
 
 export interface MapSpotDetailModalProps {
   visible: boolean;
@@ -34,8 +37,15 @@ export interface MapSpotDetailModalProps {
   onBookmarkChange?: () => void;
 }
 
+function initialReportScore(data: StarIndexResponseDto | null): number {
+  if (data && Number.isFinite(data.score)) {
+    return Math.min(100, Math.max(0, Math.round(data.score)));
+  }
+  return 70;
+}
+
 /**
- * 지도 마커 탭 시 — 기존 Home에 있던 Star-Index·명소·보정 제보
+ * 지도 마커 탭 시 — Star-Index·명소·보정 제보
  */
 export function MapSpotDetailModal({
   visible,
@@ -52,34 +62,40 @@ export function MapSpotDetailModal({
   const { theme } = useTheme();
   const { user } = useAuth();
   const starProps = data ? starIndexResponseToCardModel(data) : null;
+  const appScoreDisplay = data
+    ? getStarIndexScoreDisplay(data.score)
+    : null;
 
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
 
-  const [corrAgg, setCorrAgg] = useState<CorrectionAggregateDto | null>(null);
-  const [perceivedQuality, setPerceivedQuality] = useState(75);
+  const [submissionCount, setSubmissionCount] = useState(0);
+  const [reportedScore, setReportedScore] = useState(70);
   const [corrBusy, setCorrBusy] = useState(false);
   const [corrMsg, setCorrMsg] = useState<string | null>(null);
 
+  const loadSubmissionCount = useCallback(async (id: string) => {
+    try {
+      const a = await fetchCorrectionAggregate(id);
+      setSubmissionCount(a.submissionCount);
+    } catch {
+      setSubmissionCount(0);
+    }
+  }, []);
+
   useEffect(() => {
     if (!visible || !spotId) {
-      setCorrAgg(null);
+      setSubmissionCount(0);
       setCorrMsg(null);
       return;
     }
-    let cancelled = false;
-    void (async () => {
-      try {
-        const a = await fetchCorrectionAggregate(spotId);
-        if (!cancelled) setCorrAgg(a);
-      } catch {
-        if (!cancelled) setCorrAgg(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [visible, spotId]);
+    void loadSubmissionCount(spotId);
+  }, [visible, spotId, loadSubmissionCount]);
+
+  useEffect(() => {
+    if (!visible) return;
+    setReportedScore(initialReportScore(data));
+  }, [visible, data?.score, spotId]);
 
   useEffect(() => {
     if (!visible || !spotId || !user?.id) {
@@ -147,6 +163,7 @@ export function MapSpotDetailModal({
           style={styles.scroll}
           contentContainerStyle={styles.scrollInner}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {!spotId ? (
             <Text style={{ color: theme.mutedForeground }}>명소가 선택되지 않았습니다.</Text>
@@ -189,50 +206,50 @@ export function MapSpotDetailModal({
 
               <Card
                 title="Star-Index 보정 제보"
-                description="현장 가시도(0~100) — correction_score 집계"
+                description="점수가 불안정할 경우, 현장에서 느낀 Star-Index 점수를 제보해 주세요."
               >
-                {corrAgg ? (
-                  <Text
-                    style={{
-                      color: theme.mutedForeground,
-                      fontSize: 12,
-                      marginBottom: 8,
-                    }}
-                  >
-                    제보 {corrAgg.submissionCount}건 · 집계 약 {corrAgg.aggregatedCorrectionScore}
-                  </Text>
-                ) : null}
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 12,
-                    marginVertical: 8,
-                  }}
-                >
-                  <Button
-                    label="−"
-                    variant="outline"
-                    size="sm"
-                    onPress={() => setPerceivedQuality((v) => Math.max(0, v - 5))}
-                  />
-                  <Text
-                    style={{
-                      color: theme.foreground,
-                      minWidth: 40,
-                      textAlign: 'center',
-                      fontFamily: 'SpaceMono-Regular',
-                    }}
-                  >
-                    {perceivedQuality}
-                  </Text>
-                  <Button
-                    label="+"
-                    variant="outline"
-                    size="sm"
-                    onPress={() => setPerceivedQuality((v) => Math.min(100, v + 5))}
-                  />
+                <View style={styles.corrStatsRow}>
+                  <View style={styles.corrStat}>
+                    <Text style={[styles.corrStatLabel, { color: theme.mutedForeground }]}>
+                      제보
+                    </Text>
+                    <Text
+                      style={[
+                        styles.corrStatValue,
+                        { color: theme.foreground, fontFamily: 'SpaceMono-Regular' },
+                      ]}
+                    >
+                      {submissionCount}건
+                    </Text>
+                  </View>
+                  {appScoreDisplay ? (
+                    <View style={[styles.corrStat, styles.corrStatRight]}>
+                      <Text style={[styles.corrStatLabel, { color: theme.mutedForeground }]}>
+                        앱 표시 점수
+                      </Text>
+                      <Text
+                        style={[
+                          styles.corrStatValue,
+                          {
+                            color: appScoreDisplay.measurable
+                              ? theme.primaryGlow
+                              : theme.destructive,
+                            fontFamily: 'SpaceMono-Regular',
+                          },
+                        ]}
+                      >
+                        {appScoreDisplay.label}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
+
+                <CorrectionScoreInput
+                  value={reportedScore}
+                  onChange={setReportedScore}
+                  disabled={corrBusy}
+                />
+
                 <Button
                   label="제보 보내기"
                   fullWidth
@@ -246,12 +263,11 @@ export function MapSpotDetailModal({
                       try {
                         await submitStarIndexCorrection({
                           spotId,
-                          perceivedQuality,
+                          perceivedQuality: reportedScore,
                         });
-                        setCorrMsg('반영되었습니다. Star-Index를 갱신합니다.');
+                        setCorrMsg('제보를 보냈습니다. 감사합니다.');
+                        await loadSubmissionCount(spotId);
                         onRetry();
-                        const a = await fetchCorrectionAggregate(spotId);
-                        setCorrAgg(a);
                       } catch (e) {
                         if (e instanceof SessionExpiredError) {
                           await onSessionInvalidated();
@@ -267,6 +283,7 @@ export function MapSpotDetailModal({
                       }
                     })();
                   }}
+                  style={{ marginTop: 12 }}
                 />
                 {corrMsg ? (
                   <Text
@@ -302,4 +319,23 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   scroll: { flex: 1 },
   scrollInner: { padding: 16, gap: 12, paddingBottom: 40 },
+  corrStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 4,
+  },
+  corrStat: { gap: 4 },
+  corrStatRight: { alignItems: 'flex-end' },
+  corrStatLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  corrStatValue: {
+    fontSize: 22,
+    fontWeight: '600',
+    lineHeight: 28,
+  },
 });

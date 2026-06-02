@@ -19,6 +19,10 @@ import {
   type ObservationRepository,
 } from '../common/interfaces/observation.repository';
 import {
+  SPOT_REPOSITORY,
+  type SpotRepository,
+} from '../common/interfaces/spot.repository';
+import {
   PHOTO_REPOSITORY,
   type PhotoRepository,
 } from '../common/interfaces/photo.repository';
@@ -42,6 +46,8 @@ export class ObservationService {
     private readonly observations: ObservationRepository,
     @Inject(PHOTO_REPOSITORY)
     private readonly photos: PhotoRepository,
+    @Inject(SPOT_REPOSITORY)
+    private readonly spots: SpotRepository,
     private readonly storage: SupabaseStorageService,
   ) {}
 
@@ -74,11 +80,15 @@ export class ObservationService {
       result: dto.result,
       title: dto.title?.trim() || null,
       content: dto.content?.trim() || null,
+      placeLabel: dto.placeLabel?.trim() || null,
       observedAt: new Date(),
     });
 
     this.logger.log(`Observation 저장 — id=${saved.id}, user=${userId}`);
-    return this.toResponse(saved, []);
+    const spotNames = await this.buildSpotNameMap(
+      saved.spotId ? [saved.spotId] : [],
+    );
+    return this.toResponse(saved, [], spotNames);
   }
 
   async findByUserId(userId: string): Promise<ObservationResponseDto[]> {
@@ -90,8 +100,14 @@ export class ObservationService {
       list.push(p);
       photosByObs.set(p.observationId, list);
     }
+    const spotIds = [
+      ...new Set(
+        rows.map((r) => r.spotId).filter((id): id is string => id != null),
+      ),
+    ];
+    const spotNames = await this.buildSpotNameMap(spotIds);
     return rows.map((row) =>
-      this.toResponse(row, photosByObs.get(row.id) ?? []),
+      this.toResponse(row, photosByObs.get(row.id) ?? [], spotNames),
     );
   }
 
@@ -128,7 +144,10 @@ export class ObservationService {
     });
 
     const allPhotos = await this.photos.findByObservationIds([observationId]);
-    return this.toResponse(observation, allPhotos);
+    const spotNames = await this.buildSpotNameMap(
+      observation.spotId ? [observation.spotId] : [],
+    );
+    return this.toResponse(observation, allPhotos, spotNames);
   }
 
   async delete(userId: string, observationId: string): Promise<{ message: string }> {
@@ -154,9 +173,34 @@ export class ObservationService {
     return row;
   }
 
+  private async buildSpotNameMap(spotIds: string[]): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    const unique = [...new Set(spotIds)];
+    await Promise.all(
+      unique.map(async (id) => {
+        const spot = await this.spots.findById(id);
+        if (spot?.name) map.set(id, spot.name);
+      }),
+    );
+    return map;
+  }
+
+  private resolvePlaceLabel(
+    row: Observation,
+    spotNames: Map<string, string>,
+  ): string | null {
+    const stored = row.placeLabel?.trim();
+    if (stored) return stored;
+    if (row.spotId) {
+      return spotNames.get(row.spotId)?.trim() || null;
+    }
+    return null;
+  }
+
   private toResponse(
     row: Observation,
     photoRows: { id: string; imageUrl: string }[],
+    spotNames: Map<string, string>,
   ): ObservationResponseDto {
     return {
       id: row.id,
@@ -167,6 +211,7 @@ export class ObservationService {
       result: row.result,
       title: row.title,
       content: row.content,
+      placeLabel: this.resolvePlaceLabel(row, spotNames),
       observedAt: row.observedAt.toISOString(),
       photos: photoRows.map((p) => ({ id: p.id, imageUrl: p.imageUrl })),
     };

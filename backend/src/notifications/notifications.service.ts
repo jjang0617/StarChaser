@@ -6,6 +6,7 @@ import {
   type NotificationRepository,
 } from '../common/interfaces/notification.repository';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
+import { normalizeStarIndexAlertThreshold } from './star-index-alert-threshold';
 import type { NotificationTestSendDto } from './dto/notification-test-send.dto';
 import { UpsertNotificationTokenDto } from './dto/upsert-notification-token.dto';
 import { FcmPushService } from './fcm-push.service';
@@ -38,7 +39,8 @@ export class NotificationsService {
       userId,
       alertsEnabled: true,
       starIndexAlertEnabled: true,
-      astronomyEventAlertEnabled: true,
+      locationStarIndexAlertEnabled: true,
+      starIndexAlertThreshold: normalizeStarIndexAlertThreshold(90),
       top3AlertEnabled: true,
       alertSpotId: null,
     });
@@ -54,8 +56,12 @@ export class NotificationsService {
       alertsEnabled: dto.alertsEnabled ?? current.alertsEnabled,
       starIndexAlertEnabled:
         dto.starIndexAlertEnabled ?? current.starIndexAlertEnabled,
-      astronomyEventAlertEnabled:
-        dto.astronomyEventAlertEnabled ?? current.astronomyEventAlertEnabled,
+      locationStarIndexAlertEnabled:
+        dto.locationStarIndexAlertEnabled ?? current.locationStarIndexAlertEnabled,
+      starIndexAlertThreshold:
+        dto.starIndexAlertThreshold !== undefined
+          ? normalizeStarIndexAlertThreshold(dto.starIndexAlertThreshold)
+          : current.starIndexAlertThreshold,
       top3AlertEnabled: dto.top3AlertEnabled ?? current.top3AlertEnabled,
       alertSpotId:
         dto.alertSpotId !== undefined ? dto.alertSpotId : current.alertSpotId,

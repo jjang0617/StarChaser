@@ -111,12 +111,63 @@ export class CorrectionsService {
     if (!spot) {
       throw new NotFoundException('해당 spotId의 명소가 없습니다.');
     }
-    const count = await this.repo.count({ where: { spotId } });
-    const aggregated = await this.getAggregatedCorrectionScoreForSpot(spotId);
+    const submissionCount = await this.repo.count({ where: { spotId } });
     return {
       spotId,
-      submissionCount: count,
-      aggregatedCorrectionScore: aggregated,
+      submissionCount,
     };
+  }
+
+  async listForAdmin() {
+    const rows = await this.repo
+      .createQueryBuilder('c')
+      .innerJoin('users', 'u', 'u.id = c.user_id')
+      .innerJoin('spots', 's', 's.id = c.spot_id')
+      .select([
+        'c.id AS id',
+        'c.spot_id AS "spotId"',
+        'c.user_id AS "userId"',
+        'c.perceived_quality AS "reportedScore"',
+        'c.created_at AS "createdAt"',
+        'u.email AS "userEmail"',
+        'u.nickname AS "userNickname"',
+        's.name AS "spotName"',
+      ])
+      .orderBy('c.created_at', 'DESC')
+      .getRawMany<{
+        id: string;
+        spotId: string;
+        userId: string;
+        reportedScore: number;
+        createdAt: Date;
+        userEmail: string;
+        userNickname: string | null;
+        spotName: string;
+      }>();
+
+    return rows.map((row) => ({
+      id: row.id,
+      spotId: row.spotId,
+      userId: row.userId,
+      reportedScore: row.reportedScore,
+      createdAt: row.createdAt.toISOString(),
+      spotName: row.spotName,
+      user: {
+        email: row.userEmail,
+        nickname: row.userNickname,
+      },
+    }));
+  }
+
+  async deleteForAdmin(id: string): Promise<{ message: string }> {
+    const row = await this.repo.findOne({ where: { id } });
+    if (!row) {
+      throw new NotFoundException('제보를 찾을 수 없습니다.');
+    }
+    await this.repo.delete({ id });
+    const starKey = `star_index:${row.spotId}`;
+    await this.cache.del(starKey);
+    this.logger.log(`보정 제보 삭제(관리자) — id=${id}`);
+    return { message: '삭제했습니다.' };
   }
 }

@@ -1,9 +1,11 @@
 /**
- * DIARY 화면 — 작성 | 펼쳐보기 | 명소 등록 (구분선 탭)
+ * DIARY 화면 — 작성 | 펼쳐보기 | 명소 제보 (글래스 필 탭)
  */
 
-import React, { Fragment } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import React from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { AppPressable } from '../ui/AppPressable';
 import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 
@@ -14,56 +16,72 @@ interface DiarySegmentTabsProps {
   onChange: (key: DiarySectionKey) => void;
 }
 
-const SECTIONS: { key: DiarySectionKey; label: string; accessibilityLabel: string }[] = [
-  { key: 'write', label: '일기 작성', accessibilityLabel: '일기 작성' },
-  { key: 'browse', label: '펼쳐보기', accessibilityLabel: '일기 펼쳐보기' },
-  { key: 'register-spot', label: '명소 제보', accessibilityLabel: '명소 제보하기' },
+const SECTIONS: {
+  key: DiarySectionKey;
+  label: string;
+  icon: React.ComponentProps<typeof Feather>['name'];
+  accessibilityLabel: string;
+}[] = [
+  { key: 'write', label: '일기 작성', icon: 'edit-3', accessibilityLabel: '일기 작성' },
+  { key: 'browse', label: '펼쳐보기', icon: 'book-open', accessibilityLabel: '일기 펼쳐보기' },
+  { key: 'register-spot', label: '명소 제보', icon: 'map-pin', accessibilityLabel: '명소 제보하기' },
 ];
 
 export function DiarySegmentTabs({ active, onChange }: DiarySegmentTabsProps) {
   const { theme } = useTheme();
 
   return (
-    <View style={[styles.bar, { borderBottomColor: theme.cardBorder }]}>
-      {SECTIONS.map((section, index) => {
+    <View
+      style={[
+        styles.track,
+        {
+          backgroundColor: theme.inputBackground,
+          borderColor: theme.cardBorder,
+        },
+      ]}
+    >
+      {SECTIONS.map((section) => {
         const isActive = active === section.key;
         return (
-          <Fragment key={section.key}>
-            {index > 0 ? (
-              <Text style={[styles.pipe, { color: theme.cardBorder }]}>|</Text>
-            ) : null}
-            <Pressable
-              onPress={() => onChange(section.key)}
-              style={({ pressed }) => [styles.tab, pressed && styles.tabPressed]}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: isActive }}
-              accessibilityLabel={section.accessibilityLabel}
+          <AppPressable
+            key={section.key}
+            onPress={() => onChange(section.key)}
+            style={({ pressed }) => [
+              styles.tab,
+              isActive && [
+                styles.tabActive,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.primaryGlow,
+                  shadowColor: theme.primaryGlow,
+                },
+                Platform.OS === 'android' && styles.tabActiveAndroid,
+              ],
+              !isActive && { backgroundColor: 'transparent' },
+              pressed && { opacity: 0.9 },
+            ]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
+            accessibilityLabel={section.accessibilityLabel}
+          >
+            <Feather
+              name={section.icon}
+              size={15}
+              color={isActive ? theme.primaryGlow : theme.mutedForeground}
+            />
+            <Text
+              style={[
+                styles.label,
+                {
+                  color: isActive ? theme.foreground : theme.mutedForeground,
+                  fontWeight: isActive ? '600' : '500',
+                },
+              ]}
+              numberOfLines={1}
             >
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    color: isActive ? theme.primaryGlow : theme.mutedForeground,
-                    fontWeight: isActive ? '600' : '500',
-                  },
-                ]}
-                numberOfLines={2}
-              >
-                {section.label}
-              </Text>
-              {isActive ? (
-                <View
-                  style={[
-                    styles.activeLine,
-                    {
-                      backgroundColor: theme.primaryGlow,
-                      shadowColor: theme.primaryGlow,
-                    },
-                  ]}
-                />
-              ) : null}
-            </Pressable>
-          </Fragment>
+              {section.label}
+            </Text>
+          </AppPressable>
         );
       })}
     </View>
@@ -71,47 +89,39 @@ export function DiarySegmentTabs({ active, onChange }: DiarySegmentTabsProps) {
 }
 
 const styles = StyleSheet.create({
-  bar: {
+  track: {
     flexDirection: 'row',
-    alignItems: 'stretch',
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 6,
+    padding: 5,
+    borderRadius: 14,
+    borderWidth: 1,
     marginBottom: spacing.lg,
-  },
-  pipe: {
-    alignSelf: 'center',
-    fontSize: 13,
-    fontWeight: '300',
-    lineHeight: 16,
-    marginHorizontal: 2,
-    opacity: 0.75,
   },
   tab: {
     flex: 1,
-    minHeight: 46,
-    paddingVertical: 10,
+    minHeight: 44,
+    paddingVertical: 8,
     paddingHorizontal: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
   },
-  tabPressed: {
-    opacity: 0.88,
+  tabActive: {
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  tabActiveAndroid: {
+    elevation: 0,
   },
   label: {
-    fontSize: 12,
+    fontSize: 11,
     textAlign: 'center',
-    lineHeight: 16,
-    letterSpacing: 0.15,
-  },
-  activeLine: {
-    position: 'absolute',
-    bottom: 0,
-    left: '14%',
-    right: '14%',
-    height: 2,
-    borderRadius: 1,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 6,
-    elevation: 2,
+    lineHeight: 14,
+    letterSpacing: 0.1,
   },
 });

@@ -168,7 +168,7 @@ export function StarIndexCard({
   const scoreDisplay = getStarIndexScoreDisplay(score);
 
   const status = !scoreDisplay.measurable
-    ? '측정불가'
+    ? scoreDisplay.label
     : score >= 75
       ? '관측 적합'
       : '부분 관측';

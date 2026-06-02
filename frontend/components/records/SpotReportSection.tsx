@@ -2,6 +2,7 @@
  * 명소 제보 — GPS + 텍스트를 관리자에게 전송
  */
 
+import Feather from '@expo/vector-icons/Feather';
 import * as Location from 'expo-location';
 import React, { useCallback, useState } from 'react';
 import {
@@ -18,7 +19,9 @@ import {
 } from '../../lib/api-client';
 import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
-import { Button, Card } from '../ui';
+import { Button } from '../ui';
+import { GlassCard } from '../ui/GlassCard';
+import { DiarySectionHeader } from './DiarySectionHeader';
 
 interface SpotReportSectionProps {
   observerLat?: number | null;
@@ -95,7 +98,7 @@ export function SpotReportSection({
       });
 
       setMessage('');
-      setSuccess('제보를 보냈습니다.');
+      setSuccess('제보를 보냈습니다. 검토 후 명소 목록에 반영될 수 있어요.');
     } catch (e) {
       if (e instanceof SessionExpiredError) {
         await onSessionInvalidated();
@@ -110,10 +113,13 @@ export function SpotReportSection({
   }, [message, observerLat, observerLng, onSessionInvalidated, useDeviceLocation]);
 
   return (
-    <Card
-      title="명소 제보"
-      description="목록에 없는 관측지를 알려 주세요. 현재 GPS와 Star-Index가 함께 전달됩니다."
-    >
+    <GlassCard glow>
+      <DiarySectionHeader
+        icon="map-pin"
+        title="명소 제보"
+        subtitle="목록에 없는 관측지를 알려 주세요. GPS와 Star-Index가 함께 전달됩니다."
+      />
+
       <View style={styles.field}>
         <Text style={[styles.label, { color: theme.foreground }]}>명소 설명</Text>
         <TextInput
@@ -123,7 +129,7 @@ export function SpotReportSection({
             setError(null);
             setSuccess(null);
           }}
-          placeholder="예: 주차 가능한 언덕, 동쪽 하늘이 잘 보여요"
+          placeholder="예: 저만 알고 있던 숨겨진 명소에요. 뒷산인데 별이 잘 보여서 제보 드립니다."
           placeholderTextColor={theme.mutedForeground}
           multiline
           textAlignVertical="top"
@@ -143,6 +149,21 @@ export function SpotReportSection({
         </Text>
       </View>
 
+      <View
+        style={[
+          styles.tipRow,
+          {
+            backgroundColor: theme.primaryGlowMuted,
+            borderColor: theme.cardBorder,
+          },
+        ]}
+      >
+        <Feather name="info" size={14} color={theme.primaryGlow} />
+        <Text style={[styles.tipText, { color: theme.mutedForeground }]}>
+          제보하신 위치는 관리자 검토 후 지도 명소로 등록될 수 있어요.
+        </Text>
+      </View>
+
       {error ? (
         <Text style={[styles.feedback, { color: theme.destructive }]}>{error}</Text>
       ) : null}
@@ -157,15 +178,15 @@ export function SpotReportSection({
         disabled={busy}
         onPress={() => void submit()}
       />
-    </Card>
+    </GlassCard>
   );
 }
 
 const styles = StyleSheet.create({
   field: { gap: spacing.sm, marginBottom: spacing.md },
-  label: { fontSize: 13, fontWeight: '500' },
+  label: { fontSize: 13, fontWeight: '600' },
   input: {
-    minHeight: 120,
+    minHeight: 128,
     borderWidth: 1,
     borderRadius: 12,
     padding: 14,
@@ -173,5 +194,19 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   hint: { fontSize: 11, textAlign: 'right' },
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+  },
+  tipText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+  },
   feedback: { fontSize: 12, lineHeight: 18, marginBottom: spacing.sm },
 });

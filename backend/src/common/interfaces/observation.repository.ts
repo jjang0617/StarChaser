@@ -13,6 +13,7 @@ export interface Observation {
   result: 'success' | 'partial' | 'fail';
   title: string | null;
   content: string | null;
+  placeLabel: string | null;
   observedAt: Date;
 }
 
