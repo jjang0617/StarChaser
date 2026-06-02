@@ -8,7 +8,14 @@ import type {
   SkyViewStarDto,
 } from '../../lib/api-client';
 import { createSkyGlTextures, deleteSkyGlTextures } from './gl-textures';
-import { azAltToNorm, magToRadius, planetDiskRadius, rotateSkyNorm } from './sky-projection';
+import {
+  dirFromAzAlt,
+  GL_FOV_V_DEG,
+  magToRadius,
+  planetDiskRadius,
+  projectPerspectiveClip,
+  type ViewBasis,
+} from './sky-projection';
 
 type Rgb = [number, number, number];
 
@@ -57,21 +64,6 @@ function createProgram(gl: WebGLRenderingContext, vs: string, fs: string): WebGL
   return p;
 }
 
-/** 스타렐리움식 천장 좌표(nx,ny) → clip (-1..1), sky-projection·SVG와 동일 */
-function normToClip(
-  nx: number,
-  ny: number,
-  w: number,
-  h: number,
-): { x: number; y: number } {
-  const scale = Math.min(w, h) / 100;
-  const ox = (w - 100 * scale) / 2;
-  const oy = (h - 100 * scale) / 2;
-  const px = ox + nx * scale;
-  const py = oy + ny * scale;
-  return { x: (px / w) * 2 - 1, y: 1 - (py / h) * 2 };
-}
-
 /** 시각등급 → 밝기·살짝 푸른 백색 */
 function starRgbFromMag(mag: number): Rgb {
   const m = Math.max(-2, Math.min(7, mag));
@@ -92,46 +84,38 @@ void main() {
 }
 `;
 
-/** 역회전 + 프로시저럴 텍스처 샘플(은하·지평선 림) */
+/** 원근 카메라: 화면 픽셀 → 시선 광선(직선 투영) → 고도별 대기색·은하·지평선 */
 const FS_SKY_DOME = `
 precision mediump float;
 varying vec2 v_ndc;
-uniform vec2 u_resolution;
-uniform float u_ox;
-uniform float u_oy;
-uniform float u_scale;
-uniform float u_skyRotDeg;
+uniform vec3 u_fwd;
+uniform vec3 u_right;
+uniform vec3 u_up;
+uniform vec3 u_sunDir;
+uniform float u_sunAlt;
+uniform float u_tanHalfFov;
+uniform float u_aspect;
 uniform sampler2D u_milky;
 uniform sampler2D u_horizonRim;
 
-const vec2 ZEN = vec2(50.0, 50.0);
-
 void main() {
-  float px = (v_ndc.x * 0.5 + 0.5) * u_resolution.x;
-  float py = (v_ndc.y * 0.5 + 0.5) * u_resolution.y;
-  float nx = (px - u_ox) / u_scale;
-  float ny = (py - u_oy) / u_scale;
-  vec2 p = vec2(nx, ny) - ZEN;
-  float rad = radians(u_skyRotDeg);
-  float c = cos(rad);
-  float s = sin(rad);
-  vec2 sky = vec2(p.x * c + p.y * s, -p.x * s + p.y * c) + ZEN;
-  float r = distance(sky, ZEN);
+  // 풀스크린 NDC(-1..1) → 원근 광선. 화면을 사각형으로 가득 채움(둥근 테두리 없음)
+  vec3 dir = normalize(
+    u_fwd
+    + v_ndc.x * u_tanHalfFov * u_aspect * u_right
+    + v_ndc.y * u_tanHalfFov * u_up
+  );
+  float altDeg = degrees(asin(clamp(dir.z, -1.0, 1.0)));
 
-  if (r > 49.2) {
-    gl_FragColor = vec4(0.015, 0.018, 0.022, 1.0);
-    return;
-  }
-
-  if (r > 46.15) {
-    float t = clamp((r - 46.15) / 3.2, 0.0, 1.0);
+  // 지평선 아래 = 땅
+  if (altDeg < 0.0) {
+    float t = clamp(-altDeg / 12.0, 0.0, 1.0);
     vec3 treetop = vec3(0.03, 0.06, 0.025);
     vec3 ground = vec3(0.012, 0.014, 0.018);
-    gl_FragColor = vec4(mix(treetop, ground, smoothstep(0.2, 1.0, t)), 1.0);
+    gl_FragColor = vec4(mix(treetop, ground, t), 1.0);
     return;
   }
 
-  float altDeg = 90.0 - clamp(r / 46.0, 0.0, 1.0) * 90.0;
   float tZen = clamp(altDeg / 90.0, 0.0, 1.0);
 
   vec3 deep = vec3(0.018, 0.02, 0.045);
@@ -144,12 +128,19 @@ void main() {
   float midMix = smoothstep(0.16, 0.48, tZen) * (1.0 - smoothstep(0.58, 0.92, tZen));
   skyCol = mix(skyCol, mid, midMix * 0.5);
   skyCol = mix(skyCol, twi, smoothstep(0.08, 0.35, 1.0 - tZen));
-  float low = smoothstep(22.0, 0.0, altDeg);
-  skyCol = mix(skyCol, horizWarm, low * 0.55);
-  float rim = smoothstep(12.0, 0.0, altDeg);
-  skyCol += horizGlow * rim * 0.22;
 
-  float az = atan(sky.x - ZEN.x, -(sky.y - ZEN.y));
+  // 황혼 세기: 태양이 지평선 부근일 때 최대, 깊은 밤(-18°↓)/낮(+12°↑)이면 0
+  float tw = smoothstep(-18.0, -3.0, u_sunAlt) * (1.0 - smoothstep(4.0, 14.0, u_sunAlt));
+  // 태양 방향 정렬: 해가 진 방위 쪽에 노을을 집중, 나머지 지평선엔 옅게만
+  float aim = max(0.0, dot(dir, normalize(u_sunDir)));
+  float glowAim = 0.10 + 0.90 * pow(aim, 2.5);
+
+  float low = smoothstep(22.0, 0.0, altDeg);
+  skyCol = mix(skyCol, horizWarm, low * 0.55 * tw * glowAim);
+  float rim = smoothstep(12.0, 0.0, altDeg);
+  skyCol += horizGlow * rim * 0.30 * tw * glowAim;
+
+  float az = atan(dir.x, dir.y);
   float azn = az * 0.15915494309189535;
   float altn = clamp(altDeg / 90.0, 0.0, 1.0);
   vec2 muv = vec2(fract(azn), 1.0 - altn * 0.94 + 0.03);
@@ -162,7 +153,7 @@ void main() {
 
   vec4 rimTex = texture2D(u_horizonRim, vec2(0.5, 1.0 - altn));
   float rimMask = smoothstep(20.0, 0.0, altDeg);
-  skyCol += rimTex.rgb * rimTex.a * rimMask * 0.42;
+  skyCol += rimTex.rgb * rimTex.a * rimMask * 0.42 * tw * glowAim;
 
   gl_FragColor = vec4(clamp(skyCol, 0.0, 1.0), 1.0);
 }
@@ -212,10 +203,8 @@ void main() {
 `;
 
 export interface SkyGlCanvasProps {
-  /** 나침반·기기 정렬(°) — 셰이더 배경·은하 밴드만 */
-  skyRotationDeg: number;
-  /** 손가락 패닝 등 천체만 추가 회전(°). 배경은 돌지 않음 */
-  celestialPanDeg?: number;
+  /** 1인칭 자유 시점 카메라 기저(orthonormal) */
+  viewBasis: ViewBasis;
   data: SkyViewResponseDto;
   lineSegments: ConstellationLineSegmentDto[];
   starsByHip: Map<number, SkyViewStarDto>;
@@ -223,6 +212,8 @@ export interface SkyGlCanvasProps {
   lineColorHex: string;
   bodyPlanetHex: string;
   bodyMoonHex: string;
+  /** 태양 지평좌표(방위·고도) — 황혼/노을 방향성 연출용. null이면 깊은 밤 처리 */
+  sunAltAz?: { azDeg: number; altDeg: number } | null;
   squareSize?: number;
   layoutWidth?: number;
   layoutHeight?: number;
@@ -233,8 +224,7 @@ export interface SkyGlCanvasProps {
  * 스타렐리움에 가까운 야간 천구: 대기 셰이더 + 은하수 밴드 + 지평선/땅 + 소프트 별 스프라이트.
  */
 export function SkyGlCanvas({
-  skyRotationDeg,
-  celestialPanDeg = 0,
+  viewBasis,
   data,
   lineSegments,
   starsByHip,
@@ -242,6 +232,7 @@ export function SkyGlCanvas({
   lineColorHex,
   bodyPlanetHex,
   bodyMoonHex,
+  sunAltAz,
   squareSize,
   layoutWidth,
   layoutHeight,
@@ -249,9 +240,12 @@ export function SkyGlCanvas({
 }: SkyGlCanvasProps) {
   const [gl, setGl] = useState<ExpoWebGLRenderingContext | null>(null);
   const [glErr, setGlErr] = useState<string | null>(null);
+  const sunAltDeg = sunAltAz?.altDeg ?? -90;
+  const sunDir: Rgb = sunAltAz
+    ? (dirFromAzAlt(sunAltAz.azDeg, sunAltAz.altDeg) as Rgb)
+    : [0, 0, -1];
   const propsRef = useRef({
-    skyRotationDeg,
-    celestialPanDeg,
+    viewBasis,
     data,
     lineSegments,
     starsByHip,
@@ -259,11 +253,12 @@ export function SkyGlCanvas({
     lineRgb: hexToRgb01(lineColorHex),
     planetRgb: hexToRgb01(bodyPlanetHex),
     moonRgb: hexToRgb01(bodyMoonHex),
+    sunDir,
+    sunAltDeg,
   });
 
   propsRef.current = {
-    skyRotationDeg,
-    celestialPanDeg,
+    viewBasis,
     data,
     lineSegments,
     starsByHip,
@@ -271,6 +266,8 @@ export function SkyGlCanvas({
     lineRgb: hexToRgb01(lineColorHex),
     planetRgb: hexToRgb01(bodyPlanetHex),
     moonRgb: hexToRgb01(bodyMoonHex),
+    sunDir,
+    sunAltDeg,
   };
 
   const onContextCreate = useCallback((g: ExpoWebGLRenderingContext) => {
@@ -300,11 +297,13 @@ export function SkyGlCanvas({
     }
 
     const skyPosLoc = glCtx.getAttribLocation(skyProg, 'a_pos');
-    const uRes = glCtx.getUniformLocation(skyProg, 'u_resolution');
-    const uOx = glCtx.getUniformLocation(skyProg, 'u_ox');
-    const uOy = glCtx.getUniformLocation(skyProg, 'u_oy');
-    const uSc = glCtx.getUniformLocation(skyProg, 'u_scale');
-    const uRot = glCtx.getUniformLocation(skyProg, 'u_skyRotDeg');
+    const uFwd = glCtx.getUniformLocation(skyProg, 'u_fwd');
+    const uRight = glCtx.getUniformLocation(skyProg, 'u_right');
+    const uUp = glCtx.getUniformLocation(skyProg, 'u_up');
+    const uSunDir = glCtx.getUniformLocation(skyProg, 'u_sunDir');
+    const uSunAlt = glCtx.getUniformLocation(skyProg, 'u_sunAlt');
+    const uTanHalfFov = glCtx.getUniformLocation(skyProg, 'u_tanHalfFov');
+    const uAspect = glCtx.getUniformLocation(skyProg, 'u_aspect');
     const uMilky = glCtx.getUniformLocation(skyProg, 'u_milky');
     const uHorizonRim = glCtx.getUniformLocation(skyProg, 'u_horizonRim');
 
@@ -355,17 +354,18 @@ export function SkyGlCanvas({
       glCtx.viewport(0, 0, w, h);
       glCtx.disable(glCtx.BLEND);
 
-      const scale = Math.min(w, h) / 100;
-      const ox = (w - 100 * scale) / 2;
-      const oy = (h - 100 * scale) / 2;
+      const aspect = h > 0 ? w / h : 1;
+      const tanHalfFov = Math.tan((GL_FOV_V_DEG * Math.PI) / 360);
 
+      const basis = p.viewBasis;
       glCtx.useProgram(skyProg);
-      glCtx.uniform2f(uRes, w, h);
-      glCtx.uniform1f(uOx, ox);
-      glCtx.uniform1f(uOy, oy);
-      glCtx.uniform1f(uSc, scale);
-      glCtx.uniform1f(uRot, p.skyRotationDeg);
-      const celestialRot = p.skyRotationDeg + p.celestialPanDeg;
+      glCtx.uniform3f(uFwd, basis.fwd[0], basis.fwd[1], basis.fwd[2]);
+      glCtx.uniform3f(uRight, basis.right[0], basis.right[1], basis.right[2]);
+      glCtx.uniform3f(uUp, basis.up[0], basis.up[1], basis.up[2]);
+      glCtx.uniform3f(uSunDir, p.sunDir[0], p.sunDir[1], p.sunDir[2]);
+      glCtx.uniform1f(uSunAlt, p.sunAltDeg);
+      glCtx.uniform1f(uTanHalfFov, tanHalfFov);
+      glCtx.uniform1f(uAspect, aspect);
       glCtx.activeTexture(glCtx.TEXTURE0);
       glCtx.bindTexture(glCtx.TEXTURE_2D, textures.milky);
       glCtx.uniform1i(uMilky, 0);
@@ -388,20 +388,17 @@ export function SkyGlCanvas({
         const a = p.starsByHip.get(seg.fromHip);
         const b = p.starsByHip.get(seg.toHip);
         if (!a?.visible || !b?.visible) continue;
-        const na = azAltToNorm(a.azDeg, a.altDeg);
-        const nb = azAltToNorm(b.azDeg, b.altDeg);
-        const pa = rotateSkyNorm(na.nx, na.ny, celestialRot);
-        const pb = rotateSkyNorm(nb.nx, nb.ny, celestialRot);
-        const ca = normToClip(pa.nx, pa.ny, w, h);
-        const cb = normToClip(pb.nx, pb.ny, w, h);
+        const pa = projectPerspectiveClip(a.azDeg, a.altDeg, basis, tanHalfFov, aspect);
+        const pb = projectPerspectiveClip(b.azDeg, b.altDeg, basis, tanHalfFov, aspect);
+        if (!pa.visible || !pb.visible) continue;
         const o = li * 10;
-        lineInterleaved[o] = ca.x;
-        lineInterleaved[o + 1] = ca.y;
+        lineInterleaved[o] = pa.cx;
+        lineInterleaved[o + 1] = pa.cy;
         lineInterleaved[o + 2] = lineRgbLine[0];
         lineInterleaved[o + 3] = lineRgbLine[1];
         lineInterleaved[o + 4] = lineRgbLine[2];
-        lineInterleaved[o + 5] = cb.x;
-        lineInterleaved[o + 6] = cb.y;
+        lineInterleaved[o + 5] = pb.cx;
+        lineInterleaved[o + 6] = pb.cy;
         lineInterleaved[o + 7] = lineRgbLine[0];
         lineInterleaved[o + 8] = lineRgbLine[1];
         lineInterleaved[o + 9] = lineRgbLine[2];
@@ -428,11 +425,10 @@ export function SkyGlCanvas({
       }
 
       let pi = 0;
-      const pushPoint = (nx: number, ny: number, rgb: Rgb, sizePx: number) => {
-        const { x, y } = normToClip(nx, ny, w, h);
+      const pushPoint = (cx: number, cy: number, rgb: Rgb, sizePx: number) => {
         const o = pi * 6;
-        pointInterleaved[o] = x;
-        pointInterleaved[o + 1] = y;
+        pointInterleaved[o] = cx;
+        pointInterleaved[o + 1] = cy;
         pointInterleaved[o + 2] = rgb[0];
         pointInterleaved[o + 3] = rgb[1];
         pointInterleaved[o + 4] = rgb[2];
@@ -441,22 +437,41 @@ export function SkyGlCanvas({
       };
 
       const minDim = Math.min(w, h);
+      const tSec = Date.now() / 1000;
+      let starIdx = 0;
       for (const s of p.data.stars) {
+        starIdx += 1;
         if (!s.visible) continue;
-        const { nx, ny } = azAltToNorm(s.azDeg, s.altDeg);
-        const r = rotateSkyNorm(nx, ny, celestialRot);
+        const r = projectPerspectiveClip(s.azDeg, s.altDeg, basis, tanHalfFov, aspect);
+        if (!r.visible) continue;
         const rgb = starRgbFromMag(s.mag);
         const pr = magToRadius(s.mag) * (minDim / 100) * 2.85;
         const sz = Math.max(2.2, Math.min(18, pr));
-        pushPoint(r.nx, r.ny, rgb, sz);
-        if (pi >= maxPoints - 4) break;
+        // 대기 산란에 의한 반짝임(scintillation): 별마다 위상이 달라 0.6~1.0로 깜빡
+        const twk =
+          0.8 +
+          0.2 *
+            Math.sin(tSec * 2.4 + starIdx * 1.7) *
+            Math.cos(tSec * 1.6 + starIdx * 0.9);
+        const tRgb: Rgb = [rgb[0] * twk, rgb[1] * twk, rgb[2] * twk];
+        // 블룸/할레이션: 밝은 별 아래에 크고 옅은 헤일로를 가산 합성
+        if (s.mag < 1.7) {
+          pushPoint(
+            r.cx,
+            r.cy,
+            [tRgb[0] * 0.42, tRgb[1] * 0.42, tRgb[2] * 0.46],
+            Math.min(34, sz * 2.6),
+          );
+        }
+        pushPoint(r.cx, r.cy, tRgb, sz * (0.94 + 0.06 * twk));
+        if (pi >= maxPoints - 6) break;
       }
 
       for (const b of p.data.bodies ?? []) {
         if (!(b as SkyViewBodyDto).visible) continue;
         const body = b as SkyViewBodyDto;
-        const { nx, ny } = azAltToNorm(body.azDeg, body.altDeg);
-        const r = rotateSkyNorm(nx, ny, celestialRot);
+        const r = projectPerspectiveClip(body.azDeg, body.altDeg, basis, tanHalfFov, aspect);
+        if (!r.visible) continue;
         const rgb: Rgb =
           body.id === 'moon'
             ? (p.moonRgb as Rgb)
@@ -467,8 +482,16 @@ export function SkyGlCanvas({
           body.id === 'moon'
             ? Math.max(16, minDim * 0.045)
             : Math.max(10, planetDiskRadius(body.magnitude) * (minDim / 100) * 2.8);
-        pushPoint(r.nx, r.ny, rgb, Math.min(36, sz));
-        if (pi >= maxPoints - 1) break;
+        const disk = Math.min(36, sz);
+        // 행성·달의 부드러운 광채(블룸)
+        pushPoint(
+          r.cx,
+          r.cy,
+          [rgb[0] * 0.34, rgb[1] * 0.34, rgb[2] * 0.36],
+          Math.min(64, disk * 2.4),
+        );
+        pushPoint(r.cx, r.cy, rgb, disk);
+        if (pi >= maxPoints - 2) break;
       }
 
       if (pi > 0) {
