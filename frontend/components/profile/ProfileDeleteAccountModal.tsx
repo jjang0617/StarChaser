@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useTheme } from '../../themes/ThemeContext';
+import { dangerAccent } from '../../themes/themes';
 import { ApiRequestError, deleteMyAccount } from '../../lib/api-client';
 import { Button, Input } from '../ui';
 
@@ -20,7 +21,8 @@ export function ProfileDeleteAccountModal({
   onClose: () => void;
   onDeleted: () => void;
 }) {
-  const { theme } = useTheme();
+  const { theme, isRedMode } = useTheme();
+  const danger = dangerAccent(theme, isRedMode);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -66,8 +68,8 @@ export function ProfileDeleteAccountModal({
           style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.border }]}
           onPress={(e) => e.stopPropagation()}
         >
-          <Text style={[styles.title, { color: theme.foreground }]}>회원 탈퇴</Text>
-          <Text style={[styles.warning, { color: theme.mutedForeground }]}>
+          <Text style={[styles.title, { color: danger.title }]}>회원 탈퇴</Text>
+          <Text style={[styles.warning, { color: danger.subtitle }]}>
             탈퇴하면 프로필·관측 기록·알림 설정 등 모든 데이터가 삭제되며 복구할 수 없습니다.
           </Text>
 

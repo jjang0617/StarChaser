@@ -11,10 +11,6 @@
         "watchAssets": true
       },
       {
-        "include": "astronomy-events/data/*.json",
-        "watchAssets": true
-      },
-      {
         "include": "cache-hydration/data/*.json",
         "watchAssets": true
       }

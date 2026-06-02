@@ -44,9 +44,11 @@ import {
 } from '../common/weather-snapshot-display.util';
 import { CorrectionsService } from '../corrections/corrections.service';
 import { addDaysKst, getKstYmd } from '../common/kst-date';
+import { findSidoByLatLng } from '../cache-hydration/airkorea-sido-bbox.util';
 import {
   dustStationCacheKey,
   findDustStationInCatalog,
+  hasStationCoords,
 } from '../cache-hydration/airkorea-station.util';
 import { StarIndexCacheHydrationService } from '../cache-hydration/star-index-cache-hydration.service';
 import { SpotStarIndexDailyEntity } from '../weekly-top3/spot-star-index-daily.entity';
@@ -180,7 +182,7 @@ export class StarIndexService {
       await this.cache.get(weatherKey),
       atUtc,
     );
-    const dust = this.readDustCache(await this.cache.get(dustKey));
+    const dust = await this.readDustCacheForLocation(lat, lng, dustKey);
     const moonRaw = await this.cache.get<MoonData>(moonKey);
 
     const nearby = await this.spots.findNearby(lat, lng, 200_000);
@@ -801,6 +803,36 @@ export class StarIndexService {
       pm25Label: n.pm25Label,
       stationName: n.stationName,
     };
+  }
+
+  /** 요청 격자 측정소 캐시 → 같은 시도 대표 측정소 캐시 순으로 조회 */
+  private async readDustCacheForLocation(
+    lat: number,
+    lng: number,
+    dustKey: string,
+  ): Promise<DustData | null> {
+    const direct = this.readDustCache(await this.cache.get(dustKey));
+    if (direct) return direct;
+
+    try {
+      const catalog = await this.cacheHydration.getStationCatalogCached();
+      const sidoName = findSidoByLatLng(lat, lng);
+      const reps = catalog.filter(
+        (e) => e.sidoName === sidoName && hasStationCoords(e),
+      );
+      for (const rep of reps) {
+        const key = dustStationCacheKey(rep.stationName);
+        if (key === dustKey) continue;
+        const alt = this.readDustCache(await this.cache.get(key));
+        if (alt) {
+          return { ...alt, stationName: rep.stationName };
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.debug(`dust 시도 폴백 조회 생략: ${msg}`);
+    }
+    return null;
   }
 
   private resolveMoonAt(

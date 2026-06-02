@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
+import { SpotsModule } from '../spots/spots.module';
 import { OBSERVATION_REPOSITORY } from '../common/interfaces/observation.repository';
 import { PHOTO_REPOSITORY } from '../common/interfaces/photo.repository';
 import { PhotoEntity } from '../photos/photo.entity';
@@ -15,6 +16,7 @@ import { TypeOrmObservationRepository } from './typeorm-observation.repository';
   imports: [
     TypeOrmModule.forFeature([ObservationEntity, PhotoEntity]),
     AuthModule,
+    SpotsModule,
   ],
   controllers: [ObservationsController],
   providers: [

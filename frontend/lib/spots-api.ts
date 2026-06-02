@@ -40,4 +40,13 @@ export async function fetchSpotsNearby(
   return authorizedGetJson<SpotDto[]>(`/spots/nearby?${q.toString()}`);
 }
 
+/** 지역·명소명 키워드 검색 (예: 강원) */
+export async function fetchSpotsSearch(keyword: string, limit = 50): Promise<SpotDto[]> {
+  const q = new URLSearchParams({
+    q: keyword.trim(),
+    limit: String(Math.max(1, Math.min(limit, 50))),
+  });
+  return authorizedGetJson<SpotDto[]>(`/spots/search?${q.toString()}`);
+}
+
 export { SessionExpiredError };

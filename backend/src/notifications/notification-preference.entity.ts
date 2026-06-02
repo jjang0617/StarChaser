@@ -24,8 +24,13 @@ export class NotificationPreferenceEntity {
   @Column({ name: 'star_index_alert_enabled', type: 'boolean', default: true })
   starIndexAlertEnabled: boolean;
 
-  @Column({ name: 'astronomy_event_alert_enabled', type: 'boolean', default: true })
-  astronomyEventAlertEnabled: boolean;
+  /** 위치한 곳(GPS) Star-Index 푸시 — ME·MAIN 공통 */
+  @Column({ name: 'location_star_index_alert_enabled', type: 'boolean', default: true })
+  locationStarIndexAlertEnabled: boolean;
+
+  /** Star-Index 푸시 임계값 — 80·85·90·95 */
+  @Column({ name: 'star_index_alert_threshold', type: 'int', default: 90 })
+  starIndexAlertThreshold: number;
 
   @Column({ name: 'top3_alert_enabled', type: 'boolean', default: true })
   top3AlertEnabled: boolean;

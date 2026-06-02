@@ -4,8 +4,10 @@
 
 import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import { AppPressable } from '../ui/AppPressable';
 import type { ObservationRowDto } from '../../lib/api-client';
+import { formatObservationPlaceLabel } from '../../lib/observation-place-label';
 import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
 import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
@@ -49,9 +51,10 @@ export function DiaryEntryCard({ row, onPress }: DiaryEntryCardProps) {
   const accent = theme[meta.colorKey];
   const si = getStarIndexScoreDisplay(row.starIndexVal);
   const cover = row.photos[0]?.imageUrl;
+  const place = formatObservationPlaceLabel(row.placeLabel);
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}>
+    <AppPressable onPress={onPress} style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}>
       <GlassCard padding={0} style={styles.card} glow>
         {cover ? (
           <Image source={{ uri: cover }} style={styles.cover} resizeMode="cover" />
@@ -76,6 +79,15 @@ export function DiaryEntryCard({ row, onPress }: DiaryEntryCardProps) {
             {row.title?.trim() || '제목 없음'}
           </Text>
 
+          {place ? (
+            <View style={styles.placeRow}>
+              <Feather name="map-pin" size={12} color={theme.primaryGlow} />
+              <Text style={[styles.placeText, { color: theme.mutedForeground }]} numberOfLines={1}>
+                {place}
+              </Text>
+            </View>
+          ) : null}
+
           <Text style={[styles.preview, { color: theme.mutedForeground }]} numberOfLines={2}>
             {previewText(row.content)}
           </Text>
@@ -98,7 +110,7 @@ export function DiaryEntryCard({ row, onPress }: DiaryEntryCardProps) {
           </View>
         </View>
       </GlassCard>
-    </Pressable>
+    </AppPressable>
   );
 }
 
@@ -139,6 +151,13 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontSize: 10, fontWeight: '600' },
   title: { fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
+  placeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  placeText: { fontSize: 12, flex: 1 },
   preview: { fontSize: 13, lineHeight: 19 },
   footer: {
     flexDirection: 'row',

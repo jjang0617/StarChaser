@@ -1,6 +1,7 @@
 export { AppToggle }                       from './AppToggle';
 export { Badge,     type BadgeVariant }    from './Badge';
 export { BottomTab, type BottomTabItem }   from './BottomTab';
+export { BottomToast }                     from './BottomToast';
 export { Button,    type ButtonVariant, type ButtonSize } from './Button';
 export { GlassCard }                       from './GlassCard';
 export {

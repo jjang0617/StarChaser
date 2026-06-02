@@ -7,7 +7,6 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useCallback } from 'react';
 import {
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +14,7 @@ import {
 } from 'react-native';
 import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
+import { AppPressable } from '../ui/AppPressable';
 
 export interface LocalDiaryPhoto {
   uri: string;
@@ -71,7 +71,7 @@ export function DiaryPhotoPicker({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
       >
-        <Pressable
+        <AppPressable
           onPress={() => void pickPhotos()}
           disabled={disabled || photos.length >= 10}
           style={({ pressed }) => [
@@ -85,19 +85,19 @@ export function DiaryPhotoPicker({
           accessibilityLabel="사진 추가"
         >
           <Feather name="plus" size={22} color={theme.primaryGlow} />
-        </Pressable>
+        </AppPressable>
 
         {photos.map((photo, index) => (
           <View key={`${photo.uri}-${index}`} style={styles.thumbWrap}>
             <Image source={{ uri: photo.uri }} style={styles.thumb} />
-            <Pressable
+            <AppPressable
               onPress={() => removeAt(index)}
               disabled={disabled}
               style={[styles.removeBtn, { backgroundColor: 'rgba(0,0,0,0.65)' }]}
               accessibilityLabel="사진 제거"
             >
               <Feather name="x" size={12} color="#fff" />
-            </Pressable>
+            </AppPressable>
           </View>
         ))}
       </ScrollView>

@@ -101,27 +101,28 @@ export class NotificationsController {
     };
   }
 
-  @Post('dev/run-astro-event-scheduled-push')
+  @Post('dev/run-top3-scheduled-push')
   @ApiOperation({
     summary:
-      '개발·검증용: 천체 이벤트 스케줄 잡을 즉시 1회 실행. production 은 FCM_ASTRO_EVENT_MANUAL_TRIGGER_ENABLED=true 만 허용',
+      '개발·검증용: 주간 TOP3 스케줄 푸시를 즉시 1회 실행. production 은 FCM_TOP3_MANUAL_TRIGGER_ENABLED=true 만 허용',
   })
-  async runAstroEventScheduledPush(@CurrentUser() user: JwtValidatedUser) {
+  async runTop3ScheduledPush(@CurrentUser() user: JwtValidatedUser) {
     const nodeEnv = this.config.get<string>('NODE_ENV');
     const forced =
-      this.config.get<string>('FCM_ASTRO_EVENT_MANUAL_TRIGGER_ENABLED') === 'true';
+      this.config.get<string>('FCM_TOP3_MANUAL_TRIGGER_ENABLED') === 'true';
     const allowed = forced || nodeEnv !== 'production';
     if (!allowed) {
       throw new ForbiddenException(
-        'production 에서는 FCM_ASTRO_EVENT_MANUAL_TRIGGER_ENABLED=true 일 때만 사용 가능',
+        'production 에서는 FCM_TOP3_MANUAL_TRIGGER_ENABLED=true 일 때만 사용 가능',
       );
     }
-    await this.notificationScheduler.sendAstronomyEventAlerts();
+    await this.notificationScheduler.sendWeeklyTop3Digest();
     return {
       ok: true,
       triggeredBy: user.userId,
       message:
-        '천체 이벤트 스케줄 로직을 1회 실행했습니다. 서버 로그([Astro event push])를 확인하세요.',
+        '주간 TOP3 스케줄 로직을 1회 실행했습니다. 서버 로그([TOP3 push])를 확인하세요.',
     };
   }
+
 }

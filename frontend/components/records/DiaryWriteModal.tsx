@@ -2,13 +2,12 @@
  * 일기 작성 모달 — 제목 · 사진 · 본문 · 저장
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,6 +16,7 @@ import {
 } from 'react-native';
 import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
+import { AppPressable } from '../ui/AppPressable';
 import { Button, Input } from '../ui';
 import {
   ApiRequestError,
@@ -25,24 +25,67 @@ import {
   uploadObservationPhoto,
 } from '../../lib/api-client';
 import type { StarIndexResponseDto } from '../../lib/types/api';
+import { spotNameWithoutRegionPrefix } from '../../lib/spot-display-name';
+import {
+  DiaryLocationField,
+  type DiaryLocationValue,
+} from './DiaryLocationField';
 import { DiaryPhotoPicker, type LocalDiaryPhoto } from './DiaryPhotoPicker';
+import { observationPlaceLabelForSave } from '../../lib/observation-place-label';
 import type { ObservationResult } from './ObservationResultPicker';
 
 interface DiaryWriteModalProps {
   visible: boolean;
   result: ObservationResult;
   starIndexData: StarIndexResponseDto;
-  spotId?: string;
+  initialSpotId?: string;
+  fromGps?: boolean;
+  observerLat?: number | null;
+  observerLng?: number | null;
+  placeLabel?: string | null;
   onClose: () => void;
   onSaved: () => void;
   onSessionInvalidated: () => Promise<void>;
+}
+
+function initialLocationValue(
+  starIndex: StarIndexResponseDto,
+  initialSpotId: string | undefined,
+  fromGps: boolean,
+  placeLabel: string | null | undefined,
+): DiaryLocationValue {
+  if (initialSpotId && !fromGps) {
+    return {
+      mode: 'spot',
+      spotId: initialSpotId,
+      label: spotNameWithoutRegionPrefix(starIndex.name) || starIndex.name,
+      starIndex,
+    };
+  }
+  return {
+    mode: 'current',
+    spotId: null,
+    label: placeLabel?.trim() || starIndex.name || '현재 위치',
+    starIndex,
+  };
+}
+
+function resolveSaveSpotId(location: DiaryLocationValue): string | undefined {
+  if (location.mode === 'spot' && location.spotId) {
+    return location.spotId;
+  }
+  return undefined;
 }
 
 export function DiaryWriteModal({
   visible,
   result,
   starIndexData,
-  spotId,
+  initialSpotId,
+  fromGps = false,
+  observerLat,
+  observerLng,
+  placeLabel,
   onClose,
   onSaved,
   onSessionInvalidated,
@@ -51,8 +94,12 @@ export function DiaryWriteModal({
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [photos, setPhotos] = useState<LocalDiaryPhoto[]>([]);
+  const [location, setLocation] = useState<DiaryLocationValue>(() =>
+    initialLocationValue(starIndexData, initialSpotId, fromGps, placeLabel),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -60,7 +107,18 @@ export function DiaryWriteModal({
     setContent('');
     setPhotos([]);
     setError(null);
-  }, [visible]);
+    setLocation(
+      initialLocationValue(starIndexData, initialSpotId, fromGps, placeLabel),
+    );
+  }, [visible, starIndexData, initialSpotId, fromGps, placeLabel]);
+
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [error]);
 
   const save = useCallback(async () => {
     const trimmedTitle = title.trim();
@@ -77,13 +135,22 @@ export function DiaryWriteModal({
     setBusy(true);
     setError(null);
     try {
+      const saveSpotId = resolveSaveSpotId(location);
       const created = await createObservation({
-        spotId,
-        starIndexVal: starIndexData.score,
-        weatherSnapshot: starIndexData.weatherSnapshot as unknown as Record<string, unknown>,
+        spotId: saveSpotId,
+        starIndexVal: location.starIndex.score,
+        weatherSnapshot: location.starIndex.weatherSnapshot as unknown as Record<
+          string,
+          unknown
+        >,
         result,
         title: trimmedTitle,
         content: trimmedContent,
+        placeLabel: observationPlaceLabelForSave({
+          mode: location.mode,
+          label: location.label,
+          starIndexName: location.starIndex.name,
+        }),
       });
 
       for (const photo of photos) {
@@ -108,10 +175,9 @@ export function DiaryWriteModal({
     onClose,
     onSaved,
     onSessionInvalidated,
+    location,
     photos,
     result,
-    spotId,
-    starIndexData,
     title,
   ]);
 
@@ -122,7 +188,7 @@ export function DiaryWriteModal({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.backdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="닫기" />
+          <AppPressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="닫기" />
           <View
             style={[styles.sheet, { backgroundColor: theme.deepNavy, borderColor: theme.border }]}
           >
@@ -130,6 +196,7 @@ export function DiaryWriteModal({
             <Text style={[styles.title, { color: theme.foreground }]}>오늘의 일기</Text>
 
             <ScrollView
+              ref={scrollRef}
               style={[styles.scroll, { backgroundColor: theme.deepNavy }]}
               contentContainerStyle={styles.scrollInner}
               keyboardShouldPersistTaps="handled"
@@ -138,18 +205,34 @@ export function DiaryWriteModal({
               <Input
                 label="제목"
                 value={title}
-                onChangeText={setTitle}
+                onChangeText={(text) => {
+                  setTitle(text);
+                  if (error) setError(null);
+                }}
                 placeholder="오늘 밤하늘은 어땠나요?"
                 maxLength={120}
               />
 
               <DiaryPhotoPicker photos={photos} onChange={setPhotos} disabled={busy} />
 
+              <DiaryLocationField
+                value={location}
+                onChange={setLocation}
+                observerLat={observerLat}
+                observerLng={observerLng}
+                placeLabel={placeLabel}
+                disabled={busy}
+                onSessionInvalidated={onSessionInvalidated}
+              />
+
               <View style={styles.contentWrap}>
                 <Text style={[styles.contentLabel, { color: theme.foreground }]}>내용</Text>
                 <TextInput
                   value={content}
-                  onChangeText={setContent}
+                  onChangeText={(text) => {
+                    setContent(text);
+                    if (error) setError(null);
+                  }}
                   placeholder="별 관측 이야기를 자유롭게 적어 보세요"
                   placeholderTextColor={theme.mutedForeground}
                   multiline
@@ -222,7 +305,12 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginBottom: spacing.md,
   },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: spacing.md },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
   scroll: { maxHeight: 420 },
   scrollInner: { gap: spacing.md, paddingBottom: spacing.sm },
   contentWrap: { gap: spacing.sm },

@@ -101,7 +101,19 @@ export function pickLatestPm25Reading(rows: AirKoreaStationRow[]): {
   return pickBestPm25Reading(sorted);
 }
 
-/** 시도별 일괄 응답에서 특정 측정소명 PM2.5 추출 */
+function normalizeStationToken(name: string): string {
+  return name.trim().replace(/\s+/g, '');
+}
+
+function stationNamesMatch(catalogName: string, apiName: string): boolean {
+  const a = normalizeStationToken(catalogName);
+  const b = normalizeStationToken(apiName);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return a.includes(b) || b.includes(a);
+}
+
+/** 시도별 일괄 응답에서 특정 측정소명 PM2.5 추출 (정확·유사명 매칭) */
 export function pickPm25ForStationName(
   rows: readonly AirKoreaStationRow[],
   stationName: string,
@@ -113,6 +125,31 @@ export function pickPm25ForStationName(
 } | null {
   const target = stationName.trim();
   if (!target) return null;
-  const matched = rows.filter((r) => r.stationName?.trim() === target);
-  return pickLatestPm25Reading(matched);
+
+  const exact = rows.filter((r) => r.stationName?.trim() === target);
+  const exactPick = pickLatestPm25Reading(exact);
+  if (exactPick) return exactPick;
+
+  const fuzzy = rows.filter((r) => {
+    const apiName = r.stationName?.trim() ?? '';
+    return apiName.length > 0 && stationNamesMatch(target, apiName);
+  });
+  const fuzzyPick = pickLatestPm25Reading(fuzzy);
+  if (fuzzyPick) return fuzzyPick;
+
+  return null;
+}
+
+/**
+ * 시도 일괄 응답에서 측정소별 매칭이 없을 때 — 유효 PM2.5가 있는 임의 측정소(최신 우선)
+ */
+export function pickPm25SidoFallback(
+  rows: readonly AirKoreaStationRow[],
+): {
+  pm25: number;
+  pm25Grade: number;
+  pm25Label: string;
+  stationName: string | null;
+} | null {
+  return pickBestPm25Reading([...rows]);
 }

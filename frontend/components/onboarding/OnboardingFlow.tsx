@@ -15,8 +15,7 @@ import { GlassCard } from '../ui/GlassCard';
 import { Screen } from '../ui/Screen';
 
 type NotificationPrefs = {
-  starIndex70: boolean;
-  meteorEvents: boolean;
+  starIndex90: boolean;
   weeklyTop3: boolean;
 };
 
@@ -27,22 +26,16 @@ const NOTIF_ITEMS: Array<{
   desc: string;
 }> = [
   {
-    key: 'starIndex70',
+    key: 'starIndex90',
     icon: '★',
     title: '오늘 밤, 볼 만한 날만',
-    desc: '별 보기 좋은 날(점수가 70 넘을 때)에만 살짝 알려줄게요.',
-  },
-  {
-    key: 'meteorEvents',
-    icon: '🔔',
-    title: '하늘 이벤트 소식',
-    desc: '유성우, 월식 같은 특별한 날 + ISS 지나갈 때도 알려드려요.',
+    desc: '별 보기 좋은 날(기준 명소 Star-Index 90점 이상)에만 하루 1회 알려 드려요.',
   },
   {
     key: 'weeklyTop3',
     icon: '📍',
     title: '이번 주 가볼 만한 곳',
-    desc: '매주 월요일 아침 7시, 이번 주 추천 명소 세 곳만 정리해서 보내요.',
+    desc: '매주 월요일 오전 7시 5분, 주간 TOP3 순위가 발표되면 알려 드려요.',
   },
 ];
 
@@ -57,8 +50,7 @@ export function OnboardingFlow({
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>({
-    starIndex70: true,
-    meteorEvents: true,
+    starIndex90: true,
     weeklyTop3: true,
   });
 
@@ -76,12 +68,10 @@ export function OnboardingFlow({
         ]);
 
         try {
-          const anyChannel =
-            prefs.starIndex70 || prefs.meteorEvents || prefs.weeklyTop3;
+          const anyChannel = prefs.starIndex90 || prefs.weeklyTop3;
           await authorizedPutJson('/notifications/preferences', {
             alertsEnabled: anyChannel,
-            starIndexAlertEnabled: prefs.starIndex70,
-            astronomyEventAlertEnabled: prefs.meteorEvents,
+            starIndexAlertEnabled: prefs.starIndex90,
             top3AlertEnabled: prefs.weeklyTop3,
           });
         } catch (e) {
@@ -101,8 +91,7 @@ export function OnboardingFlow({
 
   const skipAllNotifications = useCallback(() => {
     void finishOnboarding({
-      starIndex70: false,
-      meteorEvents: false,
+      starIndex90: false,
       weeklyTop3: false,
     });
   }, [finishOnboarding]);

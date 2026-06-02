@@ -31,7 +31,7 @@ export class CorrectionsController {
   @Post()
   @ApiOperation({
     summary:
-      'Star-Index 보정 제보 — 체감 가시도(0~100) 저장 후 해당 spot Star-Index 캐시 무효화',
+      'Star-Index 보정 제보 — 현장 체감 점수(0~100) 저장 후 해당 spot Star-Index 캐시 무효화',
   })
   @ApiNotFoundResponse({ description: 'spotId 없음' })
   create(
@@ -45,9 +45,7 @@ export class CorrectionsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Get('aggregate')
-  @ApiOperation({
-    summary: '명소별 보정 집계 correction_score 미리보기(최근 제보 평균)',
-  })
+  @ApiOperation({ summary: '명소별 보정 제보 건수' })
   @ApiNotFoundResponse({ description: 'spotId 없음' })
   getAggregate(
     @Query('spotId', new ParseUUIDPipe({ version: '4' })) spotId: string,

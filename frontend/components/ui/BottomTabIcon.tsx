@@ -6,7 +6,7 @@ import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps } from 'react';
 
-export type BottomTabIconName = 'sky' | 'map' | 'log' | 'me';
+export type BottomTabIconName = 'home' | 'sky' | 'map' | 'log' | 'me';
 
 interface BottomTabIconProps {
   name: BottomTabIconName;
@@ -23,6 +23,7 @@ export function BottomTabIcon({ name, color, size = 22 }: BottomTabIconProps) {
     Exclude<BottomTabIconName, 'sky'>,
     ComponentProps<typeof Feather>['name']
   > = {
+    home: 'home',
     map: 'map',
     log: 'file-text',
     me: 'user',

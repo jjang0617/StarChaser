@@ -3,13 +3,18 @@
  * 메인: 천구 + TOP3 · 지도 마커: Star-Index 상세 시트
  */
 
+import * as NavigationBar from 'expo-navigation-bar';
+import * as SystemUI from 'expo-system-ui';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   AppState,
+  Easing,
   Linking,
+  Platform,
   Text,
   StyleSheet,
   View,
@@ -44,8 +49,11 @@ import {
 import { recordSpotDetailView } from './lib/spot-activity-storage';
 import { fetchSpotById } from './lib/spots-api';
 import { spotNameWithoutRegionPrefix } from './lib/spot-display-name';
+import { MainTabScreen } from './components/main/MainTabScreen';
+import { TabExploreIntro } from './components/tab-explore/TabExploreIntro';
 import { RecordsTabScreen } from './components/records/RecordsTabScreen';
 import { SkyTabScreen } from './components/sky/SkyTabScreen';
+import { useObserverStarIndex } from './lib/use-observer-star-index';
 import { AuthScreen } from './components/auth/auth-screen';
 import { getDefaultSpotId } from './lib/config';
 import {
@@ -78,9 +86,16 @@ function starIndexErrorFromApi(e: ApiRequestError): StatefulCardError {
 function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const { theme, toggleRed, isRedMode } = useTheme();
   const { user, logout, onSessionInvalidated } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>('sky');
+  const [activeTab, setActiveTab] = useState<string>('main');
   /** MAP 탭을 한 번 연 뒤에는 WebView를 유지해 줌/센터·마커 상태가 탭 전환 후에도 유지되게 함 */
   const [mapLayerMounted, setMapLayerMounted] = useState(false);
+  /** SKY·MAP — 탭 진입 시 인트로 → 탐험 버튼 후 본 화면 */
+  const [skyExploring, setSkyExploring] = useState(false);
+  const [mapExploring, setMapExploring] = useState(false);
+  const skyContentFade = useRef(new Animated.Value(0)).current;
+  const mapContentFade = useRef(new Animated.Value(0)).current;
+
+  const EXPLORE_FADE_IN_MS = 420;
 
   const [deviceLat, setDeviceLat] = useState<number | null>(null);
   const [deviceLng, setDeviceLng] = useState<number | null>(null);
@@ -122,15 +137,48 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     setFocusSpotId((prev) => (prev == null && defaultSpotId ? defaultSpotId : prev));
   }, [defaultSpotId]);
 
-  useEffect(() => {
-    if (activeTab === 'map') setMapLayerMounted(true);
-  }, [activeTab]);
+  const [mapPreviewReady, setMapPreviewReady] = useState(false);
 
   useEffect(() => {
-    if (activeTab !== 'map') {
+    if (activeTab === 'map') {
+      setMapLayerMounted(true);
+    } else {
+      setMapExploring(false);
+      mapContentFade.setValue(0);
+      setMapPreviewReady(false);
       mapWebViewRef.current?.clearMapFocus();
     }
-  }, [activeTab]);
+    if (activeTab !== 'sky') {
+      setSkyExploring(false);
+      skyContentFade.setValue(0);
+    }
+  }, [activeTab, mapContentFade, skyContentFade]);
+
+  const fadeInContent = useCallback((anim: Animated.Value) => {
+    anim.setValue(0);
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: EXPLORE_FADE_IN_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const enterSkyExplore = useCallback(() => {
+    setSkyExploring(true);
+    fadeInContent(skyContentFade);
+  }, [fadeInContent, skyContentFade]);
+
+  const enterMapExplore = useCallback(() => {
+    setMapExploring(true);
+    fadeInContent(mapContentFade);
+  }, [fadeInContent, mapContentFade]);
+
+  const enterMapExploreImmediate = useCallback(() => {
+    setMapExploring(true);
+    setMapLayerMounted(true);
+    mapContentFade.setValue(1);
+  }, [mapContentFade]);
 
   const refreshForegroundLocationStatus = useCallback(async () => {
     const existing = await Location.getForegroundPermissionsAsync();
@@ -257,6 +305,25 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     setSpotActivityRevision((r) => r + 1);
   }, []);
 
+  const observerStarIndex = useObserverStarIndex({
+    activeSpotId: focusSpotId,
+    observerLat: deviceLat,
+    observerLng: deviceLng,
+    useDeviceLocation,
+    locationPrefLoaded,
+    locationEnabled: locationEnabledPref,
+    locationPermissionStatus: foregroundLocationStatus,
+    onSessionInvalidated,
+  });
+
+  const hasObserverGps =
+    deviceLat != null &&
+    deviceLng != null &&
+    Number.isFinite(deviceLat) &&
+    Number.isFinite(deviceLng);
+  const canLoadStarIndex =
+    Platform.OS !== 'web' || hasObserverGps || Boolean(focusSpotId);
+
   const onMapMyLocation = useCallback(() => {
     if (deviceLat != null && deviceLng != null && Number.isFinite(deviceLat) && Number.isFinite(deviceLng)) {
       mapWebViewRef.current?.focusMap(deviceLat, deviceLng, 7, '내 위치');
@@ -287,7 +354,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   }, []);
 
   useEffect(() => {
-    if (activeTab !== 'sky') return;
+    if (activeTab !== 'main') return;
     let cancelled = false;
     (async () => {
       setTop3Loading(true);
@@ -353,7 +420,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   const openMapSpotDetail = useCallback(
     (spotId: string) => {
       setActiveTab('map');
-      setMapLayerMounted(true);
+      enterMapExploreImmediate();
       setFocusSpotId(spotId);
       setMapSpotId(spotId);
       setMapDetailOpen(true);
@@ -362,13 +429,13 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
         void recordSpotDetailView(user.id, spotId).then(refreshMySpots);
       }
     },
-    [user?.id, loadMapSpotStarIndex, refreshMySpots],
+    [user?.id, loadMapSpotStarIndex, refreshMySpots, enterMapExploreImmediate],
   );
 
   /** 상세 시트는 열지 않고 MAP 탭으로 전환해 해당 명소 위치로만 이동(포커스). 조회수 미집계. */
   const focusMapOnSpot = useCallback((spotId: string) => {
     setActiveTab('map');
-    setMapLayerMounted(true);
+    enterMapExploreImmediate();
     setFocusSpotId(spotId);
     void (async () => {
       try {
@@ -385,21 +452,54 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
         // 좌표 조회 실패 시 포커스는 생략 (탭 전환은 유지)
       }
     })();
-  }, []);
+  }, [enterMapExploreImmediate]);
+
+  const isTabIntro =
+    (activeTab === 'sky' && !skyExploring) || (activeTab === 'map' && !mapExploring);
+  const showFullBleedTab =
+    isTabIntro ||
+    (activeTab === 'sky' && skyExploring) ||
+    (activeTab === 'map' && mapExploring);
+
+  const fullBleedEdges = ['bottom', 'left', 'right'] as const;
+
+  const syncAndroidSystemChrome = useCallback(async () => {
+    if (Platform.OS !== 'android') return;
+    const bg = theme.background;
+    try {
+      await SystemUI.setBackgroundColorAsync(bg);
+      await NavigationBar.setBackgroundColorAsync(bg);
+      await NavigationBar.setButtonStyleAsync('light');
+      await NavigationBar.setBorderColorAsync(bg);
+    } catch {
+      // 웹·미지원 환경 무시
+    }
+  }, [theme.background]);
+
+  useEffect(() => {
+    void syncAndroidSystemChrome();
+  }, [syncAndroidSystemChrome, activeTab, showFullBleedTab]);
 
   return (
-    <Screen noPadding={activeTab === 'map' || activeTab === 'sky'}>
+    <Screen
+      noPadding
+      edges={showFullBleedTab ? [...fullBleedEdges] : undefined}
+    >
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
         {/* 지도는 이 영역 안에서만 absoluteFill → 하단 탭과 레이아웃 겹침 없음 */}
         <View style={styles.mainTabContent}>
         {mapLayerMounted ? (
-          <View
+          <Animated.View
             style={[
               StyleSheet.absoluteFillObject,
-              activeTab === 'map' ? styles.mapTabLayerVisible : styles.mapTabLayerHidden,
+              activeTab === 'map'
+                ? mapExploring
+                  ? { opacity: mapContentFade }
+                  : styles.mapIntroPreview
+                : styles.mapTabLayerHidden,
             ]}
-            pointerEvents={activeTab === 'map' ? 'auto' : 'none'}
+            pointerEvents={activeTab === 'map' && mapExploring ? 'auto' : 'none'}
             collapsable={false}
           >
             <View style={{ flex: 1 }}>
@@ -437,6 +537,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                 }
                 if (msg.type === 'MAP_READY') {
                   mapReadyRef.current = true;
+                  setMapPreviewReady(true);
                   const pending = pendingMapFocusRef.current;
                   if (pending) {
                     pendingMapFocusRef.current = null;
@@ -455,41 +556,64 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               }}
             />
 
-            <MapFloatingControls
-              theme={theme}
-              viirsEnabled={mapViirsEnabled}
-              onToggleViirs={() => setMapViirsEnabled((v) => !v)}
-              onMyLocation={onMapMyLocation}
-              locationReady={deviceLat != null && deviceLng != null}
-            />
+            {mapExploring ? (
+              <MapFloatingControls
+                theme={theme}
+                viirsEnabled={mapViirsEnabled}
+                onToggleViirs={() => setMapViirsEnabled((v) => !v)}
+                onMyLocation={onMapMyLocation}
+                locationReady={deviceLat != null && deviceLng != null}
+              />
+            ) : null}
             </View>
-          </View>
+          </Animated.View>
         ) : null}
         {activeTab !== 'map' ? (
-          activeTab === 'sky' ? (
-            <SkyTabScreen
+          activeTab === 'main' ? (
+            <MainTabScreen
+              activeSpotId={focusSpotId}
               observerLat={deviceLat}
               observerLng={deviceLng}
-              observerSpotId={focusSpotId}
-              observeAtIso={skyObserveAtIso}
-              onShiftHours={shiftSkyObserveHours}
-              onObserveNow={resetSkyObserveNow}
-              onSessionInvalidated={onSessionInvalidated}
-              skyUsesGps={useDeviceLocation && deviceLat != null && deviceLng != null}
-              locationFeaturesEnabled={locationEnabledPref}
-              locationPermissionStatus={foregroundLocationStatus}
-              onRequestLocationPermission={async () => {
-                if (!user?.id) return;
-                await saveLocationEnabled(user.id, true);
-                setLocationEnabledPref(true);
-                await requestLocationPermission();
-              }}
+              starIndexData={observerStarIndex.data}
+              starIndexLoading={observerStarIndex.loading}
+              starIndexAwaitingLocation={observerStarIndex.awaitingLocation}
+              starIndexError={observerStarIndex.error}
+              starIndexPlaceLabel={observerStarIndex.placeLabel}
+              onReloadStarIndex={() => void observerStarIndex.reload()}
               top3Loading={top3Loading}
               top3Error={top3Error}
               top3Items={top3Items}
               selectedSpotId={focusSpotId}
               onSelectTop3Spot={focusMapOnSpot}
+              onSessionInvalidated={onSessionInvalidated}
             />
+          ) : activeTab === 'sky' ? (
+            skyExploring ? (
+              <Animated.View style={[styles.exploreContent, { opacity: skyContentFade }]}>
+                <SkyTabScreen
+                  observerLat={deviceLat}
+                  observerLng={deviceLng}
+                  observerSpotId={focusSpotId}
+                  observeAtIso={skyObserveAtIso}
+                  onShiftHours={shiftSkyObserveHours}
+                  onObserveNow={resetSkyObserveNow}
+                  onSessionInvalidated={onSessionInvalidated}
+                  skyUsesGps={useDeviceLocation && deviceLat != null && deviceLng != null}
+                  locationFeaturesEnabled={locationEnabledPref}
+                  locationPermissionStatus={foregroundLocationStatus}
+                  onRequestLocationPermission={async () => {
+                    if (!user?.id) return;
+                    await saveLocationEnabled(user.id, true);
+                    setLocationEnabledPref(true);
+                    await requestLocationPermission();
+                  }}
+                />
+              </Animated.View>
+            ) : (
+              <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+                <TabExploreIntro variant="sky" onExplore={enterSkyExplore} />
+              </View>
+            )
           ) : activeTab === 'records' ? (
             <RecordsTabScreen
               activeSpotId={focusSpotId}
@@ -497,6 +621,12 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               observerLng={deviceLng}
               useDeviceLocation={useDeviceLocation}
               onSessionInvalidated={onSessionInvalidated}
+              starIndexData={observerStarIndex.data}
+              starIndexLoading={observerStarIndex.loading}
+              canLoadStarIndex={canLoadStarIndex}
+              resolveSpotIdForSave={observerStarIndex.resolveSpotIdForSave}
+              starIndexFromGps={observerStarIndex.fromGps}
+              starIndexPlaceLabel={observerStarIndex.placeLabel}
             />
           ) : activeTab === 'profile' ? (
             <ProfileTabScreen
@@ -516,6 +646,14 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               onOpenSpotDetail={openMapSpotDetail}
             />
           ) : null
+        ) : !mapExploring ? (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+            <TabExploreIntro
+              variant="map"
+              onExplore={enterMapExplore}
+              mapPreviewReady={mapPreviewReady}
+            />
+          </View>
         ) : null}
         </View>
 
@@ -557,6 +695,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
             activeKey={activeTab}
             onChange={setActiveTab}
             items={[
+              { key: 'main', label: 'MAIN', icon: 'home', redIcon: '⌂' },
               { key: 'sky', label: 'SKY', icon: 'sky', redIcon: '◉' },
               { key: 'map', label: 'MAP', icon: 'map', redIcon: '◈' },
               { key: 'records', label: 'DIARY', icon: 'log', redIcon: '≡' },
@@ -677,11 +816,15 @@ const styles = StyleSheet.create({
   mainTabContent: {
     flex: 1,
   },
-  mapTabLayerVisible: {
-    opacity: 1,
+  exploreContent: {
+    flex: 1,
   },
   mapTabLayerHidden: {
     opacity: 0,
+  },
+  /** MAP 인트로 뒤 — 실제 지도가 흐릿하게 비치도록 */
+  mapIntroPreview: {
+    opacity: 1,
   },
   loadingWrap: {
     flex: 1,

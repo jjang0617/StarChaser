@@ -23,6 +23,7 @@ import { ObservationReportsModule } from './observation-reports/observation-repo
 import { AdminModule } from './admin/admin.module';
 import { AdminPageController } from './admin/admin-page.controller';
 import { SpotReportsModule } from './spot-reports/spot-reports.module';
+import { PlacesModule } from './places/places.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { SpotReportsModule } from './spot-reports/spot-reports.module';
     UsersModule,
     ObservationReportsModule,
     SpotReportsModule,
+    PlacesModule,
     AdminModule,
   ],
   controllers: [AppController, KakaoPageController, AdminPageController],

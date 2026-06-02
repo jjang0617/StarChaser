@@ -161,3 +161,23 @@ export const themes: Record<ThemeMode, ThemeTokens> = {
   night:  nightTheme,
   red:    redTheme,
 };
+
+/** 회원 탈퇴 등 위험 액션 — Night Vision(red)에서도 대비되게 */
+export function dangerAccent(theme: ThemeTokens, isRedMode: boolean) {
+  if (isRedMode) {
+    return {
+      title: '#FF8585',
+      subtitle: '#FFAE9E',
+      icon: '#FF7070',
+      iconBg: 'rgba(255, 110, 100, 0.16)',
+      iconBorder: 'rgba(255, 130, 115, 0.42)',
+    };
+  }
+  return {
+    title: theme.destructive,
+    subtitle: theme.dimRedFg,
+    icon: theme.destructive,
+    iconBg: 'rgba(239, 68, 68, 0.12)',
+    iconBorder: 'rgba(239, 68, 68, 0.32)',
+  };
+}

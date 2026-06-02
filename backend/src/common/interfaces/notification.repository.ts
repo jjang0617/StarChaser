@@ -10,11 +10,14 @@ export interface NotificationToken {
   updatedAt: Date;
 }
 
+export type StarIndexAlertThreshold = 80 | 85 | 90 | 95;
+
 export interface NotificationPreference {
   userId: string;
   alertsEnabled: boolean;
   starIndexAlertEnabled: boolean;
-  astronomyEventAlertEnabled: boolean;
+  locationStarIndexAlertEnabled: boolean;
+  starIndexAlertThreshold: StarIndexAlertThreshold;
   top3AlertEnabled: boolean;
   /** Star-Index 임계 알림용 기준 명소 */
   alertSpotId: string | null;
@@ -34,7 +37,8 @@ export interface NotificationRepository {
     userId: string;
     alertsEnabled: boolean;
     starIndexAlertEnabled: boolean;
-    astronomyEventAlertEnabled: boolean;
+    locationStarIndexAlertEnabled: boolean;
+    starIndexAlertThreshold: StarIndexAlertThreshold;
     top3AlertEnabled: boolean;
     alertSpotId: string | null;
   }): Promise<NotificationPreference>;
@@ -49,7 +53,12 @@ export interface NotificationRepository {
 
   /** Star-Index 임계 알림: 알림·Star-Index ON + 기준 명소 지정 + 안드로이드 토큰 */
   findAndroidRecipientsStarIndexThreshold(): Promise<
-    Array<{ userId: string; fcmToken: string; alertSpotId: string }>
+    Array<{
+      userId: string;
+      fcmToken: string;
+      alertSpotId: string;
+      starIndexAlertThreshold: StarIndexAlertThreshold;
+    }>
   >;
 
   hasStarIndexPushSentForKstDay(params: {
@@ -62,21 +71,6 @@ export interface NotificationRepository {
     userId: string;
     spotId: string;
     dayKstYmd: string;
-  }): Promise<void>;
-
-  /** 천체 이벤트 알림: 알림·하늘 이벤트 ON + 안드로이드 활성 토큰 */
-  findAndroidRecipientsAstronomyEventsEnabled(): Promise<
-    Array<{ userId: string; fcmToken: string }>
-  >;
-
-  hasAstroEventPushSent(params: {
-    userId: string;
-    eventId: string;
-  }): Promise<boolean>;
-
-  recordAstroEventPushSent(params: {
-    userId: string;
-    eventId: string;
   }): Promise<void>;
 }
 

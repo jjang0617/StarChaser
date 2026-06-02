@@ -6,7 +6,6 @@ import Feather from '@expo/vector-icons/Feather';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Modal,
@@ -31,6 +30,7 @@ import {
   mismatchTypeLabel,
   type ObservationMismatchType,
 } from '../../lib/observation-mismatch';
+import { formatObservationPlaceLabel } from '../../lib/observation-place-label';
 import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
 import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
@@ -265,42 +265,42 @@ export function DiaryDetailModal({
   const { theme } = useTheme();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  const confirmDelete = useCallback(() => {
+  useEffect(() => {
+    if (!visible) {
+      setDeleteConfirmOpen(false);
+      setError(null);
+    }
+  }, [visible]);
+
+  const performDelete = useCallback(async () => {
     if (!row) return;
-    Alert.alert('일기 삭제', '이 일기를 삭제할까요? 되돌릴 수 없습니다.', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            setBusy(true);
-            setError(null);
-            try {
-              await deleteObservation(row.id);
-              onDeleted();
-              onClose();
-            } catch (e) {
-              if (e instanceof SessionExpiredError) {
-                await onSessionInvalidated();
-                return;
-              }
-              setError(
-                e instanceof ApiRequestError ? e.message : '삭제에 실패했습니다.',
-              );
-            } finally {
-              setBusy(false);
-            }
-          })();
-        },
-      },
-    ]);
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteObservation(row.id);
+      setDeleteConfirmOpen(false);
+      onClose();
+      onDeleted();
+    } catch (e) {
+      if (e instanceof SessionExpiredError) {
+        await onSessionInvalidated();
+        return;
+      }
+      setDeleteConfirmOpen(false);
+      setError(
+        e instanceof ApiRequestError ? e.message : '삭제에 실패했습니다.',
+      );
+    } finally {
+      setBusy(false);
+    }
   }, [onClose, onDeleted, onSessionInvalidated, row]);
 
   if (!row) return null;
 
   const mismatchType = detectObservationMismatch(row.starIndexVal, row.result);
+  const place = formatObservationPlaceLabel(row.placeLabel);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -330,6 +330,13 @@ export function DiaryDetailModal({
             <Text style={[styles.date, { color: theme.mutedForeground }]}>
               {formatDateTimeKst(row.observedAt)}
             </Text>
+
+            {place ? (
+              <View style={styles.placeRow}>
+                <Feather name="map-pin" size={14} color={theme.primaryGlow} />
+                <Text style={[styles.placeText, { color: theme.foreground }]}>{place}</Text>
+              </View>
+            ) : null}
 
             <View style={styles.statsRow}>
               <ResultStatCard result={row.result} />
@@ -365,9 +372,67 @@ export function DiaryDetailModal({
               variant="destructive"
               fullWidth
               disabled={busy}
-              onPress={confirmDelete}
+              onPress={() => setDeleteConfirmOpen(true)}
             />
           </View>
+
+          {deleteConfirmOpen ? (
+            <View style={styles.confirmOverlay}>
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => !busy && setDeleteConfirmOpen(false)}
+                accessibilityLabel="닫기"
+              />
+              <View
+                style={[
+                  styles.confirmCard,
+                  {
+                    backgroundColor: theme.deepNavy,
+                    borderColor: theme.cardBorder,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.confirmIconWrap,
+                    {
+                      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                      borderColor: 'rgba(239, 68, 68, 0.35)',
+                    },
+                  ]}
+                >
+                  <Feather name="trash-2" size={22} color={theme.destructive} />
+                </View>
+                <Text style={[styles.confirmTitle, { color: theme.foreground }]}>
+                  일기를 삭제할까요?
+                </Text>
+                <Text style={[styles.confirmBody, { color: theme.mutedForeground }]}>
+                  삭제하면 되돌릴 수 없어요.
+                </Text>
+                <View style={styles.confirmActions}>
+                  <View style={styles.confirmBtn}>
+                    <Button
+                      label="취소"
+                      variant="outline"
+                      fullWidth
+                      disabled={busy}
+                      onPress={() => setDeleteConfirmOpen(false)}
+                    />
+                  </View>
+                  <View style={styles.confirmBtn}>
+                    <Button
+                      label="삭제"
+                      variant="red"
+                      fullWidth
+                      loading={busy}
+                      disabled={busy}
+                      onPress={() => void performDelete()}
+                    />
+                  </View>
+                </View>
+              </View>
+            </View>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -419,6 +484,18 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   date: { fontSize: 12, lineHeight: 18 },
+  placeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: -4,
+  },
+  placeText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
   statsRow: {
     flexDirection: 'row',
     gap: spacing.lg,
@@ -508,5 +585,55 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
+  },
+  confirmOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    zIndex: 10,
+  },
+  confirmCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
+    alignItems: 'center',
+    gap: spacing.sm,
+    zIndex: 11,
+  },
+  confirmIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    letterSpacing: -0.3,
+    textAlign: 'center',
+  },
+  confirmBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    width: '100%',
+    marginTop: spacing.xs,
+  },
+  confirmBtn: {
+    flex: 1,
   },
 });

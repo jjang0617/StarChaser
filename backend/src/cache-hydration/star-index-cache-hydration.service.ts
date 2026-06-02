@@ -13,6 +13,7 @@ import { arpltnInforUrl } from './airkorea-api.util';
 import {
   extractAirKoreaItems,
   pickPm25ForStationName,
+  pickPm25SidoFallback,
   type AirKoreaItemsBody,
 } from './airkorea.util';
 import { loadBundledStationCatalog } from './airkorea-station-bundled.loader';
@@ -60,6 +61,9 @@ export class StarIndexCacheHydrationService {
   private readonly logger = new Logger(StarIndexCacheHydrationService.name);
 
   private catalogLoadLock: Promise<void> | null = null;
+
+  /** 동시 요청 시 시도별 dust API 중복 호출 방지 */
+  private readonly sidoDustInflight = new Map<string, Promise<void>>();
 
   constructor(
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
@@ -493,6 +497,18 @@ export class StarIndexCacheHydrationService {
 
   /** 시도별 실시간 농도 일괄 — getCtprvnRltmMesureDnsty 1회로 대표 측정소 PM2.5 저장 */
   async fetchAndStoreDustForSido(sidoName: string): Promise<void> {
+    const inflight = this.sidoDustInflight.get(sidoName);
+    if (inflight) {
+      return inflight;
+    }
+    const job = this.fetchAndStoreDustForSidoOnce(sidoName).finally(() => {
+      this.sidoDustInflight.delete(sidoName);
+    });
+    this.sidoDustInflight.set(sidoName, job);
+    return job;
+  }
+
+  private async fetchAndStoreDustForSidoOnce(sidoName: string): Promise<void> {
     const serviceKey = this.config.get<string>('AIRKOREA_API_KEY');
     if (!serviceKey) {
       throw new Error('AIRKOREA_API_KEY 없음');
@@ -510,10 +526,20 @@ export class StarIndexCacheHydrationService {
 
     const items = await this.fetchCtprvnRowsForSido(sidoName, serviceKey);
     const collectedAt = new Date().toISOString();
+    const sidoFallback = pickPm25SidoFallback(items);
     let saved = 0;
 
     for (const rep of reps) {
-      const picked = pickPm25ForStationName(items, rep.stationName);
+      let picked = pickPm25ForStationName(items, rep.stationName);
+      if (!picked && sidoFallback) {
+        picked = {
+          ...sidoFallback,
+          stationName: rep.stationName,
+        };
+        this.logger.debug(
+          `dust PM2.5 시도 폴백 — ${rep.stationName} ← API ${sidoFallback.stationName ?? '?'}`,
+        );
+      }
       if (!picked) {
         this.logger.warn(
           `dust PM2.5 없음 — sido=${sidoName} station=${rep.stationName}`,

@@ -34,6 +34,9 @@ export class ObservationResponseDto {
   @ApiPropertyOptional({ nullable: true })
   content: string | null;
 
+  @ApiPropertyOptional({ nullable: true, description: '관측 장소 표시명' })
+  placeLabel: string | null;
+
   @ApiProperty()
   observedAt: string;
 

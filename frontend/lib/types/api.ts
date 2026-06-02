@@ -83,9 +83,12 @@ export interface NotificationPreferenceDto {
   userId: string;
   alertsEnabled: boolean;
   starIndexAlertEnabled: boolean;
-  astronomyEventAlertEnabled: boolean;
+  /** 위치한 곳 Star-Index 푸시 (MAIN·ME) */
+  locationStarIndexAlertEnabled?: boolean;
+  /** Star-Index 푸시 임계값 — 80·85·90·95 */
+  starIndexAlertThreshold?: number;
   top3AlertEnabled: boolean;
-  /** Star-Index 임계 알림 기준 명소 — 없으면 서버 스케줄에서 제외 */
+  /** Star-Index 임계 알림 기준 명소(ME) — 없으면 서버 스케줄에서 제외 */
   alertSpotId?: string | null;
   createdAt?: string;
   updatedAt?: string;

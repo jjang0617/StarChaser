@@ -4,7 +4,8 @@
 
 import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { AppPressable } from '../ui/AppPressable';
 import { spacing } from '../../themes/design-tokens';
 import type { ThemeTokens } from '../../themes/themes';
 import { useTheme } from '../../themes/ThemeContext';
@@ -46,7 +47,7 @@ export function ObservationResultPicker({ value, onChange }: ObservationResultPi
           const accent = accentFor(opt.key, theme);
 
           return (
-            <Pressable
+            <AppPressable
               key={opt.key}
               onPress={() => onChange(opt.key)}
               style={({ pressed }) => [
@@ -90,7 +91,7 @@ export function ObservationResultPicker({ value, onChange }: ObservationResultPi
               >
                 {opt.label}
               </Text>
-            </Pressable>
+            </AppPressable>
           );
         })}
       </View>
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.45,
     shadowRadius: 10,
-    elevation: 2,
+    ...(Platform.OS === 'android' ? { elevation: 0 } : { elevation: 2 }),
   },
   label: {
     fontSize: 13,

@@ -7,9 +7,9 @@ import type {
   NotificationToken,
 } from '../common/interfaces/notification.repository';
 import { NotificationPreferenceEntity } from './notification-preference.entity';
+import { normalizeStarIndexAlertThreshold } from './star-index-alert-threshold';
 import { NotificationTokenEntity } from './notification-token.entity';
 import { StarIndexPushSentEntity } from './star-index-push-sent.entity';
-import { AstroEventPushSentEntity } from './astro-event-push-sent.entity';
 
 @Injectable()
 export class TypeOrmNotificationRepository implements NotificationRepository {
@@ -20,8 +20,6 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     private readonly prefs: Repository<NotificationPreferenceEntity>,
     @InjectRepository(StarIndexPushSentEntity)
     private readonly pushSent: Repository<StarIndexPushSentEntity>,
-    @InjectRepository(AstroEventPushSentEntity)
-    private readonly astroSent: Repository<AstroEventPushSentEntity>,
   ) {}
 
   async upsertToken(params: {
@@ -68,38 +66,60 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
       .execute();
   }
 
+  private toPreference(entity: NotificationPreferenceEntity): NotificationPreference {
+    return {
+      userId: entity.userId,
+      alertsEnabled: entity.alertsEnabled,
+      starIndexAlertEnabled: entity.starIndexAlertEnabled,
+      locationStarIndexAlertEnabled: entity.locationStarIndexAlertEnabled,
+      starIndexAlertThreshold: normalizeStarIndexAlertThreshold(
+        entity.starIndexAlertThreshold,
+      ),
+      top3AlertEnabled: entity.top3AlertEnabled,
+      alertSpotId: entity.alertSpotId,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
+  }
+
   async getPreferenceByUserId(userId: string): Promise<NotificationPreference | null> {
     const pref = await this.prefs.findOne({ where: { userId } });
-    return pref ?? null;
+    return pref ? this.toPreference(pref) : null;
   }
 
   async upsertPreference(params: {
     userId: string;
     alertsEnabled: boolean;
     starIndexAlertEnabled: boolean;
-    astronomyEventAlertEnabled: boolean;
+    locationStarIndexAlertEnabled: boolean;
+    starIndexAlertThreshold: NotificationPreference['starIndexAlertThreshold'];
     top3AlertEnabled: boolean;
     alertSpotId: string | null;
   }): Promise<NotificationPreference> {
+    const threshold = normalizeStarIndexAlertThreshold(params.starIndexAlertThreshold);
     const existing = await this.prefs.findOne({ where: { userId: params.userId } });
     if (!existing) {
       const created = this.prefs.create({
         userId: params.userId,
         alertsEnabled: params.alertsEnabled,
         starIndexAlertEnabled: params.starIndexAlertEnabled,
-        astronomyEventAlertEnabled: params.astronomyEventAlertEnabled,
+        locationStarIndexAlertEnabled: params.locationStarIndexAlertEnabled,
+        starIndexAlertThreshold: threshold,
         top3AlertEnabled: params.top3AlertEnabled,
         alertSpotId: params.alertSpotId,
       });
-      return this.prefs.save(created);
+      const saved = await this.prefs.save(created);
+      return this.toPreference(saved);
     }
 
     existing.alertsEnabled = params.alertsEnabled;
     existing.starIndexAlertEnabled = params.starIndexAlertEnabled;
-    existing.astronomyEventAlertEnabled = params.astronomyEventAlertEnabled;
+    existing.locationStarIndexAlertEnabled = params.locationStarIndexAlertEnabled;
+    existing.starIndexAlertThreshold = threshold;
     existing.top3AlertEnabled = params.top3AlertEnabled;
     existing.alertSpotId = params.alertSpotId;
-    return this.prefs.save(existing);
+    const saved = await this.prefs.save(existing);
+    return this.toPreference(saved);
   }
 
   async findAndroidRecipientsTop3Enabled(): Promise<
@@ -129,7 +149,12 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
   }
 
   async findAndroidRecipientsStarIndexThreshold(): Promise<
-    Array<{ userId: string; fcmToken: string; alertSpotId: string }>
+    Array<{
+      userId: string;
+      fcmToken: string;
+      alertSpotId: string;
+      starIndexAlertThreshold: NotificationPreference['starIndexAlertThreshold'];
+    }>
   > {
     const raw = await this.tokens
       .createQueryBuilder('t')
@@ -143,11 +168,13 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
       .select('t.userId', 'userId')
       .addSelect('t.fcmToken', 'fcmToken')
       .addSelect('p.alertSpotId', 'alertSpotId')
+      .addSelect('p.starIndexAlertThreshold', 'starIndexAlertThreshold')
       .getRawMany<
-        Record<string, string | undefined> & {
+        Record<string, string | number | undefined> & {
           userId?: string;
           fcmToken?: string;
           alertSpotId?: string;
+          starIndexAlertThreshold?: number | string;
         }
       >();
     return raw
@@ -155,6 +182,9 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
         userId: String(r.userId ?? r.userid ?? ''),
         fcmToken: String(r.fcmToken ?? r.fcmtoken ?? ''),
         alertSpotId: String(r.alertSpotId ?? r.alertspotid ?? ''),
+        starIndexAlertThreshold: normalizeStarIndexAlertThreshold(
+          r.starIndexAlertThreshold ?? r.starindexalertthreshold,
+        ),
       }))
       .filter(
         (r) =>
@@ -191,61 +221,6 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     });
     try {
       await this.pushSent.save(row);
-    } catch (e: unknown) {
-      const code = (e as { code?: string })?.code;
-      if (code === '23505') return;
-      throw e;
-    }
-  }
-
-  async findAndroidRecipientsAstronomyEventsEnabled(): Promise<
-    Array<{ userId: string; fcmToken: string }>
-  > {
-    const raw = await this.tokens
-      .createQueryBuilder('t')
-      .innerJoin(
-        NotificationPreferenceEntity,
-        'p',
-        'p.userId = t.userId AND p.alertsEnabled = true AND p.astronomyEventAlertEnabled = true',
-      )
-      .where('t.isActive = :active', { active: true })
-      .andWhere('t.platform = :plat', { plat: 'android' })
-      .select('t.userId', 'userId')
-      .addSelect('t.fcmToken', 'fcmToken')
-      .getRawMany<
-        Record<string, string | undefined> & {
-          userId?: string;
-          fcmToken?: string;
-        }
-      >();
-    return raw
-      .map((r) => ({
-        userId: String(r.userId ?? r.userid ?? ''),
-        fcmToken: String(r.fcmToken ?? r.fcmtoken ?? ''),
-      }))
-      .filter((r) => r.userId.length > 0 && r.fcmToken.length > 0);
-  }
-
-  async hasAstroEventPushSent(params: {
-    userId: string;
-    eventId: string;
-  }): Promise<boolean> {
-    const n = await this.astroSent.count({
-      where: { userId: params.userId, eventId: params.eventId },
-    });
-    return n > 0;
-  }
-
-  async recordAstroEventPushSent(params: {
-    userId: string;
-    eventId: string;
-  }): Promise<void> {
-    const row = this.astroSent.create({
-      userId: params.userId,
-      eventId: params.eventId,
-    });
-    try {
-      await this.astroSent.save(row);
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code;
       if (code === '23505') return;

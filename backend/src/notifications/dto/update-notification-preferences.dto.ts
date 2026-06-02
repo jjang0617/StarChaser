@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsUUID, ValidateIf } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsUUID, ValidateIf } from 'class-validator';
+import { STAR_INDEX_ALERT_THRESHOLDS } from '../star-index-alert-threshold';
 
 export class UpdateNotificationPreferencesDto {
   @ApiProperty({ required: false, example: true })
@@ -15,7 +16,13 @@ export class UpdateNotificationPreferencesDto {
   @ApiProperty({ required: false, example: true })
   @IsOptional()
   @IsBoolean()
-  astronomyEventAlertEnabled?: boolean;
+  locationStarIndexAlertEnabled?: boolean;
+
+  @ApiPropertyOptional({ example: 90, enum: [80, 85, 90, 95] })
+  @IsOptional()
+  @IsInt()
+  @IsIn(STAR_INDEX_ALERT_THRESHOLDS as unknown as number[])
+  starIndexAlertThreshold?: number;
 
   @ApiProperty({ required: false, example: false })
   @IsOptional()

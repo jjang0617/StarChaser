@@ -3,7 +3,7 @@
  */
 
 import React, { type ReactNode } from 'react';
-import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, type ViewStyle } from 'react-native';
 import { useTheme } from '../../themes/ThemeContext';
 
 interface GlassCardProps {
@@ -28,6 +28,7 @@ export function GlassCard({ children, style, glow = false, padding = 12 }: Glass
           padding,
         },
         glow && styles.glow,
+        glow && Platform.OS === 'android' && styles.glowAndroid,
         style,
       ]}
     >
@@ -47,5 +48,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 12,
     elevation: 4,
+  },
+  /** Android elevation은 투명/둥근 뷰에 검은 사각형을 그림 */
+  glowAndroid: {
+    elevation: 0,
   },
 });

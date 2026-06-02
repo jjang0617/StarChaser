@@ -12,6 +12,13 @@
       "backgroundColor": "#030712"
     },
     "plugins": [
+      [
+        "expo-navigation-bar",
+        {
+          "backgroundColor": "#030712",
+          "barStyle": "light"
+        }
+      ],
       "expo-dev-client",
       [
         "expo-location",
@@ -35,6 +42,10 @@
         "NSLocationWhenInUseUsageDescription": "StarChaser가 주변 관측 조건을 안내하기 위해 현재 위치가 필요합니다.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "StarChaser가 관측 알림을 위해 위치 정보를 사용합니다."
       }
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#030712",
+      "barStyle": "light-content"
     },
     "android": {
       "package": "com.starchaser.app",
