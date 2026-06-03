@@ -69,6 +69,43 @@ export class TypeOrmSpotRepository implements SpotRepository {
     return rows.map((r) => this.mapRow(r));
   }
 
+  async findNearest(
+    lat: number,
+    lng: number,
+    radiusM: number,
+  ): Promise<Spot | null> {
+    const rows = (await this.repo.query(
+      `
+      SELECT
+        id,
+        name,
+        ST_Y(location::geometry) AS lat,
+        ST_X(location::geometry) AS lng,
+        bortle_class,
+        elevation_m,
+        has_parking,
+        has_toilet,
+        location_radius_m,
+        dust_station_name
+      FROM spots
+      WHERE ST_DWithin(
+        location::geography,
+        ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+        $3
+      )
+      ORDER BY ST_Distance(
+        location::geography,
+        ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+      )
+      LIMIT 1
+      `,
+      [lng, lat, radiusM],
+    )) as Record<string, unknown>[];
+
+    const row = rows[0];
+    return row ? this.mapRow(row) : null;
+  }
+
   async findAll(): Promise<Spot[]> {
     const rows = (await this.repo.query(
       `

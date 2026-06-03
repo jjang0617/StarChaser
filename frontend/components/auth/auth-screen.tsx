@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  Dimensions,
+  Easing,
   Keyboard,
   Platform,
   Pressable,
@@ -8,95 +11,81 @@ import {
   Text,
   View,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography } from '../../themes/design-tokens';
+import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 import { useAuth } from '../../contexts/auth-context';
 import { AuthSegmentTabs } from './AuthSegmentTabs';
-import { Button, Input, Screen } from '../ui';
+import { AuthBrandHeader } from './AuthBrandHeader';
+import { AuthWelcomeBackdrop } from './AuthWelcomeBackdrop';
+import { AuthWelcomeActions } from './AuthWelcomeActions';
+import { AUTH_SHEET_BG, authSheetStyles } from './auth-sheet-styles';
+import { AppAlertModal, GlassCard, Screen } from '../ui';
 import {
   ApiRequestError,
   checkNickname,
-  findEmailByNickname,
   resetPassword,
-  sendVerificationCode,
-  verifyCode,
 } from '../../lib/api-client';
+import {
+  codeValidationError,
+  emailValidationError,
+  passwordValidationError,
+  type FieldStatus,
+} from './auth-validation';
+import { useEmailVerification } from './use-email-verification';
+import { LegalDocumentModal } from '../profile/LegalDocumentModal';
+import {
+  PRIVACY_POLICY,
+  TERMS_OF_SERVICE,
+} from '../../content/legal-documents';
+import { apiErrorMessage } from '../../lib/api-error';
+import { LoginSheet } from './sheets/LoginSheet';
+import { RegisterSheet } from './sheets/RegisterSheet';
+import { ResetPasswordSheet } from './sheets/ResetPasswordSheet';
 
-type Mode = 'login' | 'register' | 'resetPassword' | 'findEmail';
-type FieldStatus = 'idle' | 'checking' | 'success' | 'error';
+type Mode = 'login' | 'register' | 'resetPassword';
 
-function isValidEmail(email: string): boolean {
-  if (!email || email.length > 254) return false;
-  const [local, domain, ...rest] = email.split('@');
-  if (!local || !domain || rest.length > 0) return false;
-  if (local.length > 64) return false;
-  if (domain.includes('..')) return false;
-  const domainParts = domain.split('.');
-  if (domainParts.length < 2) return false;
-  const tld = domainParts[domainParts.length - 1];
-  if (!tld || tld.length < 2) return false;
-  return domainParts.every((p) => p.length > 0 && /^[a-zA-Z0-9-]+$/.test(p));
-}
+const { height: WINDOW_HEIGHT } = Dimensions.get('window');
+const SHEET_CLOSED_Y = WINDOW_HEIGHT;
 
-function emailValidationError(email: string): string | null {
-  const trimmed = email.trim();
-  if (!trimmed) return '이메일을 입력해 주세요.';
-  if (!isValidEmail(trimmed)) return '올바른 이메일 형식이 아닙니다.';
-  return null;
-}
-
-function passwordValidationError(password: string): string | null {
-  if (!password) return '비밀번호를 입력해 주세요.';
-  if (password.length < 6) return '비밀번호는 6자 이상이어야 합니다.';
-  return null;
-}
-
-function codeValidationError(code: string): string | null {
-  if (!code) return '인증번호를 입력해 주세요.';
-  if (code.length !== 6) return '인증번호는 6자리여야 합니다.';
-  return null;
-}
-
-function nicknameValidationError(nickname: string): string | null {
-  const trimmed = nickname.trim();
-  if (!trimmed) return '닉네임을 입력해 주세요.';
-  if (trimmed.length < 2) return '닉네임은 2자 이상이어야 합니다.';
-  if (trimmed.length > 30) return '닉네임은 30자 이하여야 합니다.';
-  return null;
-}
-
-function StatusText({
-  status,
-  message,
-  successColor,
-  errorColor,
-}: {
-  status: FieldStatus;
-  message: string;
-  successColor: string;
-  errorColor: string;
-}) {
-  if (status === 'idle' || status === 'checking' || !message) return null;
-  return (
-    <Text
-      style={[
-        styles.statusText,
-        { color: status === 'success' ? successColor : errorColor },
-      ]}
-    >
-      {message}
-    </Text>
-  );
+function applyEmailFieldError(
+  email: string,
+  setStatus: (s: FieldStatus) => void,
+  setMsg: (m: string) => void,
+): boolean {
+  const err = emailValidationError(email);
+  if (err) {
+    setStatus('error');
+    setMsg(err);
+    return false;
+  }
+  setStatus('idle');
+  setMsg('');
+  return true;
 }
 
 export function AuthScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { login, register } = useAuth();
+  const { login, register, justLoggedOut, clearJustLoggedOut } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
+  const [formOpen, setFormOpen] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const [kbHeight, setKbHeight] = useState(0);
+  const [logoutSuccessOpen, setLogoutSuccessOpen] = useState(false);
+  const sheetY = useRef(new Animated.Value(SHEET_CLOSED_Y)).current;
+  const welcomeOpacity = useRef(new Animated.Value(1)).current;
+  const brandReveal = useRef(new Animated.Value(0)).current;
+
+  const regVerification = useEmailVerification('register');
+  const resetVerification = useEmailVerification('reset-password');
+
+  useEffect(() => {
+    if (!justLoggedOut) return;
+    setLogoutSuccessOpen(true);
+    clearJustLoggedOut();
+  }, [justLoggedOut, clearJustLoggedOut]);
 
   useEffect(() => {
     const show = Keyboard.addListener(
@@ -123,17 +112,6 @@ export function AuthScreen() {
   const [regEmailStatus, setRegEmailStatus] = useState<FieldStatus>('idle');
   const [regEmailMsg, setRegEmailMsg] = useState('');
 
-  const [codeSent, setCodeSent] = useState(false);
-  const [sendingCode, setSendingCode] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const [verificationCode, setVerificationCode] = useState('');
-  const [codeVerified, setCodeVerified] = useState(false);
-  const [verifyingCode, setVerifyingCode] = useState(false);
-  const [codeStatus, setCodeStatus] = useState<FieldStatus>('idle');
-  const [codeMsg, setCodeMsg] = useState('');
-
   const [regPassword, setRegPassword] = useState('');
   const [regPasswordError, setRegPasswordError] = useState<string | null>(null);
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
@@ -146,20 +124,16 @@ export function AuthScreen() {
 
   const [regLoading, setRegLoading] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
+  const [regTermsAgreed, setRegTermsAgreed] = useState(false);
+  const [regTermsError, setRegTermsError] = useState<string | null>(null);
+  const [registerLegalOpen, setRegisterLegalOpen] = useState<
+    'terms' | 'privacy' | null
+  >(null);
 
   // --- reset password state ---
   const [resetEmail, setResetEmail] = useState('');
   const [resetEmailStatus, setResetEmailStatus] = useState<FieldStatus>('idle');
   const [resetEmailMsg, setResetEmailMsg] = useState('');
-  const [resetCodeSent, setResetCodeSent] = useState(false);
-  const [resetSendingCode, setResetSendingCode] = useState(false);
-  const [resetCooldown, setResetCooldown] = useState(0);
-  const resetCooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [resetVerificationCode, setResetVerificationCode] = useState('');
-  const [resetCodeVerified, setResetCodeVerified] = useState(false);
-  const [resetVerifyingCode, setResetVerifyingCode] = useState(false);
-  const [resetCodeStatus, setResetCodeStatus] = useState<FieldStatus>('idle');
-  const [resetCodeMsg, setResetCodeMsg] = useState('');
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [resetPasswordError, setResetPasswordError] = useState<string | null>(null);
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState('');
@@ -169,36 +143,11 @@ export function AuthScreen() {
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetDone, setResetDone] = useState(false);
 
-  // --- find email state ---
-  const [findNickname, setFindNickname] = useState('');
-  const [findNicknameError, setFindNicknameError] = useState<string | null>(null);
-  const [findLoading, setFindLoading] = useState(false);
-  const [findError, setFindError] = useState<string | null>(null);
-  const [findMaskedEmail, setFindMaskedEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (cooldownRef.current) clearInterval(cooldownRef.current);
-      if (resetCooldownRef.current) clearInterval(resetCooldownRef.current);
-    };
-  }, []);
-
   const resetRegisterForm = useCallback(() => {
     setRegEmail('');
     setRegEmailStatus('idle');
     setRegEmailMsg('');
-    setCodeSent(false);
-    setSendingCode(false);
-    setCooldown(0);
-    if (cooldownRef.current) {
-      clearInterval(cooldownRef.current);
-      cooldownRef.current = null;
-    }
-    setVerificationCode('');
-    setCodeVerified(false);
-    setVerifyingCode(false);
-    setCodeStatus('idle');
-    setCodeMsg('');
+    regVerification.reset();
     setRegPassword('');
     setRegPasswordError(null);
     setRegPasswordConfirm('');
@@ -209,24 +158,15 @@ export function AuthScreen() {
     setNicknameMsg('');
     setRegLoading(false);
     setRegError(null);
-  }, []);
+    setRegTermsAgreed(false);
+    setRegTermsError(null);
+  }, [regVerification]);
 
   const resetResetForm = useCallback(() => {
     setResetEmail('');
     setResetEmailStatus('idle');
     setResetEmailMsg('');
-    setResetCodeSent(false);
-    setResetSendingCode(false);
-    setResetCooldown(0);
-    if (resetCooldownRef.current) {
-      clearInterval(resetCooldownRef.current);
-      resetCooldownRef.current = null;
-    }
-    setResetVerificationCode('');
-    setResetCodeVerified(false);
-    setResetVerifyingCode(false);
-    setResetCodeStatus('idle');
-    setResetCodeMsg('');
+    resetVerification.reset();
     setResetPasswordValue('');
     setResetPasswordError(null);
     setResetPasswordConfirm('');
@@ -235,216 +175,137 @@ export function AuthScreen() {
     setResetLoading(false);
     setResetError(null);
     setResetDone(false);
-  }, []);
+  }, [resetVerification]);
 
-  const resetFindEmailForm = useCallback(() => {
-    setFindNickname('');
-    setFindNicknameError(null);
-    setFindLoading(false);
-    setFindError(null);
-    setFindMaskedEmail(null);
-  }, []);
+  const openForm = useCallback(
+    (next: Mode) => {
+      setMode(next);
+      setFormOpen(true);
+      sheetY.setValue(SHEET_CLOSED_Y);
+      brandReveal.setValue(0);
+      Animated.parallel([
+        Animated.spring(sheetY, {
+          toValue: 0,
+          friction: 8,
+          tension: 68,
+          useNativeDriver: true,
+        }),
+        Animated.timing(welcomeOpacity, {
+          toValue: 0,
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(brandReveal, {
+          toValue: 1,
+          friction: 7,
+          tension: 90,
+          delay: 140,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    },
+    [brandReveal, sheetY, welcomeOpacity],
+  );
+
+  const closeForm = useCallback(() => {
+    Keyboard.dismiss();
+    Animated.parallel([
+      Animated.timing(sheetY, {
+        toValue: SHEET_CLOSED_Y,
+        duration: 340,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(welcomeOpacity, {
+        toValue: 1,
+        duration: 300,
+        delay: 60,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(brandReveal, {
+        toValue: 0,
+        duration: 160,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) {
+        setFormOpen(false);
+        setMode('login');
+      }
+    });
+  }, [brandReveal, sheetY, welcomeOpacity]);
 
   const goToLogin = useCallback(
     (email?: string) => {
       resetResetForm();
-      resetFindEmailForm();
-      setMode('login');
       setLoginError(null);
       setLoginEmailError(null);
       setLoginPasswordError(null);
       if (email) setLoginEmail(email);
-    },
-    [resetResetForm, resetFindEmailForm],
-  );
-
-  const applyEmailFieldError = useCallback(
-    (
-      email: string,
-      setStatus: (s: FieldStatus) => void,
-      setMsg: (m: string) => void,
-    ): boolean => {
-      const err = emailValidationError(email);
-      if (err) {
-        setStatus('error');
-        setMsg(err);
-        return false;
+      setMode('login');
+      if (!formOpen) {
+        openForm('login');
       }
-      setStatus('idle');
-      setMsg('');
-      return true;
     },
-    [],
+    [formOpen, openForm, resetResetForm],
   );
 
   const handleEmailBlur = useCallback(() => {
     if (regEmailStatus === 'success') return;
     applyEmailFieldError(regEmail, setRegEmailStatus, setRegEmailMsg);
-  }, [regEmail, regEmailStatus, applyEmailFieldError]);
+  }, [regEmail, regEmailStatus]);
 
   const handleResetEmailBlur = useCallback(() => {
     if (resetEmailStatus === 'success') return;
     applyEmailFieldError(resetEmail, setResetEmailStatus, setResetEmailMsg);
-  }, [resetEmail, resetEmailStatus, applyEmailFieldError]);
+  }, [resetEmail, resetEmailStatus]);
 
-  const handleRegEmailChange = useCallback((text: string) => {
-    setRegEmail(text);
-    setRegEmailStatus('idle');
-    setRegEmailMsg('');
-    setCodeSent(false);
-    setCodeVerified(false);
-    setCodeStatus('idle');
-    setCodeMsg('');
-    setVerificationCode('');
-    setCodeStatus('idle');
-    setCodeMsg('');
-  }, []);
+  const handleRegEmailChange = useCallback(
+    (text: string) => {
+      setRegEmail(text);
+      setRegEmailStatus('idle');
+      setRegEmailMsg('');
+      regVerification.clearVerificationState();
+    },
+    [regVerification],
+  );
 
-  // --- send verification code ---
-  const startCooldown = useCallback(() => {
-    setCooldown(60);
-    if (cooldownRef.current) clearInterval(cooldownRef.current);
-    cooldownRef.current = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) {
-          if (cooldownRef.current) clearInterval(cooldownRef.current);
-          cooldownRef.current = null;
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, []);
+  const handleSendCode = useCallback(() => {
+    return regVerification.handleSendCode(
+      regEmail,
+      setRegEmailStatus,
+      setRegEmailMsg,
+    );
+  }, [regEmail, regVerification]);
 
-  const handleSendCode = useCallback(async () => {
-    if (!applyEmailFieldError(regEmail, setRegEmailStatus, setRegEmailMsg)) return;
-    const trimmed = regEmail.trim().toLowerCase();
-    setSendingCode(true);
-    try {
-      await sendVerificationCode(trimmed, 'register');
-      setCodeSent(true);
-      setRegEmailStatus('success');
-      setRegEmailMsg('인증번호가 발송되었습니다');
-      startCooldown();
-    } catch (e) {
-      setRegEmailStatus('error');
-      setRegEmailMsg(e instanceof ApiRequestError ? e.message : '인증번호 발송에 실패했습니다.');
-    } finally {
-      setSendingCode(false);
-    }
-  }, [regEmail, startCooldown, applyEmailFieldError]);
+  const handleVerifyCode = useCallback(() => {
+    return regVerification.handleVerifyCode(regEmail);
+  }, [regEmail, regVerification]);
 
-  // --- verify code ---
-  const handleVerifyCode = useCallback(async () => {
-    const codeErr = codeValidationError(verificationCode);
-    if (codeErr) {
-      setCodeStatus('error');
-      setCodeMsg(codeErr);
-      return;
-    }
-    const trimmed = regEmail.trim().toLowerCase();
-    setVerifyingCode(true);
-    setCodeStatus('checking');
-    setCodeMsg('');
-    try {
-      const { verified } = await verifyCode(trimmed, verificationCode, 'register');
-      if (verified) {
-        setCodeVerified(true);
-        setCodeStatus('success');
-        setCodeMsg('인증 완료');
-      } else {
-        setCodeStatus('error');
-        setCodeMsg('인증번호가 올바르지 않습니다');
-      }
-    } catch (e) {
-      setCodeStatus('error');
-      setCodeMsg(e instanceof ApiRequestError ? e.message : '인증번호 확인에 실패했습니다.');
-    } finally {
-      setVerifyingCode(false);
-    }
-  }, [regEmail, verificationCode]);
+  const handleResetEmailChange = useCallback(
+    (text: string) => {
+      setResetEmail(text);
+      setResetEmailStatus('idle');
+      setResetEmailMsg('');
+      resetVerification.clearVerificationState();
+      setResetDone(false);
+    },
+    [resetVerification],
+  );
 
-  const startResetCooldown = useCallback(() => {
-    setResetCooldown(60);
-    if (resetCooldownRef.current) clearInterval(resetCooldownRef.current);
-    resetCooldownRef.current = setInterval(() => {
-      setResetCooldown((prev) => {
-        if (prev <= 1) {
-          if (resetCooldownRef.current) clearInterval(resetCooldownRef.current);
-          resetCooldownRef.current = null;
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, []);
+  const handleResetSendCode = useCallback(() => {
+    return resetVerification.handleSendCode(
+      resetEmail,
+      setResetEmailStatus,
+      setResetEmailMsg,
+    );
+  }, [resetEmail, resetVerification]);
 
-  const handleResetEmailChange = useCallback((text: string) => {
-    setResetEmail(text);
-    setResetEmailStatus('idle');
-    setResetEmailMsg('');
-    setResetCodeSent(false);
-    setResetCodeVerified(false);
-    setResetCodeStatus('idle');
-    setResetCodeMsg('');
-    setResetVerificationCode('');
-    setResetDone(false);
-  }, []);
-
-  const handleResetSendCode = useCallback(async () => {
-    if (!applyEmailFieldError(resetEmail, setResetEmailStatus, setResetEmailMsg)) return;
-    const trimmed = resetEmail.trim().toLowerCase();
-    setResetSendingCode(true);
-    try {
-      await sendVerificationCode(trimmed, 'reset-password');
-      setResetCodeSent(true);
-      setResetEmailStatus('success');
-      setResetEmailMsg('인증번호가 발송되었습니다');
-      startResetCooldown();
-    } catch (e) {
-      setResetEmailStatus('error');
-      setResetEmailMsg(
-        e instanceof ApiRequestError ? e.message : '인증번호 발송에 실패했습니다.',
-      );
-    } finally {
-      setResetSendingCode(false);
-    }
-  }, [resetEmail, startResetCooldown, applyEmailFieldError]);
-
-  const handleResetVerifyCode = useCallback(async () => {
-    const codeErr = codeValidationError(resetVerificationCode);
-    if (codeErr) {
-      setResetCodeStatus('error');
-      setResetCodeMsg(codeErr);
-      return;
-    }
-    const trimmed = resetEmail.trim().toLowerCase();
-    setResetVerifyingCode(true);
-    setResetCodeStatus('checking');
-    setResetCodeMsg('');
-    try {
-      const { verified } = await verifyCode(
-        trimmed,
-        resetVerificationCode,
-        'reset-password',
-      );
-      if (verified) {
-        setResetCodeVerified(true);
-        setResetCodeStatus('success');
-        setResetCodeMsg('인증 완료');
-      } else {
-        setResetCodeStatus('error');
-        setResetCodeMsg('인증번호가 올바르지 않습니다');
-      }
-    } catch (e) {
-      setResetCodeStatus('error');
-      setResetCodeMsg(
-        e instanceof ApiRequestError ? e.message : '인증번호 확인에 실패했습니다.',
-      );
-    } finally {
-      setResetVerifyingCode(false);
-    }
-  }, [resetEmail, resetVerificationCode]);
+  const handleResetVerifyCode = useCallback(() => {
+    return resetVerification.handleVerifyCode(resetEmail);
+  }, [resetEmail, resetVerification]);
 
   const handleResetConfirmBlur = useCallback(() => {
     const pwErr = passwordValidationError(resetPasswordValue);
@@ -471,14 +332,14 @@ export function AuthScreen() {
   const validateResetForm = useCallback((): boolean => {
     let ok = true;
     if (!applyEmailFieldError(resetEmail, setResetEmailStatus, setResetEmailMsg)) ok = false;
-    const codeErr = codeValidationError(resetVerificationCode);
-    if (!resetCodeVerified) {
-      setResetCodeStatus('error');
-      setResetCodeMsg(codeErr ?? '이메일 인증을 완료해 주세요.');
+    const codeErr = codeValidationError(resetVerification.verificationCode);
+    if (!resetVerification.codeVerified) {
+      resetVerification.setCodeStatus('error');
+      resetVerification.setCodeMsg(codeErr ?? '이메일 인증을 완료해 주세요.');
       ok = false;
     } else if (codeErr) {
-      setResetCodeStatus('error');
-      setResetCodeMsg(codeErr);
+      resetVerification.setCodeStatus('error');
+      resetVerification.setCodeMsg(codeErr);
       ok = false;
     }
     const pwErr = passwordValidationError(resetPasswordValue);
@@ -496,32 +357,10 @@ export function AuthScreen() {
     return ok;
   }, [
     resetEmail,
-    resetVerificationCode,
-    resetCodeVerified,
+    resetVerification,
     resetPasswordValue,
     resetPasswordConfirm,
-    applyEmailFieldError,
   ]);
-
-  const onFindEmailSubmit = async () => {
-    setFindError(null);
-    const err = nicknameValidationError(findNickname);
-    setFindNicknameError(err);
-    if (err) return;
-
-    setFindLoading(true);
-    try {
-      const { maskedEmail } = await findEmailByNickname(findNickname.trim());
-      setFindMaskedEmail(maskedEmail);
-    } catch (e) {
-      setFindMaskedEmail(null);
-      setFindError(
-        e instanceof ApiRequestError ? e.message : '이메일 찾기에 실패했습니다.',
-      );
-    } finally {
-      setFindLoading(false);
-    }
-  };
 
   const onResetSubmit = async () => {
     setResetError(null);
@@ -529,7 +368,11 @@ export function AuthScreen() {
     const trimmedEmail = resetEmail.trim().toLowerCase();
     setResetLoading(true);
     try {
-      await resetPassword(trimmedEmail, resetVerificationCode, resetPasswordValue);
+      await resetPassword(
+        trimmedEmail,
+        resetVerification.verificationCode,
+        resetPasswordValue,
+      );
       setResetDone(true);
     } catch (e) {
       setResetError(
@@ -541,16 +384,13 @@ export function AuthScreen() {
   };
 
   const handleRegPasswordBlur = useCallback(() => {
-    const err = passwordValidationError(regPassword);
-    setRegPasswordError(err);
+    setRegPasswordError(passwordValidationError(regPassword));
   }, [regPassword]);
 
   const handleResetPasswordBlur = useCallback(() => {
-    const err = passwordValidationError(resetPasswordValue);
-    setResetPasswordError(err);
+    setResetPasswordError(passwordValidationError(resetPasswordValue));
   }, [resetPasswordValue]);
 
-  // --- password confirm blur ---
   const handleConfirmBlur = useCallback(() => {
     const pwErr = passwordValidationError(regPassword);
     setRegPasswordError(pwErr);
@@ -617,14 +457,14 @@ export function AuthScreen() {
   const validateRegisterForm = useCallback((): boolean => {
     let ok = true;
     if (!applyEmailFieldError(regEmail, setRegEmailStatus, setRegEmailMsg)) ok = false;
-    const codeErr = codeValidationError(verificationCode);
-    if (!codeVerified) {
-      setCodeStatus('error');
-      setCodeMsg(codeErr ?? '이메일 인증을 완료해 주세요.');
+    const codeErr = codeValidationError(regVerification.verificationCode);
+    if (!regVerification.codeVerified) {
+      regVerification.setCodeStatus('error');
+      regVerification.setCodeMsg(codeErr ?? '이메일 인증을 완료해 주세요.');
       ok = false;
     } else if (codeErr) {
-      setCodeStatus('error');
-      setCodeMsg(codeErr);
+      regVerification.setCodeStatus('error');
+      regVerification.setCodeMsg(codeErr);
       ok = false;
     }
     const pwErr = passwordValidationError(regPassword);
@@ -638,6 +478,12 @@ export function AuthScreen() {
       setConfirmStatus('error');
       setConfirmMsg('비밀번호가 일치하지 않습니다');
       ok = false;
+    }
+    if (!regTermsAgreed) {
+      setRegTermsError('이용약관 및 개인정보 처리방침에 동의해 주세요.');
+      ok = false;
+    } else {
+      setRegTermsError(null);
     }
     if (!regNickname.trim()) {
       setNicknameStatus('error');
@@ -655,19 +501,16 @@ export function AuthScreen() {
     return ok;
   }, [
     regEmail,
-    verificationCode,
-    codeVerified,
+    regVerification,
     regPassword,
     regPasswordConfirm,
     regNickname,
     nicknameStatus,
-    applyEmailFieldError,
+    regTermsAgreed,
   ]);
 
-  // --- login submit ---
   const onLoginSubmit = async () => {
     setLoginError(null);
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim() || 'http://127.0.0.1:3333';
     const emailErr = emailValidationError(loginEmail);
     const pwErr = passwordValidationError(loginPassword);
     setLoginEmailError(emailErr);
@@ -678,18 +521,10 @@ export function AuthScreen() {
     try {
       await login(trimmed, loginPassword);
     } catch (e) {
-      if (e instanceof ApiRequestError) {
-        setLoginError(e.message);
-      } else {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('failed')) {
-          setLoginError(
-            `네트워크 오류로 서버에 연결할 수 없습니다.\nAPI URL을 확인해 주세요: ${apiUrl}`,
-          );
-        } else {
-          setLoginError('알 수 없는 오류가 발생했습니다.');
-        }
-      }
+      setLoginError(
+        apiErrorMessage(e, '로그인에 실패했습니다.') ??
+          '로그인에 실패했습니다.',
+      );
     } finally {
       setLoginLoading(false);
     }
@@ -698,617 +533,364 @@ export function AuthScreen() {
   const onRegisterSubmit = async () => {
     setRegError(null);
     if (!validateRegisterForm()) return;
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim() || 'http://127.0.0.1:3333';
     const trimmedEmail = regEmail.trim().toLowerCase();
     const trimmedNickname = regNickname.trim();
     setRegLoading(true);
     try {
-      await register(trimmedEmail, regPassword, trimmedNickname, verificationCode);
+      await register(
+        trimmedEmail,
+        regPassword,
+        trimmedNickname,
+        regVerification.verificationCode,
+      );
     } catch (e) {
-      if (e instanceof ApiRequestError) {
-        setRegError(e.message);
+      const msg = apiErrorMessage(e, '회원가입에 실패했습니다.');
+      if (msg) {
+        setRegError(msg);
       } else {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('failed')) {
-          setRegError(
-            `네트워크 오류로 서버에 연결할 수 없습니다.\nAPI URL을 확인해 주세요: ${apiUrl}`,
-          );
-        } else {
-          setRegError('알 수 없는 오류가 발생했습니다.');
-        }
+        setRegError('세션이 만료되었습니다. 다시 시도해 주세요.');
       }
     } finally {
       setRegLoading(false);
     }
   };
 
-  const sendCodeLabel =
-    cooldown > 0
-      ? `재발송 (${cooldown}초)`
-      : codeSent
-        ? '재발송'
-        : '인증번호 발송';
-
-  const resetSendCodeLabel =
-    resetCooldown > 0
-      ? `재발송 (${resetCooldown}초)`
-      : resetCodeSent
-        ? '재발송'
-        : '인증번호 발송';
-
-  const subTitle =
+  const formTitle =
     mode === 'login'
       ? '로그인'
       : mode === 'register'
         ? '회원가입'
-        : mode === 'findEmail'
-          ? '이메일 찾기'
-          : '비밀번호 찾기';
+        : '비밀번호 찾기';
 
-  const findEmailDone = findMaskedEmail !== null;
+  const renderFormBody = () => {
+    if (mode === 'login') {
+      return (
+        <LoginSheet
+          theme={theme}
+          loginEmail={loginEmail}
+          setLoginEmail={setLoginEmail}
+          loginPassword={loginPassword}
+          setLoginPassword={setLoginPassword}
+          loginEmailError={loginEmailError}
+          setLoginEmailError={setLoginEmailError}
+          loginPasswordError={loginPasswordError}
+          setLoginPasswordError={setLoginPasswordError}
+          loginError={loginError}
+          setLoginError={setLoginError}
+          loginLoading={loginLoading}
+          onLoginSubmit={onLoginSubmit}
+          onResetPassword={() => {
+            resetResetForm();
+            setMode('resetPassword');
+          }}
+        />
+      );
+    }
+    if (mode === 'resetPassword') {
+      return (
+        <ResetPasswordSheet
+          theme={theme}
+          resetDone={resetDone}
+          resetEmail={resetEmail}
+          onResetEmailChange={handleResetEmailChange}
+          onResetEmailBlur={handleResetEmailBlur}
+          resetEmailStatus={resetEmailStatus}
+          resetEmailMsg={resetEmailMsg}
+          resetSendingCode={resetVerification.sendingCode}
+          resetSendCodeLabel={resetVerification.sendCodeLabel}
+          resetCooldown={resetVerification.cooldown}
+          resetCodeVerified={resetVerification.codeVerified}
+          onResetSendCode={handleResetSendCode}
+          resetCodeSent={resetVerification.codeSent}
+          resetVerificationCode={resetVerification.verificationCode}
+          setResetVerificationCode={resetVerification.setVerificationCode}
+          resetCodeStatus={resetVerification.codeStatus}
+          resetCodeMsg={resetVerification.codeMsg}
+          setResetCodeStatus={resetVerification.setCodeStatus}
+          setResetCodeMsg={resetVerification.setCodeMsg}
+          resetVerifyingCode={resetVerification.verifyingCode}
+          onResetVerifyCode={handleResetVerifyCode}
+          resetPasswordValue={resetPasswordValue}
+          setResetPasswordValue={setResetPasswordValue}
+          setResetPasswordError={setResetPasswordError}
+          onResetPasswordBlur={handleResetPasswordBlur}
+          resetPasswordError={resetPasswordError}
+          resetPasswordConfirm={resetPasswordConfirm}
+          setResetPasswordConfirm={setResetPasswordConfirm}
+          onResetConfirmBlur={handleResetConfirmBlur}
+          resetConfirmStatus={resetConfirmStatus}
+          resetConfirmMsg={resetConfirmMsg}
+          setResetConfirmStatus={setResetConfirmStatus}
+          setResetConfirmMsg={setResetConfirmMsg}
+          resetError={resetError}
+          resetLoading={resetLoading}
+          onResetSubmit={onResetSubmit}
+          onGoToLogin={goToLogin}
+        />
+      );
+    }
+    return (
+      <RegisterSheet
+        scrollRef={scrollRef}
+        theme={theme}
+        regEmail={regEmail}
+        onRegEmailChange={handleRegEmailChange}
+        onEmailBlur={handleEmailBlur}
+        regEmailStatus={regEmailStatus}
+        regEmailMsg={regEmailMsg}
+        sendingCode={regVerification.sendingCode}
+        sendCodeLabel={regVerification.sendCodeLabel}
+        cooldown={regVerification.cooldown}
+        codeVerified={regVerification.codeVerified}
+        onSendCode={handleSendCode}
+        codeSent={regVerification.codeSent}
+        verificationCode={regVerification.verificationCode}
+        setVerificationCode={regVerification.setVerificationCode}
+        codeStatus={regVerification.codeStatus}
+        codeMsg={regVerification.codeMsg}
+        setCodeStatus={regVerification.setCodeStatus}
+        setCodeMsg={regVerification.setCodeMsg}
+        verifyingCode={regVerification.verifyingCode}
+        onVerifyCode={handleVerifyCode}
+        regPassword={regPassword}
+        setRegPassword={setRegPassword}
+        onRegPasswordBlur={handleRegPasswordBlur}
+        regPasswordError={regPasswordError}
+        setRegPasswordError={setRegPasswordError}
+        regPasswordConfirm={regPasswordConfirm}
+        setRegPasswordConfirm={setRegPasswordConfirm}
+        onConfirmBlur={handleConfirmBlur}
+        confirmStatus={confirmStatus}
+        confirmMsg={confirmMsg}
+        setConfirmStatus={setConfirmStatus}
+        setConfirmMsg={setConfirmMsg}
+        regNickname={regNickname}
+        onNicknameChange={handleNicknameChange}
+        nicknameStatus={nicknameStatus}
+        nicknameMsg={nicknameMsg}
+        regError={regError}
+        regLoading={regLoading}
+        termsAgreed={regTermsAgreed}
+        onTermsAgreedChange={(v) => {
+          setRegTermsAgreed(v);
+          if (v) setRegTermsError(null);
+        }}
+        termsError={regTermsError}
+        onOpenTerms={() => setRegisterLegalOpen('terms')}
+        onOpenPrivacy={() => setRegisterLegalOpen('privacy')}
+        onRegisterSubmit={onRegisterSubmit}
+      />
+    );
+  };
+
+  const brandScale = brandReveal.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.88, 1],
+  });
 
   return (
-    <Screen>
-        <ScrollView
-          ref={scrollRef}
-          contentContainerStyle={[
-            styles.scroll,
-            {
-              paddingTop: Math.max(insets.top, 12) + spacing.lg,
-              paddingBottom: 48 + kbHeight,
-              paddingHorizontal: spacing.xl,
-            },
+    <Screen transparent noPadding edges={[]}>
+      <StatusBar style="light" />
+      <AuthWelcomeBackdrop />
+
+      <Animated.View
+        pointerEvents={formOpen ? 'none' : 'box-none'}
+        style={[StyleSheet.absoluteFill, { opacity: welcomeOpacity }]}
+      >
+        <AuthWelcomeActions
+          onLogin={() => openForm('login')}
+          onRegister={() => {
+            resetRegisterForm();
+            openForm('register');
+          }}
+          style={{
+            ...styles.welcomeCta,
+            paddingBottom: Math.max(insets.bottom, 12),
+          }}
+        />
+      </Animated.View>
+
+      {formOpen ? (
+        <Animated.View
+          style={[
+            styles.sheetHost,
+            { transform: [{ translateY: sheetY }] },
           ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
         >
-          <View style={styles.brandBlock}>
-            <Text style={[styles.title, { color: theme.foreground }]}>StarChaser</Text>
-            <Text style={[styles.sub, { color: theme.mutedForeground }]}>{subTitle}</Text>
-          </View>
+          <GlassCard
+            glow
+            padding={0}
+            style={{
+              ...styles.sheetCard,
+              backgroundColor: AUTH_SHEET_BG,
+            }}
+          >
+            <Pressable onPress={closeForm} style={styles.sheetHandleHit}>
+              <View style={[styles.sheetHandle, { backgroundColor: theme.mutedForeground }]} />
+            </Pressable>
 
-          {mode === 'resetPassword' || mode === 'findEmail' ? (
-            (mode === 'resetPassword' ? !resetDone : !findEmailDone) && (
-              <Pressable onPress={() => goToLogin()} hitSlop={8} style={styles.backWrap}>
-                <Text style={[styles.backLink, { color: theme.mutedForeground }]}>
-                  ← 로그인으로 돌아가기
-                </Text>
-              </Pressable>
-            )
-          ) : (
-            <View style={styles.tabRow}>
-              <AuthSegmentTabs
-                active={mode === 'register' ? 'register' : 'login'}
-                onLogin={() => {
-                  setMode('login');
-                  setLoginError(null);
-                  setLoginEmailError(null);
-                  setLoginPasswordError(null);
-                }}
-                onRegister={() => {
-                  setMode('register');
-                  resetRegisterForm();
-                }}
-              />
-            </View>
-          )}
-
-          {mode === 'login' ? (
-            <View style={styles.form}>
-              <Input
-                label="이메일"
-                monoLabel
-                value={loginEmail}
-                onChangeText={(text) => {
-                  setLoginEmail(text);
-                  setLoginEmailError(null);
-                  setLoginError(null);
-                }}
-                onBlur={() => {
-                  const err = emailValidationError(loginEmail);
-                  setLoginEmailError(err);
-                }}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                placeholder="you@example.com"
-                errorMessage={loginEmailError ?? undefined}
-              />
-              <Input
-                label="비밀번호"
-                monoLabel
-                value={loginPassword}
-                onChangeText={(text) => {
-                  setLoginPassword(text);
-                  setLoginPasswordError(null);
-                  setLoginError(null);
-                }}
-                onBlur={() => {
-                  const err = passwordValidationError(loginPassword);
-                  setLoginPasswordError(err);
-                }}
-                secureTextEntry
-                placeholder="6자 이상"
-                errorMessage={loginPasswordError ?? undefined}
-              />
-              {loginError && (
-                <Text style={[styles.err, { color: theme.dimRedFg }]}>
-                  {loginError}
-                </Text>
-              )}
-              <Button
-                label="로그인"
-                fullWidth
-                loading={loginLoading}
-                onPress={() => void onLoginSubmit()}
-              />
-              <View style={styles.forgotLinksRow}>
-                <Pressable
-                  onPress={() => {
-                    resetFindEmailForm();
-                    setMode('findEmail');
-                  }}
-                  hitSlop={8}
-                >
-                  <Text style={[styles.forgotLink, { color: theme.mutedForeground }]}>
-                    이메일 찾기
+            <View style={styles.sheetHeader}>
+              {mode === 'resetPassword' && !resetDone ? (
+                <Pressable onPress={() => goToLogin()} hitSlop={8} style={styles.sheetBack}>
+                  <Text style={[styles.backLink, { color: theme.mutedForeground }]}>
+                    ← 로그인으로
                   </Text>
                 </Pressable>
-                <Text style={[styles.forgotLinkSep, { color: theme.mutedForeground }]}>
-                  ·
-                </Text>
-                <Pressable
-                  onPress={() => {
-                    resetResetForm();
-                    setMode('resetPassword');
-                  }}
-                  hitSlop={8}
-                >
-                  <Text style={[styles.forgotLink, { color: theme.mutedForeground }]}>
-                    비밀번호 찾기
+              ) : (
+                <Pressable onPress={closeForm} hitSlop={8} style={styles.sheetBack}>
+                  <Text style={[styles.backLink, { color: theme.mutedForeground }]}>
+                    ← 돌아가기
                   </Text>
                 </Pressable>
-              </View>
-            </View>
-          ) : mode === 'findEmail' ? (
-            <View style={styles.form}>
-              {findEmailDone ? (
-                <>
-                  <Text style={[styles.doneText, { color: theme.foreground }]}>
-                    가입 시 사용한 로그인 이메일입니다.
-                  </Text>
-                  <Text style={[styles.maskedEmail, { color: theme.primaryGlow }]}>
-                    {findMaskedEmail}
-                  </Text>
-                  <Button
-                    label="로그인하기"
-                    fullWidth
-                    onPress={() => goToLogin()}
-                  />
-                </>
-              ) : (
-                <>
-                  <Text style={[styles.hintBlock, { color: theme.mutedForeground }]}>
-                    가입 시 설정한 닉네임으로 로그인 이메일을 확인할 수 있습니다.
-                  </Text>
-                  <Input
-                    label="닉네임"
-                    monoLabel
-                    value={findNickname}
-                    onChangeText={(text) => {
-                      setFindNickname(text);
-                      setFindNicknameError(null);
-                      setFindError(null);
-                    }}
-                    onBlur={() => {
-                      const blurErr = nicknameValidationError(findNickname);
-                      setFindNicknameError(blurErr);
-                    }}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    placeholder="2~30자"
-                    maxLength={30}
-                    errorMessage={findNicknameError ?? undefined}
-                  />
-                  {findError && (
-                    <Text style={[styles.err, { color: theme.dimRedFg }]}>
-                      {findError}
-                    </Text>
-                  )}
-                  <Button
-                    label="이메일 확인"
-                    fullWidth
-                    loading={findLoading}
-                    onPress={() => void onFindEmailSubmit()}
-                  />
-                </>
-              )}
-            </View>
-          ) : mode === 'resetPassword' ? (
-            <View style={styles.form}>
-              {resetDone ? (
-                <>
-                  <Text style={[styles.doneText, { color: theme.foreground }]}>
-                    비밀번호가 변경되었습니다.{'\n'}새 비밀번호로 로그인해 주세요.
-                  </Text>
-                  <Button
-                    label="로그인하기"
-                    fullWidth
-                    onPress={() => goToLogin(resetEmail.trim().toLowerCase())}
-                  />
-                </>
-              ) : (
-                <>
-                  <Input
-                    label="이메일"
-                    monoLabel
-                    value={resetEmail}
-                    onChangeText={handleResetEmailChange}
-                    onBlur={handleResetEmailBlur}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="email-address"
-                    placeholder="you@example.com"
-                    editable={!resetCodeVerified}
-                    errorMessage={
-                      resetEmailStatus === 'error' ? resetEmailMsg : undefined
-                    }
-                  />
-                  {resetEmailStatus === 'success' && (
-                    <StatusText
-                      status={resetEmailStatus}
-                      message={resetEmailMsg}
-                      successColor={theme.primaryGlow}
-                      errorColor={theme.dimRedFg}
-                    />
-                  )}
-
-                  <Button
-                    label={resetSendingCode ? '발송 중...' : resetSendCodeLabel}
-                    variant="outline"
-                    size="sm"
-                    disabled={
-                      resetCooldown > 0 || resetSendingCode || resetCodeVerified
-                    }
-                    loading={resetSendingCode}
-                    onPress={() => void handleResetSendCode()}
-                  />
-
-                  {resetCodeSent && (
-                    <View style={styles.codeRow}>
-                      <View style={styles.codeInputWrap}>
-                        <Input
-                          label="인증번호"
-                          monoLabel
-                          value={resetVerificationCode}
-                          onChangeText={(text) => {
-                            setResetVerificationCode(text);
-                            if (resetCodeStatus === 'error') {
-                              setResetCodeStatus('idle');
-                              setResetCodeMsg('');
-                            }
-                          }}
-                          keyboardType="number-pad"
-                          maxLength={6}
-                          placeholder="6자리 숫자"
-                          editable={!resetCodeVerified}
-                          errorMessage={
-                            resetCodeStatus === 'error' ? resetCodeMsg : undefined
-                          }
-                        />
-                      </View>
-                      <View style={styles.codeButtonWrap}>
-                        <Button
-                          label="확인"
-                          variant="outline"
-                          size="sm"
-                          disabled={resetVerifyingCode || resetCodeVerified}
-                          loading={resetVerifyingCode}
-                          onPress={() => void handleResetVerifyCode()}
-                        />
-                      </View>
-                    </View>
-                  )}
-                  {resetCodeStatus === 'success' && (
-                    <StatusText
-                      status={resetCodeStatus}
-                      message={resetCodeMsg}
-                      successColor={theme.primaryGlow}
-                      errorColor={theme.dimRedFg}
-                    />
-                  )}
-
-                  <Input
-                    label="새 비밀번호"
-                    monoLabel
-                    value={resetPasswordValue}
-                    onChangeText={(text) => {
-                      setResetPasswordValue(text);
-                      setResetPasswordError(null);
-                    }}
-                    onBlur={handleResetPasswordBlur}
-                    secureTextEntry
-                    placeholder="6자 이상"
-                    editable={resetCodeVerified}
-                    errorMessage={resetPasswordError ?? undefined}
-                  />
-                  <Input
-                    label="새 비밀번호 확인"
-                    monoLabel
-                    value={resetPasswordConfirm}
-                    onChangeText={(text) => {
-                      setResetPasswordConfirm(text);
-                      if (resetConfirmStatus === 'error') {
-                        setResetConfirmStatus('idle');
-                        setResetConfirmMsg('');
-                      }
-                    }}
-                    onBlur={handleResetConfirmBlur}
-                    secureTextEntry
-                    placeholder="비밀번호 재입력"
-                    editable={resetCodeVerified}
-                    errorMessage={
-                      resetConfirmStatus === 'error' ? resetConfirmMsg : undefined
-                    }
-                  />
-                  {resetConfirmStatus === 'success' && (
-                    <StatusText
-                      status={resetConfirmStatus}
-                      message={resetConfirmMsg}
-                      successColor={theme.primaryGlow}
-                      errorColor={theme.dimRedFg}
-                    />
-                  )}
-
-                  {resetError && (
-                    <Text style={[styles.err, { color: theme.dimRedFg }]}>
-                      {resetError}
-                    </Text>
-                  )}
-
-                  <Button
-                    label="비밀번호 변경"
-                    fullWidth
-                    loading={resetLoading}
-                    onPress={() => void onResetSubmit()}
-                  />
-                </>
-              )}
-            </View>
-          ) : (
-            <View style={styles.form}>
-              {/* 이메일 */}
-              <Input
-                label="이메일"
-                monoLabel
-                value={regEmail}
-                onChangeText={handleRegEmailChange}
-                onBlur={handleEmailBlur}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                placeholder="you@example.com"
-                editable={!codeVerified}
-                errorMessage={regEmailStatus === 'error' ? regEmailMsg : undefined}
-              />
-              {regEmailStatus === 'success' && (
-                <StatusText
-                  status={regEmailStatus}
-                  message={regEmailMsg}
-                  successColor={theme.primaryGlow}
-                  errorColor={theme.dimRedFg}
-                />
               )}
 
-              <Button
-                label={sendingCode ? '발송 중...' : sendCodeLabel}
-                variant="outline"
-                size="sm"
-                disabled={cooldown > 0 || sendingCode || codeVerified}
-                loading={sendingCode}
-                onPress={() => void handleSendCode()}
-              />
+              <Animated.View
+                style={{
+                  opacity: brandReveal,
+                  transform: [{ scale: brandScale }],
+                }}
+              >
+                <View style={styles.sheetBrand}>
+                  <AuthBrandHeader subtitle={formTitle} compact />
+                </View>
+              </Animated.View>
 
-              {/* 인증번호 */}
-              {codeSent && (
-                <View style={styles.codeRow}>
-                  <View style={styles.codeInputWrap}>
-                    <Input
-                      label="인증번호"
-                      monoLabel
-                      value={verificationCode}
-                      onChangeText={(text) => {
-                        setVerificationCode(text);
-                        if (codeStatus === 'error') {
-                          setCodeStatus('idle');
-                          setCodeMsg('');
-                        }
-                      }}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      placeholder="6자리 숫자"
-                      editable={!codeVerified}
-                      errorMessage={codeStatus === 'error' ? codeMsg : undefined}
-                    />
-                  </View>
-                  <View style={styles.codeButtonWrap}>
-                    <Button
-                      label="확인"
-                      variant="outline"
-                      size="sm"
-                      disabled={verifyingCode || codeVerified}
-                      loading={verifyingCode}
-                      onPress={() => void handleVerifyCode()}
-                    />
-                  </View>
+              {(mode === 'login' || mode === 'register') && (
+                <View style={styles.tabRow}>
+                  <AuthSegmentTabs
+                    active={mode === 'register' ? 'register' : 'login'}
+                    onLogin={() => {
+                      setMode('login');
+                      setLoginError(null);
+                      setLoginEmailError(null);
+                      setLoginPasswordError(null);
+                    }}
+                    onRegister={() => {
+                      resetRegisterForm();
+                      setMode('register');
+                    }}
+                  />
                 </View>
               )}
-              {codeStatus === 'success' && (
-                <StatusText
-                  status={codeStatus}
-                  message={codeMsg}
-                  successColor={theme.primaryGlow}
-                  errorColor={theme.dimRedFg}
-                />
-              )}
-
-              {/* 비밀번호 */}
-              <Input
-                label="비밀번호"
-                monoLabel
-                value={regPassword}
-                onChangeText={(text) => {
-                  setRegPassword(text);
-                  setRegPasswordError(null);
-                }}
-                onBlur={handleRegPasswordBlur}
-                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
-                secureTextEntry
-                placeholder="6자 이상"
-                errorMessage={regPasswordError ?? undefined}
-              />
-
-              {/* 비밀번호 확인 */}
-              <Input
-                label="비밀번호 확인"
-                monoLabel
-                value={regPasswordConfirm}
-                onChangeText={(text) => {
-                  setRegPasswordConfirm(text);
-                  if (confirmStatus === 'error') {
-                    setConfirmStatus('idle');
-                    setConfirmMsg('');
-                  }
-                }}
-                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
-                onBlur={handleConfirmBlur}
-                secureTextEntry
-                placeholder="비밀번호 재입력"
-                errorMessage={confirmStatus === 'error' ? confirmMsg : undefined}
-              />
-              {confirmStatus === 'success' && (
-                <StatusText
-                  status={confirmStatus}
-                  message={confirmMsg}
-                  successColor={theme.primaryGlow}
-                  errorColor={theme.dimRedFg}
-                />
-              )}
-
-              {/* 닉네임 */}
-              <Input
-                label="닉네임"
-                monoLabel
-                value={regNickname}
-                onChangeText={handleNicknameChange}
-                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder="2~30자"
-                maxLength={30}
-                errorMessage={nicknameStatus === 'error' ? nicknameMsg : undefined}
-              />
-              {nicknameStatus === 'success' && (
-                <StatusText
-                  status={nicknameStatus}
-                  message={nicknameMsg}
-                  successColor={theme.primaryGlow}
-                  errorColor={theme.dimRedFg}
-                />
-              )}
-
-              {regError && (
-                <Text style={[styles.err, { color: theme.dimRedFg }]}>
-                  {regError}
-                </Text>
-              )}
-
-              <Button
-                label="가입하기"
-                fullWidth
-                loading={regLoading}
-                onPress={() => void onRegisterSubmit()}
-              />
             </View>
-          )}
-        </ScrollView>
+
+            <ScrollView
+              ref={scrollRef}
+              style={styles.sheetScroll}
+              contentContainerStyle={[
+                styles.sheetScrollContent,
+                { paddingBottom: Math.max(insets.bottom, 12) + kbHeight + spacing.lg },
+              ]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View
+                style={[
+                  styles.formPanel,
+                  {
+                    borderColor: theme.cardBorder,
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                  },
+                ]}
+              >
+                {renderFormBody()}
+              </View>
+            </ScrollView>
+          </GlassCard>
+        </Animated.View>
+      ) : null}
+
+      <LegalDocumentModal
+        visible={registerLegalOpen === 'terms'}
+        title="이용약관"
+        content={TERMS_OF_SERVICE}
+        onClose={() => setRegisterLegalOpen(null)}
+      />
+      <LegalDocumentModal
+        visible={registerLegalOpen === 'privacy'}
+        title="개인정보 처리방침"
+        content={PRIVACY_POLICY}
+        onClose={() => setRegisterLegalOpen(null)}
+      />
+
+      <AppAlertModal
+        visible={logoutSuccessOpen}
+        tone="success"
+        title="로그아웃 되었습니다"
+        message="다시 만나요. 밤하늘이 기다리고 있어요."
+        primaryLabel="확인"
+        autoDismissMs={2400}
+        onPrimary={() => setLogoutSuccessOpen(false)}
+        onRequestClose={() => setLogoutSuccessOpen(false)}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    flexGrow: 1,
-    gap: spacing.lg,
+  welcomeCta: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 2,
+    justifyContent: 'flex-end',
   },
-  brandBlock: {
-    marginBottom: spacing.sm,
+  sheetHost: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: WINDOW_HEIGHT * 0.82,
+    paddingHorizontal: spacing.lg,
+    zIndex: 10,
   },
-  title: {
-    ...typography.hero,
-    marginBottom: spacing.sm,
+  sheetCard: {
+    flex: 1,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
-  sub: {
-    ...typography.bodySm,
+  sheetHeader: {
+    paddingHorizontal: spacing.lg,
   },
-  backWrap: {
-    marginBottom: spacing.md,
+  sheetHandleHit: {
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
   },
-  tabRow: {
-    marginBottom: spacing.xl,
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.45,
   },
-  form: {
-    gap: spacing.md,
+  sheetBrand: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
   },
-  err: {
-    fontSize: 12,
+  sheetBack: {
+    marginBottom: spacing.xs,
   },
-  statusText: {
-    fontSize: 11,
-    marginTop: -6,
-  },
-  codeRow: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'flex-end',
-  },
-  codeInputWrap: {
+  sheetScroll: {
     flex: 1,
   },
-  codeButtonWrap: {
-    paddingBottom: 2,
+  sheetScrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
   },
-  forgotLinksRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 4,
+  formPanel: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: spacing.lg,
   },
-  forgotLink: {
-    fontSize: 12,
-    textDecorationLine: 'underline',
-  },
-  forgotLinkSep: {
-    fontSize: 12,
-  },
-  hintBlock: {
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  maskedEmail: {
-    fontSize: 18,
-    fontFamily: 'SpaceMono-Regular',
-    letterSpacing: 0.5,
-    marginBottom: 8,
+  tabRow: {
+    marginTop: spacing.sm,
   },
   backLink: {
     fontSize: 12,
     marginBottom: 4,
-  },
-  doneText: {
-    fontSize: 14,
-    lineHeight: 22,
-    marginBottom: 8,
   },
 });

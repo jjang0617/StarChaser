@@ -26,19 +26,12 @@ import {
   SessionExpiredError,
   type ObservationRowDto,
 } from '../../lib/api-client';
-import type { StarIndexResponseDto } from '../../lib/types/api';
 
 interface RecordsTabScreenProps {
-  activeSpotId: string | null;
   observerLat?: number | null;
   observerLng?: number | null;
   useDeviceLocation?: boolean;
   onSessionInvalidated: () => Promise<void>;
-  starIndexData: StarIndexResponseDto | null;
-  starIndexLoading: boolean;
-  canLoadStarIndex: boolean;
-  resolveSpotIdForSave: () => string | undefined;
-  starIndexFromGps?: boolean;
   starIndexPlaceLabel?: string | null;
 }
 
@@ -47,11 +40,6 @@ export function RecordsTabScreen({
   observerLng = null,
   useDeviceLocation = true,
   onSessionInvalidated,
-  starIndexData,
-  starIndexLoading,
-  canLoadStarIndex,
-  resolveSpotIdForSave,
-  starIndexFromGps = false,
   starIndexPlaceLabel = null,
 }: RecordsTabScreenProps) {
   const { theme } = useTheme();
@@ -112,40 +100,21 @@ export function RecordsTabScreen({
           <DiarySegmentTabs active={diarySection} onChange={setDiarySection} />
 
           {diarySection === 'write' ? (
-            <>
-              {!canLoadStarIndex ? (
-                <GlassCard glow>
-                  <DiarySectionHeader
-                    icon="navigation"
-                    title="위치가 필요해요"
-                    subtitle="위치를 허용하거나 지도에서 명소를 선택해 주세요."
-                  />
-                </GlassCard>
-              ) : (
-                <GlassCard glow style={styles.writeCard}>
-                  <DiarySectionHeader
-                    icon="edit-3"
-                    title="오늘의 관측"
-                    subtitle="결과를 고른 뒤 밤하늘 일기를 남겨 보세요."
-                  />
-                  {starIndexLoading && !starIndexData ? (
-                    <ActivityIndicator
-                      color={theme.primaryGlow}
-                      style={{ marginBottom: spacing.sm }}
-                    />
-                  ) : null}
-                  <ObservationResultPicker value={result} onChange={setResult} />
-                  <View style={styles.writeCta}>
-                    <Button
-                      label="오늘의 일기 쓰기"
-                      fullWidth
-                      disabled={!starIndexData || starIndexLoading}
-                      onPress={() => setWriteModalOpen(true)}
-                    />
-                  </View>
-                </GlassCard>
-              )}
-            </>
+            <GlassCard glow style={styles.writeCard}>
+              <DiarySectionHeader
+                icon="edit-3"
+                title="오늘의 관측"
+                subtitle="결과를 고른 뒤 밤하늘 일기를 남겨 보세요."
+              />
+              <ObservationResultPicker value={result} onChange={setResult} />
+              <View style={styles.writeCta}>
+                <Button
+                  label="오늘의 일기 쓰기"
+                  fullWidth
+                  onPress={() => setWriteModalOpen(true)}
+                />
+              </View>
+            </GlassCard>
           ) : null}
 
           {diarySection === 'register-spot' ? (
@@ -225,21 +194,16 @@ export function RecordsTabScreen({
         </ScrollView>
       </View>
 
-      {starIndexData ? (
-        <DiaryWriteModal
-          visible={writeModalOpen}
-          result={result}
-          starIndexData={starIndexData}
-          initialSpotId={resolveSpotIdForSave()}
-          fromGps={starIndexFromGps}
-          observerLat={observerLat}
-          observerLng={observerLng}
-          placeLabel={starIndexPlaceLabel}
-          onClose={() => setWriteModalOpen(false)}
-          onSaved={() => void onDiarySaved()}
-          onSessionInvalidated={onSessionInvalidated}
-        />
-      ) : null}
+      <DiaryWriteModal
+        visible={writeModalOpen}
+        result={result}
+        observerLat={observerLat}
+        observerLng={observerLng}
+        placeLabel={starIndexPlaceLabel}
+        onClose={() => setWriteModalOpen(false)}
+        onSaved={() => void onDiarySaved()}
+        onSessionInvalidated={onSessionInvalidated}
+      />
 
       <DiaryDetailModal
         visible={detailRow != null}

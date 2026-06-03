@@ -19,10 +19,12 @@ export function formatUnmeasurableStarIndexLabel(score: number): string {
 export function getStarIndexScoreDisplay(score: number): StarIndexScoreDisplay {
   const n = Math.round(score);
   if (!Number.isFinite(n) || n < STAR_INDEX_DISPLAY_MIN_SCORE) {
+    const clamped = Math.min(100, Math.max(0, Number.isFinite(n) ? n : 0));
     return {
       measurable: false,
       label: formatUnmeasurableStarIndexLabel(score),
-      gaugePercent: 0,
+      /** 측정불가여도 MAIN 링·게이지는 원점수 비율로 표시 */
+      gaugePercent: clamped,
     };
   }
   return {

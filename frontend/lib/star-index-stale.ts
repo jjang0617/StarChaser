@@ -19,14 +19,13 @@ export function formatStarIndexStaleHint(cachedAt?: string): string {
   return '참고 · 직전 계산값';
 }
 
+import { sanitizeApiErrorMessage } from './sanitize-api-error';
+
 export function starIndexLoadErrorMessage(e: unknown): string {
   if (e && typeof e === 'object' && 'status' in e && 'message' in e) {
     const status = (e as { status: number }).status;
     const message = String((e as { message: string }).message);
-    if (status === 503) {
-      return '실시간 기상 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
-    }
-    return message;
+    return sanitizeApiErrorMessage(status, message);
   }
   return 'Star-Index를 불러오지 못했습니다.';
 }

@@ -32,6 +32,8 @@ type Props = {
   visible: boolean;
   title: string;
   spots: ClusterSpotRnDto[];
+  /** 명소 상세에서 점수 갱신 후 클러스터 목록 재조회 */
+  scoreRefreshToken?: number;
   onClose: () => void;
   onPickSpot: (spot: ClusterSpotRnDto) => void;
   onSessionInvalidated?: () => Promise<void>;
@@ -41,6 +43,7 @@ export function MapClusterSpotsSheet({
   visible,
   title,
   spots,
+  scoreRefreshToken = 0,
   onClose,
   onPickSpot,
   onSessionInvalidated,
@@ -92,7 +95,7 @@ export function MapClusterSpotsSheet({
     return () => {
       cancelled = true;
     };
-  }, [visible, idsKey, onSessionInvalidated]);
+  }, [visible, idsKey, scoreRefreshToken, onSessionInvalidated]);
 
   const rowShellStyle = (pressed: boolean, isSelected: boolean): ViewStyle => ({
     ...glassCardStyle(theme, {

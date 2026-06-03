@@ -80,7 +80,7 @@ export class CorrectionsService {
   async create(userId: string, dto: CreateCorrectionSubmissionDto) {
     const spot = await this.spots.findById(dto.spotId);
     if (!spot) {
-      throw new NotFoundException('해당 spotId의 명소가 없습니다.');
+      throw new NotFoundException('해당 명소를 찾을 수 없습니다.');
     }
 
     const row = this.repo.create({
@@ -109,7 +109,7 @@ export class CorrectionsService {
   async getAggregate(spotId: string) {
     const spot = await this.spots.findById(spotId);
     if (!spot) {
-      throw new NotFoundException('해당 spotId의 명소가 없습니다.');
+      throw new NotFoundException('해당 명소를 찾을 수 없습니다.');
     }
     const submissionCount = await this.repo.count({ where: { spotId } });
     return {

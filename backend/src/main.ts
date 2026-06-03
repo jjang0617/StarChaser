@@ -1,24 +1,20 @@
 import './load-env';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { createGlobalValidationPipe } from './common/validation-pipe.factory';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const logger = new Logger('Bootstrap');
 
+  // JSON API 위주 — 기본 CSP는 /kakao.html의 카카오 SDK·타일을 막아 MAP WebView가 빈 화면이 됨
+  app.use(helmet({ contentSecurityPolicy: false }));
   app.useGlobalFilters(new AllExceptionsFilter());
-
-  // 전역 ValidationPipe — DTO 유효성 검사
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,        // DTO에 없는 필드 자동 제거
-      forbidNonWhitelisted: true,
-      transform: true,        // 타입 자동 변환
-    }),
-  );
+  app.useGlobalPipes(createGlobalValidationPipe());
 
   // CORS — 개발 환경에서 Expo 허용
   app.enableCors({

@@ -13,7 +13,7 @@ export class VerifyCodeDto {
 
   @ApiProperty({ enum: ['register', 'reset-password'] })
   @IsIn(['register', 'reset-password'], {
-    message: 'purpose는 register 또는 reset-password여야 합니다.',
+    message: '요청 유형이 올바르지 않습니다.',
   })
   purpose: 'register' | 'reset-password';
 }

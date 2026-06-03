@@ -1,7 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   ScrollView,
   StyleSheet,
@@ -9,17 +8,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import {
-  ApiRequestError,
-  fetchStarIndex,
-  fetchStarIndexAtLocation,
-  SessionExpiredError,
-} from '../../lib/api-client';
+import { ApiRequestError, SessionExpiredError } from '../../lib/api-client';
 import { fetchSpotsSearch } from '../../lib/spots-api';
 import { spotNameWithoutRegionPrefix } from '../../lib/spot-display-name';
-import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
-import { MeasuringDots } from '../main/AnimatedStarIndexGauge';
-import type { StarIndexResponseDto, SpotDto } from '../../lib/types/api';
+import type { SpotDto } from '../../lib/types/api';
 import { glassCardStyle, spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 import { AppPressable } from '../ui/AppPressable';
@@ -31,7 +23,8 @@ export interface DiaryLocationValue {
   mode: DiaryLocationMode;
   spotId: string | null;
   label: string;
-  starIndex: StarIndexResponseDto;
+  /** 명소 모드 — 시·도 포함 전체 이름 */
+  spotFullName?: string;
   customLat?: number;
   customLng?: number;
 }
@@ -57,51 +50,6 @@ function spotListLabel(spot: SpotDto): string {
   return short || spot.name;
 }
 
-function LocationScoreBadge({
-  starIndex,
-  loading,
-}: {
-  starIndex?: StarIndexResponseDto;
-  loading?: boolean;
-}) {
-  const { theme } = useTheme();
-  if (loading) {
-    return (
-      <View style={badgeStyles.wrap}>
-        <Text style={[badgeStyles.measuringCaption, { color: theme.mutedForeground }]}>
-          측정 중
-        </Text>
-        <MeasuringDots color={theme.primaryGlow} />
-      </View>
-    );
-  }
-  if (!starIndex) return null;
-  const display = getStarIndexScoreDisplay(starIndex.score);
-  return (
-    <View style={badgeStyles.wrap}>
-      <Text style={[badgeStyles.caption, { color: theme.mutedForeground }]}>Star-Index</Text>
-      <Text
-        style={[
-          badgeStyles.score,
-          {
-            color: display.measurable ? theme.primaryGlow : theme.destructive,
-            fontFamily: 'SpaceMono-Regular',
-          },
-        ]}
-      >
-        {display.label}
-      </Text>
-    </View>
-  );
-}
-
-const badgeStyles = StyleSheet.create({
-  wrap: { alignItems: 'flex-end', minWidth: 56 },
-  measuringCaption: { fontSize: 10, fontWeight: '600', marginBottom: 2 },
-  caption: { fontSize: 10, letterSpacing: 0.3, marginBottom: 2 },
-  score: { fontSize: 20, lineHeight: 24, fontWeight: '600' },
-});
-
 export function DiaryLocationField({
   value,
   onChange,
@@ -119,12 +67,9 @@ export function DiaryLocationField({
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchErr, setSearchErr] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
-  const [switching, setSwitching] = useState(false);
-  const [switchErr, setSwitchErr] = useState<string | null>(null);
   const searchSeq = useRef(0);
 
   const coordsReady = hasCoords(observerLat, observerLng);
-  const scoreDisplay = getStarIndexScoreDisplay(value.starIndex.score);
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -175,105 +120,44 @@ export function DiaryLocationField({
     return () => clearTimeout(timer);
   }, [searchQuery, pickerOpen, onSessionInvalidated]);
 
-  const applyCurrent = useCallback(async () => {
-    setSwitching(true);
-    setSwitchErr(null);
-    try {
-      let starIndex = value.starIndex;
-      if (coordsReady) {
-        starIndex = await fetchStarIndexAtLocation(observerLat!, observerLng!);
-      }
-      const label = placeLabel?.trim() || starIndex.name || '현재 위치';
-      onChange({
-        mode: 'current',
-        spotId: null,
-        label,
-        starIndex,
-      });
-      setPickerOpen(false);
-    } catch (e) {
-      if (e instanceof SessionExpiredError) {
-        await onSessionInvalidated();
-        return;
-      }
-      setSwitchErr(
-        e instanceof ApiRequestError ? e.message : '위치 정보를 불러오지 못했습니다.',
-      );
-    } finally {
-      setSwitching(false);
-    }
-  }, [
-    coordsReady,
-    observerLat,
-    observerLng,
-    onChange,
-    onSessionInvalidated,
-    placeLabel,
-    value.starIndex,
-  ]);
+  const applyCurrent = useCallback(() => {
+    onChange({
+      mode: 'current',
+      spotId: null,
+      label: coordsReady
+        ? placeLabel?.trim() || '현재 위치'
+        : '현재 위치 (좌표 없음)',
+    });
+    setPickerOpen(false);
+  }, [coordsReady, onChange, placeLabel]);
 
   const applySpot = useCallback(
-    async (spot: SpotDto) => {
-      setSwitching(true);
-      setSwitchErr(null);
-      try {
-        const starIndex = await fetchStarIndex(spot.id);
-        onChange({
-          mode: 'spot',
-          spotId: spot.id,
-          label: spotListLabel(spot),
-          starIndex,
-        });
-        setPickerOpen(false);
-      } catch (e) {
-        if (e instanceof SessionExpiredError) {
-          await onSessionInvalidated();
-          return;
-        }
-        setSwitchErr(
-          e instanceof ApiRequestError ? e.message : '명소 정보를 불러오지 못했습니다.',
-        );
-      } finally {
-        setSwitching(false);
-      }
+    (spot: SpotDto) => {
+      onChange({
+        mode: 'spot',
+        spotId: spot.id,
+        label: spotListLabel(spot),
+        spotFullName: spot.name,
+      });
+      setPickerOpen(false);
     },
-    [onChange, onSessionInvalidated],
+    [onChange],
   );
 
   const applyCustomPick = useCallback(
-    async (pick: { lat: number; lng: number; label: string }) => {
-      setSwitching(true);
-      setSwitchErr(null);
-      try {
-        const starIndex = await fetchStarIndexAtLocation(pick.lat, pick.lng);
-        onChange({
-          mode: 'custom',
-          spotId: null,
-          label: pick.label,
-          starIndex,
-          customLat: pick.lat,
-          customLng: pick.lng,
-        });
-        setCustomOpen(false);
-        setPickerOpen(false);
-      } catch (e) {
-        if (e instanceof SessionExpiredError) {
-          await onSessionInvalidated();
-          return;
-        }
-        setSwitchErr(
-          e instanceof ApiRequestError ? e.message : '위치 정보를 불러오지 못했습니다.',
-        );
-      } finally {
-        setSwitching(false);
-      }
+    (pick: { lat: number; lng: number; label: string }) => {
+      onChange({
+        mode: 'custom',
+        spotId: null,
+        label: pick.label,
+        customLat: pick.lat,
+        customLng: pick.lng,
+      });
+      setCustomOpen(false);
+      setPickerOpen(false);
     },
-    [onChange, onSessionInvalidated],
+    [onChange],
   );
-
-  const openCustom = useCallback(() => {
-    setCustomOpen(true);
-  }, []);
 
   const noSpotResults =
     searchQuery.trim().length >= 1 && hasSearched && !searchLoading && searchResults.length === 0;
@@ -296,78 +180,35 @@ export function DiaryLocationField({
         accessibilityRole="button"
         accessibilityLabel="관측 위치 선택"
       >
-        <View style={styles.selectorTop}>
-          <Feather name="map-pin" size={18} color={theme.primaryGlow} style={styles.selectorIcon} />
-          <View style={styles.selectorTextBlock}>
-            <Text
-              style={[styles.selectorText, { color: theme.foreground }]}
-              numberOfLines={2}
-            >
-              {value.label}
+        <Feather name="map-pin" size={18} color={theme.primaryGlow} style={styles.selectorIcon} />
+        <View style={styles.selectorTextBlock}>
+          <Text style={[styles.selectorText, { color: theme.foreground }]} numberOfLines={2}>
+            {value.label}
+          </Text>
+          {value.mode === 'custom' ? (
+            <Text style={[styles.selectorSub, { color: theme.mutedForeground }]}>
+              직접 입력한 위치
             </Text>
-            {value.mode === 'custom' ? (
-              <Text style={[styles.selectorSub, { color: theme.mutedForeground }]}>
-                직접 입력한 위치
-              </Text>
-            ) : value.mode === 'spot' ? (
-              <Text style={[styles.selectorSub, { color: theme.mutedForeground }]}>
-                별보기 명소
-              </Text>
-            ) : (
-              <Text style={[styles.selectorSub, { color: theme.mutedForeground }]}>
-                현재 위치
-              </Text>
-            )}
-          </View>
-          <LocationScoreBadge
-            starIndex={value.starIndex}
-            loading={switching && (!pickerOpen || customOpen)}
-          />
-          <Feather name="chevron-right" size={18} color={theme.mutedForeground} />
+          ) : value.mode === 'spot' ? (
+            <Text style={[styles.selectorSub, { color: theme.mutedForeground }]}>
+              별보기 명소
+            </Text>
+          ) : (
+            <Text style={[styles.selectorSub, { color: theme.mutedForeground }]}>
+              현재 위치
+            </Text>
+          )}
         </View>
-
-        {switching && (!pickerOpen || customOpen) ? (
-          <View style={[styles.scoreBar, { borderTopColor: theme.borderSubtle }]}>
-            <Text style={[styles.scoreBarHint, { color: theme.mutedForeground }]}>
-              점수 측정 중이에요
-            </Text>
-            <Text style={[styles.scoreBarValue, { color: theme.primaryGlow, fontSize: 13 }]}>
-              구름·미세먼지·달빛 확인 중
-            </Text>
-          </View>
-        ) : null}
-
-        {!switching && scoreDisplay.measurable ? (
-          <View style={[styles.scoreBar, { borderTopColor: theme.borderSubtle }]}>
-            <Text style={[styles.scoreBarHint, { color: theme.mutedForeground }]}>
-              이 위치 기준 관측 점수
-            </Text>
-            <Text
-              style={[
-                styles.scoreBarValue,
-                { color: theme.primaryGlow, fontFamily: 'SpaceMono-Regular' },
-              ]}
-            >
-              {scoreDisplay.label}
-            </Text>
-          </View>
-        ) : null}
+        <Feather name="chevron-right" size={18} color={theme.mutedForeground} />
       </AppPressable>
-
-      {switchErr && !pickerOpen ? (
-        <Text style={[styles.err, { color: theme.destructive }]}>{switchErr}</Text>
-      ) : null}
 
       <Modal
         visible={pickerOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => !switching && setPickerOpen(false)}
+        onRequestClose={() => setPickerOpen(false)}
       >
-        <AppPressable
-          style={styles.modalBackdrop}
-          onPress={() => !switching && setPickerOpen(false)}
-        >
+        <AppPressable style={styles.modalBackdrop} onPress={() => setPickerOpen(false)}>
           <AppPressable
             style={[styles.modalSheet, glassCardStyle(theme)]}
             onPress={(e) => e.stopPropagation()}
@@ -376,12 +217,8 @@ export function DiaryLocationField({
               관측 위치 선택
             </Text>
 
-            {switching ? (
-              <ActivityIndicator color={theme.primaryGlow} style={{ marginVertical: spacing.md }} />
-            ) : null}
-
-            {switchErr ? (
-              <Text style={[styles.err, { color: theme.destructive }]}>{switchErr}</Text>
+            {searchErr ? (
+              <Text style={[styles.err, { color: theme.destructive }]}>{searchErr}</Text>
             ) : null}
 
             <ScrollView
@@ -390,14 +227,14 @@ export function DiaryLocationField({
               keyboardShouldPersistTaps="handled"
             >
               <AppPressable
-                onPress={() => void applyCurrent()}
-                disabled={switching}
+                onPress={applyCurrent}
                 style={({ pressed }) => [
                   styles.modalRow,
                   value.mode === 'current' && {
                     backgroundColor: 'rgba(141, 220, 255, 0.08)',
                     borderColor: theme.primaryGlowBorder,
                   },
+                  { opacity: pressed ? 0.88 : 1 },
                 ]}
               >
                 <View style={styles.rowMain}>
@@ -434,22 +271,13 @@ export function DiaryLocationField({
                   onChangeText={setSearchQuery}
                   placeholder="지역·명소 이름 (예: 강원, 제주)"
                   placeholderTextColor={theme.mutedForeground}
-                  editable={!switching}
                   style={[styles.searchInput, { color: theme.foreground }]}
                 />
               </View>
 
-              <Text style={[styles.searchHint, { color: theme.mutedForeground }]}>
-                검색어를 입력하면 해당 지역·명소가 표시됩니다.
-              </Text>
-
               {searchQuery.trim().length >= 1 && searchLoading ? (
-                <ActivityIndicator color={theme.primaryGlow} style={{ marginVertical: 12 }} />
-              ) : null}
-
-              {searchErr ? (
-                <Text style={[styles.err, { color: theme.destructive, marginBottom: spacing.sm }]}>
-                  {searchErr}
+                <Text style={[styles.searchHint, { color: theme.mutedForeground }]}>
+                  검색 중…
                 </Text>
               ) : null}
 
@@ -458,14 +286,14 @@ export function DiaryLocationField({
                 return (
                   <AppPressable
                     key={spot.id}
-                    onPress={() => void applySpot(spot)}
-                    disabled={switching}
+                    onPress={() => applySpot(spot)}
                     style={({ pressed }) => [
                       styles.modalRow,
                       selected && {
                         backgroundColor: 'rgba(141, 220, 255, 0.08)',
                         borderColor: theme.primaryGlowBorder,
                       },
+                      { opacity: pressed ? 0.88 : 1 },
                     ]}
                   >
                     <View style={styles.rowMain}>
@@ -498,9 +326,7 @@ export function DiaryLocationField({
                   },
                 ]}
               >
-                <View style={styles.directCardIcon}>
-                  <Feather name="help-circle" size={20} color={theme.primaryGlow} />
-                </View>
+                <Feather name="help-circle" size={20} color={theme.primaryGlow} />
                 <Text style={[styles.directCardTitle, { color: theme.foreground }]}>
                   관측하신 장소가 명소로 등록되어 있지 않나요?
                 </Text>
@@ -509,17 +335,13 @@ export function DiaryLocationField({
                     ? `"${searchQuery.trim()}"(으)로 등록된 명소가 없습니다.`
                     : '등록되지 않은 곳도 장소 검색으로 기록할 수 있습니다.'}
                 </Text>
-                <Text style={[styles.directCardSub, { color: theme.mutedForeground }]}>
-                  명소 제보 탭에서 장소를 제보하시면, 검토 후 명소로 등록될 수 있어요.
-                </Text>
                 <AppPressable
-                  onPress={openCustom}
-                  disabled={switching}
+                  onPress={() => setCustomOpen(true)}
                   style={({ pressed }) => [
                     styles.directBtn,
                     {
                       backgroundColor: theme.primaryGlow,
-                      opacity: switching ? 0.5 : pressed ? 0.9 : 1,
+                      opacity: pressed ? 0.9 : 1,
                     },
                   ]}
                 >
@@ -529,34 +351,6 @@ export function DiaryLocationField({
                   </Text>
                 </AppPressable>
               </View>
-
-              {value.mode === 'custom' ? (
-                <AppPressable
-                  onPress={openCustom}
-                  disabled={switching}
-                  style={({ pressed }) => [
-                    styles.modalRow,
-                    {
-                      backgroundColor: 'rgba(141, 220, 255, 0.08)',
-                      borderColor: theme.primaryGlowBorder,
-                      marginTop: spacing.sm,
-                    },
-                  ]}
-                >
-                  <View style={styles.rowMain}>
-                    <Feather name="map-pin" size={16} color={theme.primaryGlow} />
-                    <View style={styles.rowText}>
-                      <Text style={[styles.rowTitle, { color: theme.foreground }]}>
-                        {value.label}
-                      </Text>
-                      <Text style={[styles.rowSub, { color: theme.mutedForeground }]}>
-                        직접 입력한 위치 · 탭하여 변경
-                      </Text>
-                    </View>
-                  </View>
-                  <LocationScoreBadge starIndex={value.starIndex} />
-                </AppPressable>
-              ) : null}
             </ScrollView>
           </AppPressable>
         </AppPressable>
@@ -565,10 +359,8 @@ export function DiaryLocationField({
       <DiaryLocationCustomModal
         visible={customOpen}
         initialQuery={searchQuery.trim()}
-        onClose={() => {
-          if (!switching) setCustomOpen(false);
-        }}
-        onConfirm={applyCustomPick}
+        onClose={() => setCustomOpen(false)}
+        onConfirm={async (pick) => applyCustomPick(pick)}
         onSessionInvalidated={onSessionInvalidated}
       />
     </View>
@@ -579,43 +371,18 @@ const styles = StyleSheet.create({
   wrap: { gap: spacing.sm },
   label: { fontSize: 13, fontWeight: '500' },
   selector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     borderWidth: 1,
     borderRadius: 14,
     paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 12,
-    gap: spacing.md,
+    paddingVertical: 14,
   },
-  selectorTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-  },
-  selectorIcon: { marginTop: 2 },
-  selectorTextBlock: {
-    flex: 1,
-    gap: 6,
-    paddingRight: spacing.xs,
-  },
-  selectorText: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  selectorSub: {
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  scoreBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  scoreBarHint: { fontSize: 12 },
-  scoreBarValue: { fontSize: 18, fontWeight: '600' },
+  selectorIcon: { marginTop: 1 },
+  selectorTextBlock: { flex: 1, gap: 4 },
+  selectorText: { fontSize: 15, lineHeight: 22, fontWeight: '500' },
+  selectorSub: { fontSize: 12, lineHeight: 17 },
   err: { fontSize: 12, lineHeight: 17 },
   modalBackdrop: {
     flex: 1,
@@ -654,11 +421,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     marginBottom: spacing.xs,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    paddingVertical: 10,
-  },
+  searchInput: { flex: 1, fontSize: 14, paddingVertical: 10 },
   searchHint: {
     fontSize: 12,
     lineHeight: 17,
@@ -694,7 +457,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  directCardIcon: { marginBottom: spacing.xs },
   directCardTitle: {
     fontSize: 14,
     fontWeight: '600',
@@ -705,7 +467,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
-    marginBottom: spacing.xs,
   },
   directBtn: {
     flexDirection: 'row',

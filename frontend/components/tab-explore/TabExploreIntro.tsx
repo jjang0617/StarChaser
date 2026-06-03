@@ -45,7 +45,7 @@ const COPY: Record<
     titleHighlight: '지도',
     titleLine2: '로 찾아가요',
     subtitle:
-      '전국의 별보기 명소와 Star-Index를 한눈에 살펴보세요.\n광공해 켜기로, 도시 불빛이 닿지 않은 어두운 곳을 골라 보세요.',
+      '전국 명소와 Star-Index.\n광공해를 켜면 불빛이 덜한 곳을 찾을 수 있어요.',
     buttonLabel: '지도 열기',
   },
 };

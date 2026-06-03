@@ -4,15 +4,15 @@ export type ObservationLocationMode = 'current' | 'spot' | 'custom';
 export function observationPlaceLabelForSave(params: {
   mode: ObservationLocationMode;
   label: string;
-  starIndexName: string;
+  spotFullName?: string;
 }): string {
   if (params.mode === 'spot') {
-    const full = params.starIndexName.trim();
+    const full = params.spotFullName?.trim();
     if (full) return full;
   }
   const label = params.label.trim();
   if (label) return label;
-  return params.starIndexName.trim() || '관측 위치';
+  return params.spotFullName?.trim() || '관측 위치';
 }
 
 export function formatObservationPlaceLabel(

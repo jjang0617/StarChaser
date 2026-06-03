@@ -27,6 +27,9 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, nickname: string, verificationCode: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** 로그아웃 직후 Auth 화면에서 완료 알림 */
+  justLoggedOut: boolean;
+  clearJustLoggedOut: () => void;
   /** refresh 실패 등 — 저장소 비우고 로그인 화면으로 */
   onSessionInvalidated: () => Promise<void>;
   /** 프로필 수정 후 context·AsyncStorage 동기화 */
@@ -59,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(false);
   const [user, setUser] = useState<StoredUser | null>(null);
+  const [justLoggedOut, setJustLoggedOut] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +122,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await clearSession();
     setHasValidSession(false);
     setUser(null);
+    setJustLoggedOut(true);
+  }, []);
+
+  const clearJustLoggedOut = useCallback(() => {
+    setJustLoggedOut(false);
   }, []);
 
   const onSessionInvalidated = useCallback(async () => {
@@ -140,6 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      justLoggedOut,
+      clearJustLoggedOut,
       onSessionInvalidated,
       applyProfile,
     }),
@@ -150,6 +161,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      justLoggedOut,
+      clearJustLoggedOut,
       onSessionInvalidated,
       applyProfile,
     ],

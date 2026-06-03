@@ -7,8 +7,8 @@ export class CreateObservationMismatchReportDto {
   @IsUUID()
   observationId: string;
 
-  @ApiProperty({ enum: ['unmeasurable_but_success', 'high_score_but_fail'] })
-  @IsIn(['unmeasurable_but_success', 'high_score_but_fail'])
+  @ApiProperty({ enum: ['felt_score_differs'] })
+  @IsIn(['felt_score_differs'])
   mismatchType: ObservationMismatchType;
 
   @ApiPropertyOptional({ maxLength: 500 })

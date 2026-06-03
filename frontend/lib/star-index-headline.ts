@@ -16,10 +16,10 @@ export function getStarIndexHeadline(score: number): StarIndexHeadline {
 
   if (!Number.isFinite(n) || n < STAR_INDEX_DISPLAY_MIN_SCORE) {
     return {
-      line1: '오늘 밤 하늘은',
+      line1: '현재 하늘은',
       highlight: formatUnmeasurableStarIndexLabel(score),
       line2: '예요',
-      hint: '구름·미세먼지·달빛 등 조건이 좋지 않아요. 잠시 후 다시 확인해 보세요.',
+      hint: '조건이 좋지 않아요. 잠시 후 다시 확인해 보세요.',
     };
   }
 
@@ -69,10 +69,10 @@ export function getStarIndexHeadline(score: number): StarIndexHeadline {
   }
 
   return {
-    line1: '오늘 밤 하늘은',
+    line1: '현재 하늘은',
     highlight: '흐릿',
     line2: '할 수 있어요',
-    hint: '별이 잘 안 보일 수 있어요. 구름·미세먼지·달빛을 확인해 보세요.',
+    hint: '별이 잘 안 보일 수 있어요.',
   };
 }
 

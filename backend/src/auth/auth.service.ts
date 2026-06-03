@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
   UnauthorizedException,
@@ -270,13 +271,13 @@ export class AuthService {
       );
     } catch {
       throw new UnauthorizedException(
-        '유효하지 않거나 만료된 refresh token입니다.',
+        '세션이 만료되었습니다. 다시 로그인해 주세요.',
       );
     }
 
     if (payload.type !== 'refresh') {
       throw new UnauthorizedException(
-        'refresh token이 아닙니다. access token으로는 갱신할 수 없습니다.',
+        '세션이 만료되었습니다. 다시 로그인해 주세요.',
       );
     }
 
@@ -288,7 +289,9 @@ export class AuthService {
     }
 
     if (user.refreshToken !== dto.refreshToken) {
-      throw new UnauthorizedException('저장된 refresh token과 일치하지 않습니다.');
+      throw new UnauthorizedException(
+        '세션이 만료되었습니다. 다시 로그인해 주세요.',
+      );
     }
 
     const accessToken = await this.signAccessToken(user);
@@ -309,7 +312,9 @@ export class AuthService {
   private async signAccessToken(user: UserEntity): Promise<string> {
     const secret = this.config.get<string>('JWT_SECRET');
     if (!secret) {
-      throw new Error('JWT_SECRET이 설정되지 않았습니다.');
+      throw new InternalServerErrorException(
+        '일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+      );
     }
     const expiresIn =
       this.config.get<string>('JWT_EXPIRES_IN') ?? '1h';
@@ -322,7 +327,9 @@ export class AuthService {
   private async signRefreshToken(user: UserEntity): Promise<string> {
     const secret = this.config.get<string>('JWT_REFRESH_SECRET');
     if (!secret) {
-      throw new Error('JWT_REFRESH_SECRET이 설정되지 않았습니다.');
+      throw new InternalServerErrorException(
+        '일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+      );
     }
     const expiresIn =
       this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '30d';

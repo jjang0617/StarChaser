@@ -9,6 +9,8 @@ import type { ComponentProps } from 'react';
 export type ProfileSettingIconName =
   | 'bell'
   | 'star'
+  | 'clock'
+  | 'trending-up'
   | 'camera'
   | 'map-pin'
   | 'navigation'
@@ -26,6 +28,8 @@ const FEATHER_ICONS: Record<
 > = {
   bell: 'bell',
   star: 'star',
+  clock: 'clock',
+  'trending-up': 'trending-up',
   camera: 'camera',
   'map-pin': 'map-pin',
   navigation: 'navigation',

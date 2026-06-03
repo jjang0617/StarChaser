@@ -87,6 +87,38 @@ export function toggleSpotBookmark(userId: string, spotId: string): Promise<bool
   }).then(() => saved);
 }
 
+export async function removeRecentSpot(
+  userId: string,
+  spotId: string,
+): Promise<void> {
+  await update(userId, (s) => ({
+    ...s,
+    recent: s.recent.filter((id) => id !== spotId),
+  }));
+}
+
+export async function removeSpotViewRecord(
+  userId: string,
+  spotId: string,
+): Promise<void> {
+  await update(userId, (s) => {
+    if (!(spotId in s.viewCounts)) return s;
+    const next = { ...s.viewCounts };
+    delete next[spotId];
+    return { ...s, viewCounts: next };
+  });
+}
+
+export async function removeSpotBookmark(
+  userId: string,
+  spotId: string,
+): Promise<void> {
+  await update(userId, (s) => ({
+    ...s,
+    bookmarks: s.bookmarks.filter((id) => id !== spotId),
+  }));
+}
+
 export function topViewedSpotIds(
   store: SpotActivityStore,
   limit: number,
@@ -102,4 +134,12 @@ export function topViewedSpotIds(
     })
     .slice(0, limit)
     .map(([spotId, count]) => ({ spotId, count }));
+}
+
+/** viewCounts 전체 (조회수 내림차순) */
+export function allViewedSpotIds(
+  store: SpotActivityStore,
+): Array<{ spotId: string; count: number }> {
+  const n = Object.keys(store.viewCounts).length;
+  return topViewedSpotIds(store, Math.max(n, 1));
 }

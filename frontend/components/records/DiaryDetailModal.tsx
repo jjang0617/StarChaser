@@ -25,10 +25,8 @@ import {
   type ObservationRowDto,
 } from '../../lib/api-client';
 import {
-  detectObservationMismatch,
-  mismatchHint,
-  mismatchTypeLabel,
-  type ObservationMismatchType,
+  FELT_SCORE_MISMATCH_PROMPT,
+  OBSERVATION_MISMATCH_TYPE_FELT,
 } from '../../lib/observation-mismatch';
 import { formatObservationPlaceLabel } from '../../lib/observation-place-label';
 import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
@@ -89,30 +87,28 @@ function StarIndexStatCard({ value }: { value: number }) {
     <View style={styles.statCard}>
       <View style={styles.statLabelRow}>
         <Feather name="star" size={13} color={accent} />
-        <Text style={[styles.statCaption, { color: theme.mutedForeground }]}>Star-Index</Text>
+        <Text style={[styles.statCaption, { color: theme.mutedForeground }]}>
+          느낀 점수
+        </Text>
       </View>
       <Text style={[styles.statValue, { color: accent }]}>{si.label}</Text>
-      {si.measurable ? (
-        <View style={[styles.gaugeTrack, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
-          <View
-            style={[
-              styles.gaugeFill,
-              { width: `${si.gaugePercent}%`, backgroundColor: accent },
-            ]}
-          />
-        </View>
-      ) : null}
+      <View style={[styles.gaugeTrack, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
+        <View
+          style={[
+            styles.gaugeFill,
+            { width: `${si.gaugePercent}%`, backgroundColor: accent },
+          ]}
+        />
+      </View>
     </View>
   );
 }
 
 function MismatchReportSection({
   observationId,
-  mismatchType,
   onSessionInvalidated,
 }: {
   observationId: string;
-  mismatchType: ObservationMismatchType;
   onSessionInvalidated: () => Promise<void>;
 }) {
   const { theme } = useTheme();
@@ -143,7 +139,7 @@ function MismatchReportSection({
     try {
       await submitObservationMismatchReport({
         observationId,
-        mismatchType,
+        mismatchType: OBSERVATION_MISMATCH_TYPE_FELT,
       });
       setReportSubmitted(true);
     } catch (e) {
@@ -161,38 +157,51 @@ function MismatchReportSection({
     } finally {
       setReportBusy(false);
     }
-  }, [mismatchType, observationId, onSessionInvalidated]);
+  }, [observationId, onSessionInvalidated]);
 
   return (
-    <View style={[styles.reportBox, { borderColor: theme.cardBorder }]}>
-      <View style={styles.reportHeader}>
-        <Feather name="alert-circle" size={14} color={theme.secondary} />
-        <Text style={[styles.reportTag, { color: theme.secondary }]}>
-          {mismatchTypeLabel(mismatchType)}
-        </Text>
-      </View>
-      <Text style={[styles.reportHint, { color: theme.mutedForeground }]}>
-        {mismatchHint(mismatchType)}
-      </Text>
-      {reportSubmitted ? (
-        <Text style={[styles.reportDone, { color: theme.primaryGlow }]}>
-          제보가 접수되었습니다. 검토 후 반영하겠습니다.
-        </Text>
-      ) : (
-        <View style={{ marginTop: spacing.sm }}>
-          <Button
-            label="불일치 제보하기"
-            variant="outline"
-            size="sm"
-            loading={reportBusy}
-            disabled={reportBusy}
-            onPress={() => void submitReport()}
-          />
+    <View style={styles.reportSection}>
+      <View style={[styles.reportSectionDivider, { backgroundColor: theme.border }]} />
+      <View
+        style={[
+          styles.reportCard,
+          {
+            backgroundColor: theme.primaryGlowMuted,
+            borderColor: theme.cardBorder,
+          },
+        ]}
+      >
+        <View style={styles.reportTipRow}>
+          <Feather name="info" size={14} color={theme.primaryGlow} />
+          <Text style={[styles.reportTipText, { color: theme.primaryGlow }]}>
+            {FELT_SCORE_MISMATCH_PROMPT}
+          </Text>
         </View>
-      )}
-      {reportError ? (
-        <Text style={[styles.err, { color: theme.destructive }]}>{reportError}</Text>
-      ) : null}
+
+        <View style={[styles.reportInnerDivider, { backgroundColor: theme.border }]} />
+
+        {reportSubmitted ? (
+          <Text style={[styles.reportDone, { color: theme.primaryGlow }]}>
+            제보가 접수되었습니다. 검토 후 반영하겠습니다.
+          </Text>
+        ) : (
+          <View style={styles.reportAction}>
+            <Button
+              label="불일치 제보하기"
+              variant="outline"
+              size="sm"
+              fullWidth
+              loading={reportBusy}
+              disabled={reportBusy}
+              onPress={() => void submitReport()}
+            />
+          </View>
+        )}
+
+        {reportError ? (
+          <Text style={[styles.err, { color: theme.destructive }]}>{reportError}</Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -299,7 +308,6 @@ export function DiaryDetailModal({
 
   if (!row) return null;
 
-  const mismatchType = detectObservationMismatch(row.starIndexVal, row.result);
   const place = formatObservationPlaceLabel(row.placeLabel);
 
   return (
@@ -343,19 +351,16 @@ export function DiaryDetailModal({
               <StarIndexStatCard value={row.starIndexVal} />
             </View>
 
-            {mismatchType ? (
-              <MismatchReportSection
-                observationId={row.id}
-                mismatchType={mismatchType}
-                onSessionInvalidated={onSessionInvalidated}
-              />
-            ) : null}
-
             {row.photos.length > 0 ? <DiaryPhotoGallery photos={row.photos} /> : null}
 
             <Text style={[styles.content, { color: theme.foreground }]}>
               {(row.content ?? '').trim() || '내용 없음'}
             </Text>
+
+            <MismatchReportSection
+              observationId={row.id}
+              onSessionInvalidated={onSessionInvalidated}
+            />
 
             {error ? (
               <Text style={[styles.err, { color: theme.destructive }]}>{error}</Text>
@@ -531,30 +536,45 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 2,
   },
-  reportBox: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingVertical: spacing.sm,
-    gap: 6,
+  reportSection: {
+    marginTop: spacing.lg,
+    gap: spacing.md,
   },
-  reportHeader: {
+  reportSectionDivider: {
+    height: 1,
+    width: '100%',
+  },
+  reportCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  reportTipRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  reportTag: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.15,
-  },
-  reportHint: {
+  reportTipText: {
+    flex: 1,
     fontSize: 12,
-    lineHeight: 18,
+    lineHeight: 17,
+    fontWeight: '500',
+  },
+  reportInnerDivider: {
+    height: 1,
+    width: '100%',
+  },
+  reportAction: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   reportDone: {
     fontSize: 12,
     lineHeight: 18,
-    marginTop: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   photoSection: {
     marginHorizontal: -spacing.lg,

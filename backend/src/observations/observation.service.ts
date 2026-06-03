@@ -63,7 +63,9 @@ export class ObservationService {
       assertValidWeatherSnapshotScores(dto.weatherSnapshot);
     } catch (e) {
       if (e instanceof WeatherSnapshotValidationError) {
-        throw new BadRequestException(e.message);
+        throw new BadRequestException(
+          '날씨 점수 데이터 형식이 올바르지 않습니다.',
+        );
       }
       throw e;
     }

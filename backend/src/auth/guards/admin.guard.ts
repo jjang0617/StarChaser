@@ -25,7 +25,7 @@ export class AdminGuard implements CanActivate {
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
     if (!allowed.length) {
-      throw new ForbiddenException('ADMIN_EMAILS가 설정되지 않았습니다.');
+      throw new ForbiddenException('관리자 권한이 필요합니다.');
     }
     if (!allowed.includes(user.email.toLowerCase())) {
       throw new ForbiddenException('관리자 권한이 필요합니다.');

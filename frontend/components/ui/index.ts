@@ -1,3 +1,4 @@
+export { AppAlertModal, type AppAlertModalTone } from './AppAlertModal';
 export { AppToggle }                       from './AppToggle';
 export { Badge,     type BadgeVariant }    from './Badge';
 export { BottomTab, type BottomTabItem }   from './BottomTab';

@@ -24,8 +24,7 @@ import {
   SessionExpiredError,
   uploadObservationPhoto,
 } from '../../lib/api-client';
-import type { StarIndexResponseDto } from '../../lib/types/api';
-import { spotNameWithoutRegionPrefix } from '../../lib/spot-display-name';
+import { weatherSnapshotForManualDiaryScore } from '../../lib/diary-manual-weather-snapshot';
 import {
   DiaryLocationField,
   type DiaryLocationValue,
@@ -37,9 +36,6 @@ import type { ObservationResult } from './ObservationResultPicker';
 interface DiaryWriteModalProps {
   visible: boolean;
   result: ObservationResult;
-  starIndexData: StarIndexResponseDto;
-  initialSpotId?: string;
-  fromGps?: boolean;
   observerLat?: number | null;
   observerLng?: number | null;
   placeLabel?: string | null;
@@ -48,25 +44,11 @@ interface DiaryWriteModalProps {
   onSessionInvalidated: () => Promise<void>;
 }
 
-function initialLocationValue(
-  starIndex: StarIndexResponseDto,
-  initialSpotId: string | undefined,
-  fromGps: boolean,
-  placeLabel: string | null | undefined,
-): DiaryLocationValue {
-  if (initialSpotId && !fromGps) {
-    return {
-      mode: 'spot',
-      spotId: initialSpotId,
-      label: spotNameWithoutRegionPrefix(starIndex.name) || starIndex.name,
-      starIndex,
-    };
-  }
+function initialLocationValue(placeLabel: string | null | undefined): DiaryLocationValue {
   return {
     mode: 'current',
     spotId: null,
-    label: placeLabel?.trim() || starIndex.name || '현재 위치',
-    starIndex,
+    label: placeLabel?.trim() || '관측 위치',
   };
 }
 
@@ -77,12 +59,19 @@ function resolveSaveSpotId(location: DiaryLocationValue): string | undefined {
   return undefined;
 }
 
+function parseManualScore(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > 100) {
+    return null;
+  }
+  return n;
+}
+
 export function DiaryWriteModal({
   visible,
   result,
-  starIndexData,
-  initialSpotId,
-  fromGps = false,
   observerLat,
   observerLng,
   placeLabel,
@@ -93,9 +82,10 @@ export function DiaryWriteModal({
   const { theme } = useTheme();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [starIndexScore, setStarIndexScore] = useState('');
   const [photos, setPhotos] = useState<LocalDiaryPhoto[]>([]);
   const [location, setLocation] = useState<DiaryLocationValue>(() =>
-    initialLocationValue(starIndexData, initialSpotId, fromGps, placeLabel),
+    initialLocationValue(placeLabel),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,12 +95,11 @@ export function DiaryWriteModal({
     if (!visible) return;
     setTitle('');
     setContent('');
+    setStarIndexScore('');
     setPhotos([]);
     setError(null);
-    setLocation(
-      initialLocationValue(starIndexData, initialSpotId, fromGps, placeLabel),
-    );
-  }, [visible, starIndexData, initialSpotId, fromGps, placeLabel]);
+    setLocation(initialLocationValue(placeLabel));
+  }, [visible, placeLabel]);
 
   useEffect(() => {
     if (!error) return;
@@ -131,6 +120,11 @@ export function DiaryWriteModal({
       setError('내용을 입력해 주세요.');
       return;
     }
+    const score = parseManualScore(starIndexScore);
+    if (score == null) {
+      setError('Star-Index 점수를 0~100 사이 정수로 입력해 주세요.');
+      return;
+    }
 
     setBusy(true);
     setError(null);
@@ -138,18 +132,17 @@ export function DiaryWriteModal({
       const saveSpotId = resolveSaveSpotId(location);
       const created = await createObservation({
         spotId: saveSpotId,
-        starIndexVal: location.starIndex.score,
-        weatherSnapshot: location.starIndex.weatherSnapshot as unknown as Record<
-          string,
-          unknown
-        >,
+        starIndexVal: score,
+        weatherSnapshot: weatherSnapshotForManualDiaryScore(
+          score,
+        ) as unknown as Record<string, unknown>,
         result,
         title: trimmedTitle,
         content: trimmedContent,
         placeLabel: observationPlaceLabelForSave({
           mode: location.mode,
           label: location.label,
-          starIndexName: location.starIndex.name,
+          spotFullName: location.spotFullName,
         }),
       });
 
@@ -178,6 +171,7 @@ export function DiaryWriteModal({
     location,
     photos,
     result,
+    starIndexScore,
     title,
   ]);
 
@@ -212,6 +206,21 @@ export function DiaryWriteModal({
                 placeholder="오늘 밤하늘은 어땠나요?"
                 maxLength={120}
               />
+
+              <Input
+                label="Star-Index 점수"
+                value={starIndexScore}
+                onChangeText={(text) => {
+                  setStarIndexScore(text.replace(/[^0-9]/g, ''));
+                  if (error) setError(null);
+                }}
+                placeholder="0 ~ 100"
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+              <Text style={[styles.scoreHint, { color: theme.mutedForeground }]}>
+                그날 밤 느낀 점수를 직접 입력해 주세요.
+              </Text>
 
               <DiaryPhotoPicker photos={photos} onChange={setPhotos} disabled={busy} />
 
@@ -313,6 +322,11 @@ const styles = StyleSheet.create({
   },
   scroll: { maxHeight: 420 },
   scrollInner: { gap: spacing.md, paddingBottom: spacing.sm },
+  scoreHint: {
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: -6,
+  },
   contentWrap: { gap: spacing.sm },
   contentLabel: { fontSize: 13, fontWeight: '500' },
   contentInput: {

@@ -41,6 +41,7 @@ import { ProfileMySpotsCard } from './ProfileMySpotsCard';
 import { ProfileSection } from './ProfileSection';
 import { fetchSpotsAll } from '../../lib/spots-api';
 import { PhotographyGuideModal } from '../guide/PhotographyGuideModal';
+import { AppAlertModal } from '../ui/AppAlertModal';
 import { AppToggle } from '../ui/AppToggle';
 import { GlassCard } from '../ui/GlassCard';
 import { ProfileSettingIcon, type ProfileSettingIconName } from './ProfileSettingIcon';
@@ -50,7 +51,6 @@ interface ProfileTabScreenProps {
   isRedMode: boolean;
   onToggleRedMode: () => void;
   onSessionInvalidated: () => Promise<void>;
-  onDevResetOnboarding?: () => void;
   locationEnabled: boolean;
   locationPrefLoaded: boolean;
   locationPermissionStatus: Location.PermissionResponse['status'] | null;
@@ -67,7 +67,6 @@ export function ProfileTabScreen({
   isRedMode,
   onToggleRedMode,
   onSessionInvalidated,
-  onDevResetOnboarding,
   locationEnabled,
   locationPrefLoaded,
   locationPermissionStatus,
@@ -96,6 +95,7 @@ export function ProfileTabScreen({
   const [spotsLoading, setSpotsLoading] = useState(false);
   const [spotPickerOpen, setSpotPickerOpen] = useState(false);
   const [photographyGuideOpen, setPhotographyGuideOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   useEffect(() => {
     void onRefreshLocationStatus();
@@ -540,19 +540,10 @@ export function ProfileTabScreen({
               icon="log-out"
               title="로그아웃"
               chevron
-              onPress={onLogout}
+              onPress={() => setLogoutConfirmOpen(true)}
             />
           </GlassCard>
         </ProfileSection>
-
-        {onDevResetOnboarding ? (
-          <Pressable
-            onPress={onDevResetOnboarding}
-            style={[styles.devBtn, { borderColor: theme.cardBorder }]}
-          >
-            <Text style={{ color: theme.mutedForeground, fontSize: 12 }}>DEV: 온보딩 다시보기</Text>
-          </Pressable>
-        ) : null}
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: theme.mutedForeground }]}>
@@ -643,6 +634,21 @@ export function ProfileTabScreen({
           setDeleteOpen(false);
           onLogout();
         }}
+      />
+
+      <AppAlertModal
+        visible={logoutConfirmOpen}
+        tone="danger"
+        title="로그아웃"
+        message="로그아웃하시겠습니까?"
+        primaryLabel="로그아웃"
+        secondaryLabel="취소"
+        onPrimary={() => {
+          setLogoutConfirmOpen(false);
+          void onLogout();
+        }}
+        onSecondary={() => setLogoutConfirmOpen(false)}
+        onRequestClose={() => setLogoutConfirmOpen(false)}
       />
     </>
   );
@@ -799,14 +805,6 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 0 },
   rowTitle: { fontSize: 14, fontWeight: '600' },
   rowSub: { fontSize: 12, marginTop: 2, lineHeight: 16 },
-  devBtn: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    padding: spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
   footer: { alignItems: 'center', marginTop: spacing.xl, gap: 4 },
   footerText: { fontSize: 11 },
   modalBackdrop: {
