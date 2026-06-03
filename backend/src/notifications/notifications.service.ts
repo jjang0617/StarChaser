@@ -77,17 +77,19 @@ export class NotificationsService {
     const forced = this.config.get<string>('FCM_TEST_SEND_ENABLED') === 'true';
     const allowed = forced || nodeEnv !== 'production';
     if (!allowed) {
-      throw new ForbiddenException('production 에서는 FCM_TEST_SEND_ENABLED=true 일 때만 사용 가능');
+      throw new ForbiddenException('이 기능은 사용할 수 없습니다.');
     }
     if (!this.fcm.isReady()) {
       throw new ServiceUnavailableException(
-        'FCM 초기화 실패 — FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY 확인',
+        '푸시 알림 서비스를 일시적으로 사용할 수 없습니다.',
       );
     }
 
     const tokens = await this.notifications.findActiveTokensByUserId(userId);
     if (tokens.length === 0) {
-      throw new ServiceUnavailableException('등록된 활성 FCM 토큰이 없습니다. 앱에서 POST /notifications/token 먼저');
+      throw new ServiceUnavailableException(
+        '등록된 알림 기기가 없습니다. 앱에서 알림을 다시 켜 주세요.',
+      );
     }
 
     const title = dto.title ?? 'StarChaser 테스트';

@@ -88,9 +88,7 @@ export class NotificationsController {
       this.config.get<string>('FCM_STAR_INDEX_MANUAL_TRIGGER_ENABLED') === 'true';
     const allowed = forced || nodeEnv !== 'production';
     if (!allowed) {
-      throw new ForbiddenException(
-        'production 에서는 FCM_STAR_INDEX_MANUAL_TRIGGER_ENABLED=true 일 때만 사용 가능',
-      );
+      throw new ForbiddenException('이 기능은 사용할 수 없습니다.');
     }
     await this.notificationScheduler.sendStarIndexThresholdDigest();
     return {
@@ -112,9 +110,7 @@ export class NotificationsController {
       this.config.get<string>('FCM_TOP3_MANUAL_TRIGGER_ENABLED') === 'true';
     const allowed = forced || nodeEnv !== 'production';
     if (!allowed) {
-      throw new ForbiddenException(
-        'production 에서는 FCM_TOP3_MANUAL_TRIGGER_ENABLED=true 일 때만 사용 가능',
-      );
+      throw new ForbiddenException('이 기능은 사용할 수 없습니다.');
     }
     await this.notificationScheduler.sendWeeklyTop3Digest();
     return {

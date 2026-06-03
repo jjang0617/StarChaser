@@ -147,9 +147,9 @@ export class ViirsController {
       const buf = Buffer.from(upstream.data);
       await this.cache.set(cacheKey, buf, VIIRS_CACHE_TTL_SEC);
       return sendRasterOk(res, format, buf);
-    } catch (e) {
+    } catch {
       return res.status(400).json({
-        message: e instanceof Error ? e.message : 'bad_request',
+        message: '요청 파라미터가 올바르지 않습니다.',
       });
     }
   }

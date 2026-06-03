@@ -19,10 +19,7 @@ import {
   type ObservationMismatchReportStatus,
   type ObservationMismatchType,
 } from './observation-mismatch-report.entity';
-import {
-  detectObservationMismatch,
-  mismatchTypeLabel,
-} from './observation-mismatch.util';
+import { mismatchTypeLabel } from './observation-mismatch.util';
 
 @Injectable()
 export class ObservationReportsService {
@@ -44,15 +41,8 @@ export class ObservationReportsService {
       throw new ForbiddenException('본인의 일기만 제보할 수 있습니다.');
     }
 
-    const expected = detectObservationMismatch(
-      observation.starIndexVal,
-      observation.result,
-    );
-    if (!expected) {
-      throw new BadRequestException('제보 대상이 아닌 기록입니다.');
-    }
-    if (expected !== dto.mismatchType) {
-      throw new BadRequestException('불일치 유형이 일치하지 않습니다.');
+    if (dto.mismatchType !== 'felt_score_differs') {
+      throw new BadRequestException('지원하지 않는 제보 유형입니다.');
     }
 
     const existing = await this.reports.findOne({

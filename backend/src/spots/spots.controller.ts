@@ -70,7 +70,7 @@ export class SpotsController {
   async findOne(@Param('id') id: string) {
     const spot = await this.spots.findById(id);
     if (!spot) {
-      throw new NotFoundException(`spot not found: ${id}`);
+      throw new NotFoundException('명소를 찾을 수 없습니다.');
     }
     return spot;
   }

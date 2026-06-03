@@ -149,6 +149,7 @@ export class UsersService {
     const user = await this.findUserOrThrow(userId);
     await this.assertCurrentPassword(user, dto.currentPassword);
 
+    await this.storage.removeAllDiaryPhotosForUser(userId);
     await this.storage.removeAvatar(userId);
     await this.verificationsRepo.delete({ email: user.email });
     await this.usersRepo.delete({ id: userId });

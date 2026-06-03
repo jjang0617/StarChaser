@@ -6,14 +6,11 @@
 import * as NavigationBar from 'expo-navigation-bar';
 import * as SystemUI from 'expo-system-ui';
 import { StatusBar } from 'expo-status-bar';
-import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  AppState,
   Easing,
-  Linking,
   Platform,
   Text,
   StyleSheet,
@@ -31,7 +28,7 @@ import {
 } from './lib/auth-storage';
 import { ThemeProvider, useTheme } from './themes/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/auth-context';
-import { BottomTab, Button, Screen, type StatefulCardError } from './components/ui';
+import { BottomTab, Button, Screen } from './components/ui';
 import { OnboardingFlow } from './components/onboarding/OnboardingFlow';
 import { SplashScreen } from './components/splash/SplashScreen';
 import {
@@ -42,10 +39,9 @@ import { MapClusterSpotsSheet } from './components/map/MapClusterSpotsSheet';
 import { MapFloatingControls } from './components/map/MapFloatingControls';
 import { MapSpotDetailModal } from './components/map/MapSpotDetailModal';
 import { ProfileTabScreen } from './components/profile/ProfileTabScreen';
-import {
-  loadLocationEnabled,
-  saveLocationEnabled,
-} from './lib/location-preferences';
+import { useDeviceLocationState } from './hooks/use-device-location';
+import { useMapSpotStarIndex } from './hooks/use-map-spot-star-index';
+import { useWeeklyTop3 } from './hooks/use-weekly-top3';
 import { recordSpotDetailView } from './lib/spot-activity-storage';
 import { fetchSpotById } from './lib/spots-api';
 import { spotNameWithoutRegionPrefix } from './lib/spot-display-name';
@@ -53,37 +49,14 @@ import { MainTabScreen } from './components/main/MainTabScreen';
 import { TabExploreIntro } from './components/tab-explore/TabExploreIntro';
 import { RecordsTabScreen } from './components/records/RecordsTabScreen';
 import { SkyTabScreen } from './components/sky/SkyTabScreen';
-import { useObserverStarIndex } from './lib/use-observer-star-index';
+import { useObserverStarIndex } from './lib/observer-star-index';
 import { AuthScreen } from './components/auth/auth-screen';
 import { getDefaultSpotId } from './lib/config';
-import {
-  ApiRequestError,
-  fetchWeeklyTop3,
-  fetchStarIndex,
-  SessionExpiredError,
-} from './lib/api-client';
-import type { StarIndexResponseDto, WeeklyTop3ItemDto } from './lib/types/api';
+import * as Location from 'expo-location';
+import { starIndexCardErrorFromApi } from './lib/star-index-errors';
 import type { ClusterSpotRnDto } from './lib/types/map-spot';
 
-function starIndexErrorFromApi(e: ApiRequestError): StatefulCardError {
-  if (e.status === 503) {
-    return {
-      cardDescription: '데이터 준비 중',
-      isTransient: true,
-      lines: [
-        e.message,
-        '서버 API 키(KMA·에어코리아·KASI)와 네트워크를 확인하세요.',
-      ],
-    };
-  }
-  return {
-    cardDescription: '오류',
-    isTransient: false,
-    lines: [e.message],
-  };
-}
-
-function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
+function AppContent() {
   const { theme, toggleRed, isRedMode } = useTheme();
   const { user, logout, onSessionInvalidated } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('main');
@@ -97,13 +70,20 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
 
   const EXPLORE_FADE_IN_MS = 420;
 
-  const [deviceLat, setDeviceLat] = useState<number | null>(null);
-  const [deviceLng, setDeviceLng] = useState<number | null>(null);
-  const [foregroundLocationStatus, setForegroundLocationStatus] =
-    useState<Location.PermissionResponse['status'] | null>(null);
-  const [locationEnabledPref, setLocationEnabledPref] = useState(false);
-  const [locationPrefLoaded, setLocationPrefLoaded] = useState(false);
-  const [locationToggleBusy, setLocationToggleBusy] = useState(false);
+  const {
+    deviceLat,
+    deviceLng,
+    foregroundLocationStatus,
+    locationEnabledPref,
+    locationPrefLoaded,
+    locationToggleBusy,
+    useDeviceLocation: deviceLocationActive,
+    hasObserverGps,
+    requestLocationPermission,
+    handleLocationEnabledChange,
+    openLocationSettings,
+    refreshForegroundLocationStatus,
+  } = useDeviceLocationState(user?.id);
 
   const mapWebViewRef = useRef<KakaoMapWebViewHandle>(null);
   /** 지도 webview 준비 여부 + 준비 전에 들어온 포커스 요청 보류 */
@@ -125,9 +105,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   } | null>(null);
   /** MAP 탭 — NASA VIIRS 타일 오버레이 ON/OFF */
   const [mapViirsEnabled, setMapViirsEnabled] = useState(false);
-  const [mapSiLoading, setMapSiLoading] = useState(false);
-  const [mapSiError, setMapSiError] = useState<StatefulCardError | null>(null);
-  const [mapSiData, setMapSiData] = useState<StarIndexResponseDto | null>(null);
+  const [mapClusterScoreRefreshToken, setMapClusterScoreRefreshToken] = useState(0);
 
   const defaultSpotId = getDefaultSpotId();
   /** TOP3·관측 로그 기준 명소 — 지도 선택과 별개로 유지 */
@@ -142,10 +120,12 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
   useEffect(() => {
     if (activeTab === 'map') {
       setMapLayerMounted(true);
+      if (mapReadyRef.current) {
+        setMapPreviewReady(true);
+      }
     } else {
       setMapExploring(false);
       mapContentFade.setValue(0);
-      setMapPreviewReady(false);
       mapWebViewRef.current?.clearMapFocus();
     }
     if (activeTab !== 'sky') {
@@ -180,126 +160,6 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     mapContentFade.setValue(1);
   }, [mapContentFade]);
 
-  const refreshForegroundLocationStatus = useCallback(async () => {
-    const existing = await Location.getForegroundPermissionsAsync();
-    setForegroundLocationStatus(existing.status);
-    return existing.status;
-  }, []);
-
-  useEffect(() => {
-    void refreshForegroundLocationStatus();
-  }, [refreshForegroundLocationStatus]);
-
-  useEffect(() => {
-    if (!user?.id) {
-      setLocationPrefLoaded(false);
-      return;
-    }
-    let mounted = true;
-    void (async () => {
-      const enabled = await loadLocationEnabled(user.id);
-      if (!mounted) return;
-      setLocationEnabledPref(enabled);
-      setLocationPrefLoaded(true);
-      if (!enabled) {
-        setDeviceLat(null);
-        setDeviceLng(null);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [user?.id]);
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        void refreshForegroundLocationStatus();
-      }
-    });
-    return () => sub.remove();
-  }, [refreshForegroundLocationStatus]);
-
-  const useDeviceLocation =
-    locationPrefLoaded &&
-    locationEnabledPref &&
-    foregroundLocationStatus === Location.PermissionStatus.GRANTED;
-
-  useEffect(() => {
-    if (!useDeviceLocation) {
-      if (!locationEnabledPref) {
-        setDeviceLat(null);
-        setDeviceLng(null);
-      }
-      return;
-    }
-    let sub: Location.LocationSubscription | undefined;
-    let alive = true;
-    void (async () => {
-      sub = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.Balanced,
-          distanceInterval: 25,
-          timeInterval: 8000,
-        },
-        (loc) => {
-          if (!alive) return;
-          setDeviceLat(loc.coords.latitude);
-          setDeviceLng(loc.coords.longitude);
-        },
-      );
-    })();
-    return () => {
-      alive = false;
-      sub?.remove();
-    };
-  }, [useDeviceLocation, locationEnabledPref]);
-
-  const requestLocationPermission = useCallback(async () => {
-    const r = await Location.requestForegroundPermissionsAsync();
-    setForegroundLocationStatus(r.status);
-    if (r.status === Location.PermissionStatus.GRANTED) {
-      try {
-        const pos = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        setDeviceLat(pos.coords.latitude);
-        setDeviceLng(pos.coords.longitude);
-      } catch {
-        /* 단말·서비스 일시 오류는 watch에서 보정 */
-      }
-    }
-    return r.status;
-  }, []);
-
-  const handleLocationEnabledChange = useCallback(
-    async (enabled: boolean) => {
-      const userId = user?.id;
-      if (!userId) return;
-      setLocationToggleBusy(true);
-      try {
-        await saveLocationEnabled(userId, enabled);
-        setLocationEnabledPref(enabled);
-        if (!enabled) {
-          setDeviceLat(null);
-          setDeviceLng(null);
-          return;
-        }
-        const status = await requestLocationPermission();
-        if (status !== Location.PermissionStatus.GRANTED) {
-          await refreshForegroundLocationStatus();
-        }
-      } finally {
-        setLocationToggleBusy(false);
-      }
-    },
-    [user?.id, requestLocationPermission, refreshForegroundLocationStatus],
-  );
-
-  const openLocationSettings = useCallback(() => {
-    void Linking.openSettings();
-  }, []);
-
   const [spotActivityRevision, setSpotActivityRevision] = useState(0);
   const refreshMySpots = useCallback(() => {
     setSpotActivityRevision((r) => r + 1);
@@ -309,20 +169,12 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     activeSpotId: focusSpotId,
     observerLat: deviceLat,
     observerLng: deviceLng,
-    useDeviceLocation,
+    useDeviceLocation: deviceLocationActive,
     locationPrefLoaded,
     locationEnabled: locationEnabledPref,
     locationPermissionStatus: foregroundLocationStatus,
     onSessionInvalidated,
   });
-
-  const hasObserverGps =
-    deviceLat != null &&
-    deviceLng != null &&
-    Number.isFinite(deviceLat) &&
-    Number.isFinite(deviceLng);
-  const canLoadStarIndex =
-    Platform.OS !== 'web' || hasObserverGps || Boolean(focusSpotId);
 
   const onMapMyLocation = useCallback(() => {
     if (deviceLat != null && deviceLng != null && Number.isFinite(deviceLat) && Number.isFinite(deviceLng)) {
@@ -332,9 +184,19 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     void requestLocationPermission();
   }, [deviceLat, deviceLng, requestLocationPermission]);
 
-  const [top3Loading, setTop3Loading] = useState(false);
-  const [top3Error, setTop3Error] = useState<string | null>(null);
-  const [top3Items, setTop3Items] = useState<WeeklyTop3ItemDto[] | null>(null);
+  const {
+    loading: top3Loading,
+    error: top3Error,
+    items: top3Items,
+  } = useWeeklyTop3(activeTab === 'main', onSessionInvalidated);
+
+  const {
+    loading: mapSiLoading,
+    error: mapSiError,
+    data: mapSiData,
+    load: loadMapSpotStarIndex,
+    reset: resetMapSpotStarIndex,
+  } = useMapSpotStarIndex(onSessionInvalidated);
 
   /** 가상 밤하늘 — UI는 한국 시각 기준, API `at`는 UTC ISO */
   const [skyObserveAtIso, setSkyObserveAtIso] = useState(() =>
@@ -353,69 +215,8 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
     setSkyObserveAtIso(new Date().toISOString());
   }, []);
 
-  useEffect(() => {
-    if (activeTab !== 'main') return;
-    let cancelled = false;
-    (async () => {
-      setTop3Loading(true);
-      setTop3Error(null);
-      try {
-        const items = await fetchWeeklyTop3();
-        if (!cancelled) setTop3Items(items);
-      } catch (e) {
-        if (e instanceof SessionExpiredError) {
-          if (!cancelled) setTop3Error('세션이 만료되었습니다. 다시 로그인해 주세요.');
-          await onSessionInvalidated();
-          return;
-        }
-        if (e instanceof ApiRequestError) {
-          if (!cancelled) setTop3Error(e.message);
-        } else {
-          if (!cancelled) setTop3Error('주간 TOP3를 불러오지 못했습니다.');
-        }
-        if (!cancelled) setTop3Items(null);
-      } finally {
-        if (!cancelled) setTop3Loading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, onSessionInvalidated]);
-
   const kakaoJavascriptKey = process.env.EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY;
   const kakaoMapPageUrl = process.env.EXPO_PUBLIC_KAKAO_MAP_PAGE_URL;
-
-  const loadMapSpotStarIndex = useCallback(
-    (spotId: string) => {
-      setMapSiLoading(true);
-      setMapSiError(null);
-      setMapSiData(null);
-      void (async () => {
-        try {
-          const data = await fetchStarIndex(spotId);
-          setMapSiData(data);
-        } catch (e) {
-          if (e instanceof SessionExpiredError) {
-            await onSessionInvalidated();
-            return;
-          }
-          if (e instanceof ApiRequestError) {
-            setMapSiError(starIndexErrorFromApi(e));
-          } else {
-            setMapSiError({
-              cardDescription: '오류',
-              isTransient: false,
-              lines: ['Star-Index를 불러오지 못했습니다.'],
-            });
-          }
-        } finally {
-          setMapSiLoading(false);
-        }
-      })();
-    },
-    [onSessionInvalidated],
-  );
 
   const openMapSpotDetail = useCallback(
     (spotId: string) => {
@@ -508,7 +309,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               mapPageUrl={kakaoMapPageUrl}
               kakaoJavascriptKey={kakaoJavascriptKey}
               spotListMode="all"
-              showUserLocation={useDeviceLocation}
+              showUserLocation={deviceLocationActive}
               viirsLayerEnabled={mapViirsEnabled}
               onSessionExpired={onSessionInvalidated}
               onMessage={(msg) => {
@@ -522,6 +323,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                 }
                 if (msg.type === 'CLUSTER_SPOTS') {
                   const d = msg.data;
+                  setMapClusterScoreRefreshToken((t) => t + 1);
                   if (d.kind === 'province') {
                     setMapClusterSheet({
                       title: `${d.regionKey} · 명소 ${d.spots.length}곳`,
@@ -579,6 +381,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               starIndexAwaitingLocation={observerStarIndex.awaitingLocation}
               starIndexError={observerStarIndex.error}
               starIndexPlaceLabel={observerStarIndex.placeLabel}
+              locationUnavailable={observerStarIndex.locationUnavailable}
               onReloadStarIndex={() => void observerStarIndex.reload()}
               top3Loading={top3Loading}
               top3Error={top3Error}
@@ -598,14 +401,11 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
                   onShiftHours={shiftSkyObserveHours}
                   onObserveNow={resetSkyObserveNow}
                   onSessionInvalidated={onSessionInvalidated}
-                  skyUsesGps={useDeviceLocation && deviceLat != null && deviceLng != null}
+                  skyUsesGps={deviceLocationActive && deviceLat != null && deviceLng != null}
                   locationFeaturesEnabled={locationEnabledPref}
                   locationPermissionStatus={foregroundLocationStatus}
                   onRequestLocationPermission={async () => {
-                    if (!user?.id) return;
-                    await saveLocationEnabled(user.id, true);
-                    setLocationEnabledPref(true);
-                    await requestLocationPermission();
+                    await handleLocationEnabledChange(true);
                   }}
                 />
               </Animated.View>
@@ -616,16 +416,10 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
             )
           ) : activeTab === 'records' ? (
             <RecordsTabScreen
-              activeSpotId={focusSpotId}
               observerLat={deviceLat}
               observerLng={deviceLng}
-              useDeviceLocation={useDeviceLocation}
+              useDeviceLocation={deviceLocationActive}
               onSessionInvalidated={onSessionInvalidated}
-              starIndexData={observerStarIndex.data}
-              starIndexLoading={observerStarIndex.loading}
-              canLoadStarIndex={canLoadStarIndex}
-              resolveSpotIdForSave={observerStarIndex.resolveSpotIdForSave}
-              starIndexFromGps={observerStarIndex.fromGps}
               starIndexPlaceLabel={observerStarIndex.placeLabel}
             />
           ) : activeTab === 'profile' ? (
@@ -634,7 +428,6 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
               isRedMode={isRedMode}
               onToggleRedMode={toggleRed}
               onSessionInvalidated={onSessionInvalidated}
-              onDevResetOnboarding={__DEV__ ? onResetOnboarding : undefined}
               locationEnabled={locationEnabledPref}
               locationPrefLoaded={locationPrefLoaded}
               locationPermissionStatus={foregroundLocationStatus}
@@ -661,6 +454,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
           visible={mapClusterSheet != null}
           title={mapClusterSheet?.title ?? ''}
           spots={mapClusterSheet?.spots ?? []}
+          scoreRefreshToken={mapClusterScoreRefreshToken}
           onClose={() => setMapClusterSheet(null)}
           onSessionInvalidated={onSessionInvalidated}
           onPickSpot={(spot) => {
@@ -675,10 +469,12 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
         <MapSpotDetailModal
           visible={mapDetailOpen}
           onClose={() => {
+            if (mapSiData) {
+              setMapClusterScoreRefreshToken((t) => t + 1);
+            }
             setMapDetailOpen(false);
             setMapSpotId(null);
-            setMapSiData(null);
-            setMapSiError(null);
+            resetMapSpotStarIndex();
           }}
           spotId={mapSpotId}
           loading={mapSiLoading}
@@ -686,7 +482,7 @@ function AppContent({ onResetOnboarding }: { onResetOnboarding: () => void }) {
           data={mapSiData}
           onRetry={() => mapSpotId && loadMapSpotStarIndex(mapSpotId)}
           onSessionInvalidated={onSessionInvalidated}
-          starIndexErrorFromApi={starIndexErrorFromApi}
+          starIndexErrorFromApi={starIndexCardErrorFromApi}
           onBookmarkChange={refreshMySpots}
         />
 
@@ -743,17 +539,6 @@ function AppGate() {
     return () => clearTimeout(t);
   }, []);
 
-  const resetOnboarding = useCallback(async () => {
-    const userId = user?.id;
-    const keys: string[] = [
-      ONBOARDING_COMPLETED_KEY_BASE,
-      NOTIFICATION_PREFS_KEY_BASE,
-      ...(userId ? userScopedStorageKeys(userId) : []),
-    ];
-    await AsyncStorage.multiRemove(keys);
-    setRoute('onboarding');
-  }, [user?.id]);
-
   useEffect(() => {
     if (!isHydrated || !isAuthenticated) return;
     // 인증 직후 user가 아직 세팅 전이면 잠깐 대기
@@ -797,7 +582,7 @@ function AppGate() {
     if (!user?.id) return <AppLoading />;
     return <OnboardingFlow userId={user.id} onDone={() => setRoute('ready')} />;
   }
-  return <AppContent onResetOnboarding={resetOnboarding} />;
+  return <AppContent />;
 }
 
 export default function App() {

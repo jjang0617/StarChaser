@@ -6,6 +6,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 import { CronService } from './cron.service';
 import { WeeklyTop3AggregationService } from '../weekly-top3/weekly-top3-aggregation.service';
 
@@ -17,7 +18,7 @@ export class CronController {
     private readonly weeklyTop3Aggregation: WeeklyTop3AggregationService,
   ) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiBearerAuth()
   @Post('run-once')
   @ApiOperation({
@@ -57,7 +58,7 @@ export class CronController {
     return { message: 'Cron 수집 실행 완료' };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiBearerAuth()
   @Get('cache-status')
   @ApiOperation({

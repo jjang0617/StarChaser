@@ -25,7 +25,6 @@ import { glassCardStyle, spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 import { AppPressable } from '../ui/AppPressable';
 import { Button } from '../ui';
-import { StarIndexMeasuringPanel } from '../ui/StarIndexMeasuringPanel';
 
 export interface DiaryLocationCustomResult {
   lat: number;
@@ -162,15 +161,6 @@ export function DiaryLocationCustomModal({
           <View style={styles.headerBtn} />
         </View>
 
-        {confirming ? (
-          <View style={styles.measuringOverlay}>
-            <StarIndexMeasuringPanel
-              compact
-              hint="이 위치의 Star-Index를 계산하고 있어요"
-            />
-          </View>
-        ) : null}
-
         <View style={styles.body}>
           <View style={styles.hintBlock}>
             <Text style={[styles.hint, { color: theme.mutedForeground }]}>
@@ -273,7 +263,7 @@ export function DiaryLocationCustomModal({
             </Text>
           )}
           <Button
-            label={confirming ? '측정 중…' : '이 위치로 선택'}
+            label="이 위치로 선택"
             fullWidth
             disabled={!selected || confirming}
             loading={confirming}

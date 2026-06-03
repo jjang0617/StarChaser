@@ -25,7 +25,7 @@ export function BottomTabIcon({ name, color, size = 22 }: BottomTabIconProps) {
   > = {
     home: 'home',
     map: 'map',
-    log: 'file-text',
+    log: 'book-open',
     me: 'user',
   };
 

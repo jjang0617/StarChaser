@@ -4,9 +4,8 @@ export const STAR_INDEX_MEASURABLE_MIN = 50;
 /** “점수가 높음” 판정 기준 */
 export const STAR_INDEX_HIGH_SCORE_THRESHOLD = 70;
 
-export type ObservationMismatchType =
-  | 'unmeasurable_but_success'
-  | 'high_score_but_fail';
+export type { ObservationMismatchType } from './observation-mismatch-report.entity';
+import type { ObservationMismatchType } from './observation-mismatch-report.entity';
 
 export function isStarIndexMeasurable(score: number): boolean {
   const n = Math.round(score);
@@ -32,6 +31,9 @@ export function detectObservationMismatch(
 }
 
 export function mismatchTypeLabel(type: ObservationMismatchType): string {
+  if (type === 'felt_score_differs') {
+    return '측정 시각 SI · 느낀 점수 불일치';
+  }
   if (type === 'unmeasurable_but_success') {
     return '측정불가인데 관측 성공';
   }

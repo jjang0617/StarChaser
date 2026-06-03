@@ -97,7 +97,7 @@ export class StarIndexController {
     if (sid) {
       const spot = await this.spots.findById(sid);
       if (!spot) {
-        throw new NotFoundException('해당 spotId의 명소가 없습니다.');
+        throw new NotFoundException('해당 명소를 찾을 수 없습니다.');
       }
       const result =
         await this.starIndexService.calculateForSpotFromCache(spot, atUtc);
@@ -170,10 +170,5 @@ export class StarIndexController {
       message: detailMsg,
       requestedBy: user.email,
     };
-  }
-  @Get('poc-test')
-  async pocTest() {
-    await this.starIndexService.testApiConnections();
-    return { message: '로그 확인하세요' };
   }
 }

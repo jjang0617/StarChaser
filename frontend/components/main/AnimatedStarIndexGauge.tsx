@@ -82,16 +82,19 @@ interface AnimatedStarIndexGaugeProps {
   animateKey?: string;
   /** 측정 중 — 링 펄스 + 중앙 플레이스홀더 */
   loading?: boolean;
+  /** 위치 권한 등으로 측정 불가 — 중앙 ? */
+  unknown?: boolean;
 }
 
 export function AnimatedStarIndexGauge({
   score = 0,
   animateKey,
   loading = false,
+  unknown = false,
 }: AnimatedStarIndexGaugeProps) {
   const { theme } = useTheme();
   const display = getStarIndexScoreDisplay(score);
-  const target = display.measurable ? display.gaugePercent : 0;
+  const target = display.gaugePercent;
 
   const progress = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0.4)).current;
@@ -107,7 +110,7 @@ export function AnimatedStarIndexGauge({
   const cy = GAUGE_SIZE / 2;
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || unknown) return;
     progress.setValue(0);
     setShownScore(0);
 
@@ -127,10 +130,10 @@ export function AnimatedStarIndexGauge({
       progress.removeListener(id);
       anim.stop();
     };
-  }, [target, animateKey, progress, loading]);
+  }, [target, animateKey, progress, loading, unknown]);
 
   useEffect(() => {
-    if (!loading) return;
+    if (!loading || unknown) return;
     pulse.setValue(0.35);
     const loop = Animated.loop(
       Animated.sequence([
@@ -158,16 +161,19 @@ export function AnimatedStarIndexGauge({
   });
 
   const loadingDashoffset = C * 0.62;
+  const unknownDashoffset = C * 0.72;
   const ringOpacity = loading ? pulse : 1;
 
   const scoreText = useMemo(() => {
-    if (loading) return null;
+    if (loading || unknown) return null;
     if (!display.measurable) {
       const n = Math.round(score);
       return Number.isFinite(n) ? String(n) : '—';
     }
     return String(shownScore);
-  }, [display.measurable, shownScore, loading, score]);
+  }, [display.measurable, shownScore, loading, unknown, score]);
+
+  const ringColor = unknown ? theme.mutedForeground : scoreColor;
 
   return (
     <View style={styles.wrap}>
@@ -180,7 +186,7 @@ export function AnimatedStarIndexGauge({
               {
                 left: d.x * GAUGE_SIZE,
                 top: d.y * GAUGE_SIZE,
-                opacity: loading ? d.o * 0.45 : d.o,
+                opacity: loading ? d.o * 0.45 : unknown ? d.o * 0.3 : d.o,
                 backgroundColor: theme.foreground,
               },
             ]}
@@ -211,12 +217,26 @@ export function AnimatedStarIndexGauge({
             opacity={ringOpacity}
             transform={`rotate(-90 ${cx} ${cy})`}
           />
+        ) : unknown ? (
+          <Circle
+            cx={cx}
+            cy={cy}
+            r={R}
+            stroke={ringColor}
+            strokeWidth={STROKE}
+            fill="none"
+            strokeDasharray={`${C * 0.28} ${C}`}
+            strokeDashoffset={unknownDashoffset}
+            strokeLinecap="round"
+            opacity={0.55}
+            transform={`rotate(-90 ${cx} ${cy})`}
+          />
         ) : (
           <AnimatedCircle
             cx={cx}
             cy={cy}
             r={R}
-            stroke={scoreColor}
+            stroke={ringColor}
             strokeWidth={STROKE}
             fill="none"
             strokeDasharray={`${C} ${C}`}
@@ -230,6 +250,16 @@ export function AnimatedStarIndexGauge({
       <View style={styles.center} pointerEvents="none">
         {loading ? (
           <MeasuringDots color={theme.mutedForeground} />
+        ) : unknown ? (
+          <Text
+            style={[
+              styles.score,
+              styles.unknownScore,
+              { color: theme.mutedForeground },
+            ]}
+          >
+            ?
+          </Text>
         ) : (
           <Text
             style={[
@@ -278,6 +308,11 @@ const styles = StyleSheet.create({
     fontSize: 52,
     fontWeight: '300',
     letterSpacing: -1,
+    fontFamily: 'SpaceMono-Regular',
+  },
+  unknownScore: {
+    opacity: 0.72,
+    letterSpacing: 0,
   },
   measuringDotsRow: {
     flexDirection: 'row',

@@ -75,6 +75,27 @@ export class SupabaseStorageService {
     return data.publicUrl;
   }
 
+  /** 회원 탈퇴 — 해당 사용자 일기 사진 prefix 전체 삭제 */
+  async removeAllDiaryPhotosForUser(userId: string): Promise<void> {
+    if (!this.client) return;
+    const client = this.requireClient();
+    const { data: folders, error: listError } = await client.storage
+      .from(DIARY_PHOTOS_BUCKET)
+      .list(userId);
+    if (listError) {
+      this.logger.warn(`일기 사진 사용자 폴더 조회 경고: ${listError.message}`);
+      return;
+    }
+    if (!folders?.length) return;
+    await Promise.all(
+      folders.map((entry) => {
+        const name = entry.name?.trim();
+        if (!name) return Promise.resolve();
+        return this.removeDiaryPhotos(userId, name);
+      }),
+    );
+  }
+
   async removeDiaryPhotos(userId: string, observationId: string): Promise<void> {
     if (!this.client) return;
     const client = this.requireClient();

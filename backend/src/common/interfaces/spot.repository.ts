@@ -21,6 +21,8 @@ export interface Spot {
 export interface SpotRepository {
   findById(id: string): Promise<Spot | null>;
   findNearby(lat: number, lng: number, radiusM: number): Promise<Spot[]>;
+  /** GPS Star-Index — 반경 내 가장 가까운 명소 1곳 (PostGIS LIMIT 1) */
+  findNearest(lat: number, lng: number, radiusM: number): Promise<Spot | null>;
   findAll(): Promise<Spot[]>;
   search(keyword: string, limit?: number): Promise<Spot[]>;
 }

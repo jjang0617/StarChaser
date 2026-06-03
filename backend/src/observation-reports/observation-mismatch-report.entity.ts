@@ -7,7 +7,8 @@ import {
 
 export type ObservationMismatchType =
   | 'unmeasurable_but_success'
-  | 'high_score_but_fail';
+  | 'high_score_but_fail'
+  | 'felt_score_differs';
 
 export type ObservationMismatchReportStatus = 'pending' | 'reviewed';
 

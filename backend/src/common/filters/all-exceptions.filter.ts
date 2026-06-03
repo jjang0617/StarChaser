@@ -7,10 +7,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { sanitizeClientErrorMessage } from '../sanitize-client-error.util';
 
-/**
- * 개발 환경에서 DB·설정 오류 원인을 응답에 포함 (프로덕션은 메시지 숨김)
- */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -19,16 +17,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    const isProd = process.env.NODE_ENV === 'production';
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const res = exception.getResponse();
-      const body =
+      const rawMessage =
         typeof res === 'string'
-          ? { statusCode: status, message: res, path: request.url }
-          : { statusCode: status, ...(res as object), path: request.url };
-      response.status(status).json(body);
+          ? res
+          : typeof res === 'object' && res !== null && 'message' in res
+            ? (res as { message: string | string[] }).message
+            : undefined;
+      const message = sanitizeClientErrorMessage(status, rawMessage);
+      response.status(status).json({
+        statusCode: status,
+        message,
+      });
       return;
     }
 
@@ -41,8 +44,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: isProd ? 'Internal server error' : err.message,
-      path: request.url,
+      message: sanitizeClientErrorMessage(500, undefined),
     });
   }
 }

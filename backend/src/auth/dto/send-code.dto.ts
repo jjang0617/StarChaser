@@ -11,6 +11,6 @@ export class SendCodeDto {
     enum: ['register', 'reset-password'],
   })
   @IsString({ message: 'purpose를 입력해 주세요.' })
-  @IsIn(['register', 'reset-password'], { message: 'purpose는 register 또는 reset-password여야 합니다.' })
+  @IsIn(['register', 'reset-password'], { message: '요청 유형이 올바르지 않습니다.' })
   purpose: 'register' | 'reset-password';
 }

@@ -1,8 +1,10 @@
 import { join } from 'path';
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CacheModule } from '@nestjs/cache-manager';
+import { AppCacheModule } from './cache/app-cache.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
@@ -24,6 +26,8 @@ import { AdminModule } from './admin/admin.module';
 import { AdminPageController } from './admin/admin-page.controller';
 import { SpotReportsModule } from './spot-reports/spot-reports.module';
 import { PlacesModule } from './places/places.module';
+import { CacheHydrationModule } from './cache-hydration/cache-hydration.module';
+import { LegalPagesController } from './legal/legal-pages.controller';
 
 @Module({
   imports: [
@@ -55,11 +59,8 @@ import { PlacesModule } from './places/places.module';
       }),
       inject: [ConfigService],
     }),
-    CacheModule.register({
-      isGlobal: true,
-      ttl: 3600,
-      max: 500,
-    }),
+    AppCacheModule,
+    CacheHydrationModule,
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
@@ -84,7 +85,15 @@ import { PlacesModule } from './places/places.module';
     PlacesModule,
     AdminModule,
   ],
-  controllers: [AppController, KakaoPageController, AdminPageController],
-  providers: [AppService],
+  controllers: [
+    AppController,
+    KakaoPageController,
+    AdminPageController,
+    LegalPagesController,
+  ],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

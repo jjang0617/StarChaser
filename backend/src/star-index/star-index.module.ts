@@ -4,25 +4,28 @@
 // ──────────────────────────────────────────────────────────────
 
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { CorrectionsModule } from '../corrections/corrections.module';
 import { SpotsModule } from '../spots/spots.module';
 import { CacheHydrationModule } from '../cache-hydration/cache-hydration.module';
-import { SpotStarIndexDailyEntity } from '../weekly-top3/spot-star-index-daily.entity';
 import { StarIndexController } from './star-index.controller';
 import { StarIndexService } from './star-index.service';
+import { StarIndexInputCacheReader } from './star-index-input-cache.reader';
+import { StarIndexSpotScoreCacheService } from './star-index-spot-score-cache.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SpotStarIndexDailyEntity]),
     AuthModule,
     SpotsModule,
     CorrectionsModule,
     CacheHydrationModule,
   ],
   controllers: [StarIndexController],
-  providers: [StarIndexService],
+  providers: [
+    StarIndexService,
+    StarIndexInputCacheReader,
+    StarIndexSpotScoreCacheService,
+  ],
   exports: [StarIndexService],
 })
 export class StarIndexModule {}

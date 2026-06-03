@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { spacing } from '../../themes/design-tokens';
+import { dangerAccent } from '../../themes/themes';
 import { useTheme } from '../../themes/ThemeContext';
 import {
   authorizedGetJson,
@@ -34,6 +35,7 @@ import {
 } from '../../lib/star-index-headline';
 import { formatObserverPlaceLabel } from '../../lib/observer-place-label';
 import { formatStarIndexStaleHint } from '../../lib/star-index-stale';
+import type { ObserverLocationUnavailable } from '../../lib/use-observer-star-index';
 import { AnimatedStarIndexGauge } from './AnimatedStarIndexGauge';
 
 interface MainTabScreenProps {
@@ -45,6 +47,7 @@ interface MainTabScreenProps {
   starIndexAwaitingLocation?: boolean;
   starIndexError: string | null;
   starIndexPlaceLabel: string | null;
+  locationUnavailable?: ObserverLocationUnavailable | null;
   onReloadStarIndex: () => void;
   top3Loading: boolean;
   top3Error: string | null;
@@ -59,11 +62,13 @@ function StatPill({
   icon,
   primary,
   secondary,
+  unknown = false,
 }: {
   caption: string;
   icon: React.ComponentProps<typeof Feather>['name'];
   primary: string;
   secondary?: string;
+  unknown?: boolean;
 }) {
   const { theme } = useTheme();
   return (
@@ -71,8 +76,19 @@ function StatPill({
       <Text style={[styles.statCaption, { color: theme.foreground }]} numberOfLines={1}>
         {caption}
       </Text>
-      <Feather name={icon} size={15} color={theme.mutedForeground} style={{ opacity: 0.85 }} />
-      <Text style={[styles.statPrimary, { color: theme.foreground }]} numberOfLines={1}>
+      <Feather
+        name={icon}
+        size={15}
+        color={theme.mutedForeground}
+        style={{ opacity: unknown ? 0.45 : 0.85 }}
+      />
+      <Text
+        style={[
+          unknown ? styles.statUnknown : styles.statPrimary,
+          { color: unknown ? theme.mutedForeground : theme.foreground },
+        ]}
+        numberOfLines={1}
+      >
         {primary}
       </Text>
       {secondary ? (
@@ -80,6 +96,55 @@ function StatPill({
           {secondary}
         </Text>
       ) : null}
+    </View>
+  );
+}
+
+function MainLocationUnavailableHero({
+  mode,
+}: {
+  mode: ObserverLocationUnavailable;
+}) {
+  const { theme } = useTheme();
+  const isPermission = mode === 'permission';
+  return (
+    <>
+      <View style={styles.headlineBlock}>
+        <Text style={[styles.headlineLine1, { color: theme.foreground }]}>
+          {isPermission
+            ? '위치 권한이 허용되지 않아'
+            : '앱에서 위치 사용이 꺼져 있어'}
+        </Text>
+        <Text style={[styles.headlineLine2, { color: theme.foreground }]}>
+          <Text style={[styles.headlineHighlight, { color: theme.primaryGlow }]}>
+            점수
+          </Text>
+          를 측정할 수 없어요
+        </Text>
+        <Text style={[styles.hint, { color: theme.mutedForeground }]}>
+          {isPermission
+            ? '마이페이지(ME) 또는 시스템 설정에서\n위치 권한을 허용해 주세요.'
+            : '마이페이지(ME)에서 위치 사용을 켜 주세요.'}
+        </Text>
+      </View>
+      <AnimatedStarIndexGauge unknown />
+    </>
+  );
+}
+
+function MainUnknownStatsFooter() {
+  const { theme } = useTheme();
+  const items = [
+    { caption: '구름', icon: 'cloud' as const },
+    { caption: '바람', icon: 'wind' as const },
+    { caption: '습도', icon: 'droplet' as const },
+    { caption: '미세먼지', icon: 'activity' as const },
+  ];
+  return (
+    <View style={[styles.footerStats, { borderTopColor: theme.borderSubtle }]}>
+      {items.map(({ caption, icon }) => (
+        <StatPill key={caption} caption={caption} icon={icon} primary="?" unknown />
+      ))}
     </View>
   );
 }
@@ -99,10 +164,44 @@ function MainLoadingHero() {
           를 측정 중이에요
         </Text>
         <Text style={[styles.hint, { color: theme.mutedForeground }]}>
-          구름·미세먼지·달빛·바람을 살펴보고 있어요
+          하늘 조건을 확인하고 있어요
         </Text>
       </View>
       <AnimatedStarIndexGauge loading />
+    </>
+  );
+}
+
+function MainFetchErrorHero({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  const { theme } = useTheme();
+  return (
+    <>
+      <View style={styles.headlineBlock}>
+        <Text style={[styles.headlineLine1, { color: theme.foreground }]}>
+          점수를 불러오지
+        </Text>
+        <Text style={[styles.headlineLine2, { color: theme.foreground }]}>
+          <Text style={[styles.headlineHighlight, { color: theme.destructive }]}>
+            못했어요
+          </Text>
+        </Text>
+        <Text style={[styles.hint, { color: theme.mutedForeground }]}>{message}</Text>
+      </View>
+      <AnimatedStarIndexGauge unknown />
+      <Pressable
+        onPress={onRetry}
+        style={({ pressed }) => [styles.retryBtn, pressed && { opacity: 0.75 }]}
+        accessibilityRole="button"
+        accessibilityLabel="다시 측정"
+      >
+        <Text style={[styles.retryBtnText, { color: theme.primaryGlow }]}>다시 시도</Text>
+      </Pressable>
     </>
   );
 }
@@ -116,6 +215,7 @@ export function MainTabScreen({
   starIndexAwaitingLocation = false,
   starIndexError,
   starIndexPlaceLabel,
+  locationUnavailable = null,
   onReloadStarIndex,
   top3Loading,
   top3Error,
@@ -124,7 +224,7 @@ export function MainTabScreen({
   onSelectTop3Spot,
   onSessionInvalidated,
 }: MainTabScreenProps) {
-  const { theme } = useTheme();
+  const { theme, isRedMode } = useTheme();
   const [alertSheetOpen, setAlertSheetOpen] = useState(false);
   const [top3SheetOpen, setTop3SheetOpen] = useState(false);
   const [guideSheetOpen, setGuideSheetOpen] = useState(false);
@@ -159,22 +259,53 @@ export function MainTabScreen({
     Number.isFinite(observerLat) &&
     Number.isFinite(observerLng);
   const canLoad =
-    Platform.OS !== 'web' || hasObserverGps || Boolean(activeSpotId);
+    Platform.OS === 'web'
+      ? hasObserverGps || Boolean(activeSpotId)
+      : true;
 
-  /** 데이터 없을 때는 에러 대신 측정 중 UI (앱 진입·리로드 시 spotId 선요청 깜빡임 방지) */
+  const showLocationUnavailable =
+    canLoad &&
+    locationUnavailable != null &&
+    !hasObserverGps &&
+    !starIndexData &&
+    !starIndexLoading &&
+    !starIndexAwaitingLocation;
+
+  /** 데이터 없을 때는 측정 중 UI — 겹친 reload·silent 재시도 사이 빈 화면도 측정 중으로 처리 */
   const showLoading =
     canLoad &&
+    !showLocationUnavailable &&
     !starIndexData &&
-    (starIndexLoading || starIndexAwaitingLocation || Boolean(starIndexError));
+    (starIndexLoading ||
+      starIndexAwaitingLocation ||
+      !starIndexError);
+
+  const showFetchError =
+    canLoad &&
+    !showLocationUnavailable &&
+    !starIndexData &&
+    !showLoading &&
+    Boolean(starIndexError);
 
   const locationLine = useMemo(() => {
+    if (showLocationUnavailable && locationUnavailable) {
+      return locationUnavailable === 'permission'
+        ? '위치 권한이 허용되지 않음'
+        : '앱에서 위치 사용 꺼짐';
+    }
     if (showLoading && !starIndexPlaceLabel) {
       return '위치 확인 중…';
     }
     const raw = starIndexPlaceLabel ?? starIndexData?.name;
     if (!raw) return '위치 확인 중…';
     return formatObserverPlaceLabel(raw);
-  }, [showLoading, starIndexPlaceLabel, starIndexData?.name]);
+  }, [
+    showLocationUnavailable,
+    locationUnavailable,
+    showLoading,
+    starIndexPlaceLabel,
+    starIndexData?.name,
+  ]);
 
   const headline = useMemo(
     () => getStarIndexHeadline(starIndexData?.score ?? 0),
@@ -213,11 +344,26 @@ export function MainTabScreen({
     ? getStarIndexScoreDisplay(starIndexData.score)
     : null;
 
+  const headlineHighlightColor =
+    siDisplay && !siDisplay.measurable
+      ? dangerAccent(theme, isRedMode).title
+      : theme.primaryGlow;
+
   return (
     <View style={styles.root}>
       <View style={styles.topRow}>
         <View style={styles.locationRow}>
-          <View style={[styles.locationDot, { backgroundColor: theme.primaryGlow }]} />
+          <View
+            style={[
+              styles.locationDot,
+              {
+                backgroundColor: showLocationUnavailable
+                  ? theme.mutedForeground
+                  : theme.primaryGlow,
+                opacity: showLocationUnavailable ? 0.55 : 1,
+              },
+            ]}
+          />
           <Text
             style={[styles.locationText, { color: theme.mutedForeground }]}
             numberOfLines={2}
@@ -274,8 +420,15 @@ export function MainTabScreen({
               위치 권한을 허용하거나 지도에서 명소를 고르면 Star-Index를 불러옵니다.
             </Text>
           </View>
+        ) : showLocationUnavailable && locationUnavailable ? (
+          <MainLocationUnavailableHero mode={locationUnavailable} />
         ) : showLoading ? (
           <MainLoadingHero />
+        ) : showFetchError && starIndexError ? (
+          <MainFetchErrorHero
+            message={starIndexError}
+            onRetry={onReloadStarIndex}
+          />
         ) : starIndexData && siDisplay ? (
           <>
             <View style={styles.headlineBlock}>
@@ -283,7 +436,9 @@ export function MainTabScreen({
                 {headline.line1}
               </Text>
               <Text style={[styles.headlineLine2, { color: theme.foreground }]}>
-                <Text style={[styles.headlineHighlight, { color: theme.primaryGlow }]}>
+                <Text
+                  style={[styles.headlineHighlight, { color: headlineHighlightColor }]}
+                >
                   {headline.highlight}
                 </Text>
                 {headline.line2}
@@ -307,7 +462,9 @@ export function MainTabScreen({
         ) : null}
       </View>
 
-      {weatherFooter ? (
+      {showLocationUnavailable ? (
+        <MainUnknownStatsFooter />
+      ) : weatherFooter ? (
         <View style={[styles.footerStats, { borderTopColor: theme.borderSubtle }]}>
           <StatPill caption="구름" icon="cloud" primary={weatherFooter.cloud.primary} />
           <StatPill caption="바람" icon="wind" primary={weatherFooter.wind.primary} />
@@ -319,7 +476,7 @@ export function MainTabScreen({
             secondary={weatherFooter.pm25.secondary}
           />
         </View>
-      ) : showLoading ? (
+      ) : showLoading || showFetchError ? (
         <View style={[styles.footerStats, styles.footerSkeleton, { borderTopColor: theme.borderSubtle }]}>
           {(['구름', '바람', '습도', '미세먼지'] as const).map((label) => (
             <View key={label} style={styles.statPill}>
@@ -467,6 +624,14 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
+  statUnknown: {
+    fontSize: 15,
+    fontWeight: '400',
+    textAlign: 'center',
+    fontFamily: 'SpaceMono-Regular',
+    opacity: 0.62,
+    letterSpacing: 0.5,
+  },
   statSecondary: {
     fontSize: 11,
     textAlign: 'center',
@@ -488,5 +653,13 @@ const styles = StyleSheet.create({
   },
   refreshText: {
     fontSize: 11,
+  },
+  retryBtn: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  retryBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
