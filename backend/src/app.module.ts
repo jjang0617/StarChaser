@@ -18,7 +18,6 @@ import { ObservationsModule } from './observations/observations.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CorrectionsModule } from './corrections/corrections.module';
 import { ViirsModule } from './viirs/viirs.module';
-import { WeeklyTop3Module } from './weekly-top3/weekly-top3.module';
 import { UsersModule } from './users/users.module';
 import { KakaoPageController } from './kakao-page.controller';
 import { ObservationReportsModule } from './observation-reports/observation-reports.module';
@@ -78,7 +77,6 @@ import { LegalPagesController } from './legal/legal-pages.controller';
     NotificationsModule,
     CorrectionsModule,
     ViirsModule,
-    WeeklyTop3Module,
     UsersModule,
     ObservationReportsModule,
     SpotReportsModule,

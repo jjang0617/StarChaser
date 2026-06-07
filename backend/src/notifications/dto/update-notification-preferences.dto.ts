@@ -24,11 +24,6 @@ export class UpdateNotificationPreferencesDto {
   @IsIn(STAR_INDEX_ALERT_THRESHOLDS as unknown as number[])
   starIndexAlertThreshold?: number;
 
-  @ApiProperty({ required: false, example: false })
-  @IsOptional()
-  @IsBoolean()
-  top3AlertEnabled?: boolean;
-
   @ApiPropertyOptional({
     nullable: true,
     description:

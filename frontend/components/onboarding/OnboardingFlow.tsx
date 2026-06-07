@@ -22,7 +22,6 @@ import { useTheme } from '../../themes/ThemeContext';
 import { authorizedPutJson } from '../../lib/api-client';
 import { notificationPrefsKey, onboardingCompletedKey } from '../../lib/auth-storage';
 import { saveLocationEnabled } from '../../lib/location-preferences';
-import { WEEKLY_TOP3_PUSH_TIME_LABEL } from '../../lib/notification-copy';
 import { AuthBrandHeader } from '../auth/AuthBrandHeader';
 import { AUTH_SHEET_BG, authSheetStyles } from '../auth/auth-sheet-styles';
 import { AuthSubmitButton } from '../auth/AuthSubmitButton';
@@ -40,11 +39,6 @@ const NOTIF_INFO_ITEMS = [
     icon: '★',
     title: 'Star-Index 알림',
     desc: '기준 명소 점수가 올라가면 하루 1회 알려 드려요.',
-  },
-  {
-    icon: '🏆',
-    title: '주간 TOP3',
-    desc: `${WEEKLY_TOP3_PUSH_TIME_LABEL}, 이번 주 별보기 명소 순위를 알려 드려요.`,
   },
 ] as const;
 
@@ -128,7 +122,7 @@ export function OnboardingFlow({
 
   const finishOnboarding = useCallback(async () => {
     setBusy(true);
-    const defaultPrefs = { starIndex90: false, weeklyTop3: false };
+    const defaultPrefs = { starIndex90: false };
     try {
       if (permissionStatus !== Location.PermissionStatus.GRANTED) {
         await saveLocationEnabled(userId, false);
@@ -146,7 +140,6 @@ export function OnboardingFlow({
         await authorizedPutJson('/notifications/preferences', {
           alertsEnabled: false,
           starIndexAlertEnabled: false,
-          top3AlertEnabled: false,
           locationStarIndexAlertEnabled: false,
         });
       } catch (e) {

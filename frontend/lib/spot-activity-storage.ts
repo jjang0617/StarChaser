@@ -49,7 +49,7 @@ async function update(
   return next;
 }
 
-/** 지도 명소 상세 시트를 열 때만 (TOP3·클러스터 탭 제외) */
+/** 지도 명소 상세 시트를 열 때만 (클러스터 탭 제외) */
 export async function recordSpotDetailView(
   userId: string,
   spotId: string,

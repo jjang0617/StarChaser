@@ -994,47 +994,6 @@ const styles = StyleSheet.create({
   glPlaceholder: { flex: 1, minHeight: 120 },
   scroll: { flex: 1 },
   scrollInner: { padding: 16, paddingBottom: 120, paddingRight: 120 },
-  top3FloatWrap: {
-    position: 'absolute',
-    zIndex: 20,
-  },
-  top3FloatCard: {
-    backgroundColor: 'rgba(6, 8, 18, 0.4)',
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  top3FloatLabel: {
-    fontSize: 9,
-    fontFamily: 'SpaceMono-Regular',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  top3RowHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  top3Rank: {
-    fontSize: 14,
-    fontFamily: 'SpaceMono-Regular',
-    fontWeight: '700',
-    minWidth: 16,
-  },
-  top3Score: {
-    fontSize: 11,
-    fontFamily: 'SpaceMono-Regular',
-    fontWeight: '600',
-    flexShrink: 0,
-  },
-  top3Name: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-    lineHeight: 14,
-  },
   /** 천구 위에 얹되, 패널 밖 터치는 아래 SVG로 통과 */
   controlsTouchPassthrough: {
     zIndex: 4,

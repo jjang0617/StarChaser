@@ -77,7 +77,6 @@ export interface SpotDto {
   locationRadiusM: number;
 }
 
-/** GET /top3/weekly 한 줄 */
 /** GET/PUT /notifications/preferences */
 export interface NotificationPreferenceDto {
   userId: string;
@@ -87,21 +86,8 @@ export interface NotificationPreferenceDto {
   locationStarIndexAlertEnabled?: boolean;
   /** Star-Index 푸시 임계값 — 80·85·90·95 */
   starIndexAlertThreshold?: number;
-  top3AlertEnabled: boolean;
   /** Star-Index 임계 알림 기준 명소(ME) — 없으면 서버 스케줄에서 제외 */
   alertSpotId?: string | null;
   createdAt?: string;
   updatedAt?: string;
-}
-
-export interface WeeklyTop3ItemDto {
-  id: string;
-  /** 집계 기준 월요일 (YYYY-MM-DD) */
-  weekStart: string;
-  rank: number;
-  spotId: string;
-  spotName: string;
-  avgStarIndex: number;
-  /** 표시용 문자열 (불필요한 0 제거) */
-  avgStarIndexText: string;
 }

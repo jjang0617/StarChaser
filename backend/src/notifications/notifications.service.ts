@@ -41,7 +41,6 @@ export class NotificationsService {
       starIndexAlertEnabled: true,
       locationStarIndexAlertEnabled: true,
       starIndexAlertThreshold: normalizeStarIndexAlertThreshold(90),
-      top3AlertEnabled: true,
       alertSpotId: null,
     });
   }
@@ -62,7 +61,6 @@ export class NotificationsService {
         dto.starIndexAlertThreshold !== undefined
           ? normalizeStarIndexAlertThreshold(dto.starIndexAlertThreshold)
           : current.starIndexAlertThreshold,
-      top3AlertEnabled: dto.top3AlertEnabled ?? current.top3AlertEnabled,
       alertSpotId:
         dto.alertSpotId !== undefined ? dto.alertSpotId : current.alertSpotId,
     });

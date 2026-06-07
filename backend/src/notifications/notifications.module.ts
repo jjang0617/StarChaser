@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { NOTIFICATION_REPOSITORY } from '../common/interfaces/notification.repository';
-import { WeeklyTop3Module } from '../weekly-top3/weekly-top3.module';
 import { StarIndexModule } from '../star-index/star-index.module';
 import { SpotsModule } from '../spots/spots.module';
 import { FcmPushService } from './fcm-push.service';
@@ -22,7 +21,6 @@ import { TypeOrmNotificationRepository } from './typeorm-notification.repository
       StarIndexPushSentEntity,
     ]),
     AuthModule,
-    WeeklyTop3Module,
     StarIndexModule,
     SpotsModule,
   ],

@@ -99,26 +99,4 @@ export class NotificationsController {
     };
   }
 
-  @Post('dev/run-top3-scheduled-push')
-  @ApiOperation({
-    summary:
-      '개발·검증용: 주간 TOP3 스케줄 푸시를 즉시 1회 실행. production 은 FCM_TOP3_MANUAL_TRIGGER_ENABLED=true 만 허용',
-  })
-  async runTop3ScheduledPush(@CurrentUser() user: JwtValidatedUser) {
-    const nodeEnv = this.config.get<string>('NODE_ENV');
-    const forced =
-      this.config.get<string>('FCM_TOP3_MANUAL_TRIGGER_ENABLED') === 'true';
-    const allowed = forced || nodeEnv !== 'production';
-    if (!allowed) {
-      throw new ForbiddenException('이 기능은 사용할 수 없습니다.');
-    }
-    await this.notificationScheduler.sendWeeklyTop3Digest();
-    return {
-      ok: true,
-      triggeredBy: user.userId,
-      message:
-        '주간 TOP3 스케줄 로직을 1회 실행했습니다. 서버 로그([TOP3 push])를 확인하세요.',
-    };
-  }
-
 }

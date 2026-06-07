@@ -91,7 +91,7 @@ export function SkyObserverEmptyState({
         </GlassCard>
 
         <Text style={[styles.footerHint, { color: theme.mutedForeground }]}>
-          GPS가 꺼져 있으면 MAIN TOP3·기본 명소 좌표로도 볼 수 있어요.
+          GPS가 꺼져 있으면 기본 명소 좌표로도 볼 수 있어요.
         </Text>
       </View>
     </View>
