@@ -1,9 +1,6 @@
 /** 서버 STAR_INDEX_ALERT_THRESHOLD 와 동일하게 유지 */
 export const STAR_INDEX_PUSH_THRESHOLD = 90;
 
-/** 주간 TOP3 — cron.service 집계 07:00 KST, notification-scheduler 푸시 07:05 KST */
-export const WEEKLY_TOP3_PUSH_TIME_LABEL = '매주 월요일 오전 7시 5분';
-
 /** ME · 위치한 곳 알림 — 임계값은 하나만 저장됨 (MAIN·ME 공통) */
 export function locationStarIndexAlertMeSubtitle(
   threshold: number,

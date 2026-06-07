@@ -11,10 +11,7 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  locationStarIndexAlertMeSubtitle,
-  WEEKLY_TOP3_PUSH_TIME_LABEL,
-} from '../../lib/notification-copy';
+import { locationStarIndexAlertMeSubtitle } from '../../lib/notification-copy';
 import { normalizeStarIndexAlertThreshold } from '../../lib/star-index-alert-threshold';
 import {
   glassCardStyle,
@@ -220,7 +217,6 @@ export function ProfileTabScreen({
             starIndexAlertEnabled: next.starIndexAlertEnabled,
             locationStarIndexAlertEnabled: next.locationStarIndexAlertEnabled ?? true,
             starIndexAlertThreshold: next.starIndexAlertThreshold ?? 90,
-            top3AlertEnabled: next.top3AlertEnabled,
             alertSpotId: next.alertSpotId ?? null,
           },
         );
@@ -248,7 +244,6 @@ export function ProfileTabScreen({
         | 'alertsEnabled'
         | 'locationStarIndexAlertEnabled'
         | 'starIndexAlertEnabled'
-        | 'top3AlertEnabled'
       >,
       value: boolean,
     ) => {
@@ -257,7 +252,6 @@ export function ProfileTabScreen({
       if (key === 'alertsEnabled' && value === false) {
         next.locationStarIndexAlertEnabled = false;
         next.starIndexAlertEnabled = false;
-        next.top3AlertEnabled = false;
         next.alertSpotId = null;
       }
       setPrefs(next);
@@ -424,16 +418,6 @@ export function ProfileTabScreen({
                       </Text>
                     </Pressable>
                   </View>
-                  <SettingRow
-                    theme={theme}
-                    icon="map-pin"
-                    title="주간 TOP3 명소"
-                    subtitle={`${WEEKLY_TOP3_PUSH_TIME_LABEL}, 주간 TOP3 순위가 발표되면 알려 드려요`}
-                    toggle
-                    value={prefs.top3AlertEnabled}
-                    disabled={prefsSaving}
-                    onToggle={(v) => toggleField('top3AlertEnabled', v)}
-                  />
                 </View>
               ) : null}
             </GlassCard>

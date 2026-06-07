@@ -1,6 +1,6 @@
 /**
  * StarChaser — App.tsx
- * 메인: 천구 + TOP3 · 지도 마커: Star-Index 상세 시트
+ * 메인: Star-Index · 지도 마커: Star-Index 상세 시트
  */
 
 import * as NavigationBar from 'expo-navigation-bar';
@@ -41,10 +41,7 @@ import { MapSpotDetailModal } from './components/map/MapSpotDetailModal';
 import { ProfileTabScreen } from './components/profile/ProfileTabScreen';
 import { useDeviceLocationState } from './hooks/use-device-location';
 import { useMapSpotStarIndex } from './hooks/use-map-spot-star-index';
-import { useWeeklyTop3 } from './hooks/use-weekly-top3';
 import { recordSpotDetailView } from './lib/spot-activity-storage';
-import { fetchSpotById } from './lib/spots-api';
-import { spotNameWithoutRegionPrefix } from './lib/spot-display-name';
 import { MainTabScreen } from './components/main/MainTabScreen';
 import { TabExploreIntro } from './components/tab-explore/TabExploreIntro';
 import { RecordsTabScreen } from './components/records/RecordsTabScreen';
@@ -108,7 +105,7 @@ function AppContent() {
   const [mapClusterScoreRefreshToken, setMapClusterScoreRefreshToken] = useState(0);
 
   const defaultSpotId = getDefaultSpotId();
-  /** TOP3·관측 로그 기준 명소 — 지도 선택과 별개로 유지 */
+  /** 관측 로그 기준 명소 — 지도 선택과 별개로 유지 */
   const [focusSpotId, setFocusSpotId] = useState<string | null>(() => getDefaultSpotId() ?? null);
 
   useEffect(() => {
@@ -185,12 +182,6 @@ function AppContent() {
   }, [deviceLat, deviceLng, requestLocationPermission]);
 
   const {
-    loading: top3Loading,
-    error: top3Error,
-    items: top3Items,
-  } = useWeeklyTop3(activeTab === 'main', onSessionInvalidated);
-
-  const {
     loading: mapSiLoading,
     error: mapSiError,
     data: mapSiData,
@@ -232,28 +223,6 @@ function AppContent() {
     },
     [user?.id, loadMapSpotStarIndex, refreshMySpots, enterMapExploreImmediate],
   );
-
-  /** 상세 시트는 열지 않고 MAP 탭으로 전환해 해당 명소 위치로만 이동(포커스). 조회수 미집계. */
-  const focusMapOnSpot = useCallback((spotId: string) => {
-    setActiveTab('map');
-    enterMapExploreImmediate();
-    setFocusSpotId(spotId);
-    void (async () => {
-      try {
-        const spot = await fetchSpotById(spotId);
-        const label = spotNameWithoutRegionPrefix(spot.name) || spot.name;
-        const focus = { lat: spot.lat, lng: spot.lng, label, spotId: spot.id };
-        if (mapReadyRef.current) {
-          mapWebViewRef.current?.focusMap(focus.lat, focus.lng, 7, focus.label, focus.spotId);
-        } else {
-          // 지도 준비 전이면 MAP_READY 이후 적용
-          pendingMapFocusRef.current = focus;
-        }
-      } catch {
-        // 좌표 조회 실패 시 포커스는 생략 (탭 전환은 유지)
-      }
-    })();
-  }, [enterMapExploreImmediate]);
 
   const isTabIntro =
     (activeTab === 'sky' && !skyExploring) || (activeTab === 'map' && !mapExploring);
@@ -383,11 +352,6 @@ function AppContent() {
               starIndexPlaceLabel={observerStarIndex.placeLabel}
               locationUnavailable={observerStarIndex.locationUnavailable}
               onReloadStarIndex={() => void observerStarIndex.reload()}
-              top3Loading={top3Loading}
-              top3Error={top3Error}
-              top3Items={top3Items}
-              selectedSpotId={focusSpotId}
-              onSelectTop3Spot={focusMapOnSpot}
               onSessionInvalidated={onSessionInvalidated}
             />
           ) : activeTab === 'sky' ? (

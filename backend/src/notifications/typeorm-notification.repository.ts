@@ -75,7 +75,6 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
       starIndexAlertThreshold: normalizeStarIndexAlertThreshold(
         entity.starIndexAlertThreshold,
       ),
-      top3AlertEnabled: entity.top3AlertEnabled,
       alertSpotId: entity.alertSpotId,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
@@ -93,7 +92,6 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     starIndexAlertEnabled: boolean;
     locationStarIndexAlertEnabled: boolean;
     starIndexAlertThreshold: NotificationPreference['starIndexAlertThreshold'];
-    top3AlertEnabled: boolean;
     alertSpotId: string | null;
   }): Promise<NotificationPreference> {
     const threshold = normalizeStarIndexAlertThreshold(params.starIndexAlertThreshold);
@@ -105,7 +103,6 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
         starIndexAlertEnabled: params.starIndexAlertEnabled,
         locationStarIndexAlertEnabled: params.locationStarIndexAlertEnabled,
         starIndexAlertThreshold: threshold,
-        top3AlertEnabled: params.top3AlertEnabled,
         alertSpotId: params.alertSpotId,
       });
       const saved = await this.prefs.save(created);
@@ -116,36 +113,9 @@ export class TypeOrmNotificationRepository implements NotificationRepository {
     existing.starIndexAlertEnabled = params.starIndexAlertEnabled;
     existing.locationStarIndexAlertEnabled = params.locationStarIndexAlertEnabled;
     existing.starIndexAlertThreshold = threshold;
-    existing.top3AlertEnabled = params.top3AlertEnabled;
     existing.alertSpotId = params.alertSpotId;
     const saved = await this.prefs.save(existing);
     return this.toPreference(saved);
-  }
-
-  async findAndroidRecipientsTop3Enabled(): Promise<
-    Array<{ userId: string; fcmToken: string }>
-  > {
-    const raw = await this.tokens
-      .createQueryBuilder('t')
-      .innerJoin(
-        NotificationPreferenceEntity,
-        'p',
-        'p.userId = t.userId AND p.alertsEnabled = true AND p.top3AlertEnabled = true',
-      )
-      .where('t.isActive = :active', { active: true })
-      .andWhere('t.platform = :plat', { plat: 'android' })
-      .select('t.userId', 'userId')
-      .addSelect('t.fcmToken', 'fcmToken')
-      .getRawMany<
-        Record<string, string | undefined> & {
-          userId?: string;
-          fcmToken?: string;
-        }
-      >();
-    return raw.map((r) => ({
-      userId: String(r.userId ?? r.userid ?? ''),
-      fcmToken: String(r.fcmToken ?? r.fcmtoken ?? ''),
-    })).filter((r) => r.userId.length > 0 && r.fcmToken.length > 0);
   }
 
   async findAndroidRecipientsStarIndexThreshold(): Promise<

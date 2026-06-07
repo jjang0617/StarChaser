@@ -17,12 +17,10 @@ import {
 import type {
   NotificationPreferenceDto,
   StarIndexResponseDto,
-  WeeklyTop3ItemDto,
 } from '../../lib/types/api';
 import { MainHeaderIconButton } from './MainHeaderIconButton';
 import { MainScoreGuideSheet } from './MainScoreGuideSheet';
 import { MainStarIndexAlertSheet } from './MainStarIndexAlertSheet';
-import { MainTop3Sheet } from './MainTop3Sheet';
 import {
   formatCloudForCard,
   formatPm25Stat,
@@ -49,11 +47,6 @@ interface MainTabScreenProps {
   starIndexPlaceLabel: string | null;
   locationUnavailable?: ObserverLocationUnavailable | null;
   onReloadStarIndex: () => void;
-  top3Loading: boolean;
-  top3Error: string | null;
-  top3Items: WeeklyTop3ItemDto[] | null;
-  selectedSpotId: string | null;
-  onSelectTop3Spot: (spotId: string) => void;
   onSessionInvalidated: () => void | Promise<void>;
 }
 
@@ -217,16 +210,10 @@ export function MainTabScreen({
   starIndexPlaceLabel,
   locationUnavailable = null,
   onReloadStarIndex,
-  top3Loading,
-  top3Error,
-  top3Items,
-  selectedSpotId,
-  onSelectTop3Spot,
   onSessionInvalidated,
 }: MainTabScreenProps) {
   const { theme, isRedMode } = useTheme();
   const [alertSheetOpen, setAlertSheetOpen] = useState(false);
-  const [top3SheetOpen, setTop3SheetOpen] = useState(false);
   const [guideSheetOpen, setGuideSheetOpen] = useState(false);
   const [alertEnabled, setAlertEnabled] = useState(false);
 
@@ -379,11 +366,6 @@ export function MainTabScreen({
             onPress={() => setAlertSheetOpen(true)}
           />
           <MainHeaderIconButton
-            icon="trending-up"
-            accessibilityLabel="주간 TOP3 보기"
-            onPress={() => setTop3SheetOpen(true)}
-          />
-          <MainHeaderIconButton
             icon="info"
             accessibilityLabel="Star-Index 점수 가이드"
             onPress={() => setGuideSheetOpen(true)}
@@ -395,15 +377,6 @@ export function MainTabScreen({
         visible={alertSheetOpen}
         onClose={() => setAlertSheetOpen(false)}
         onSessionInvalidated={onSessionInvalidated}
-      />
-      <MainTop3Sheet
-        visible={top3SheetOpen}
-        onClose={() => setTop3SheetOpen(false)}
-        top3Loading={top3Loading}
-        top3Error={top3Error}
-        top3Items={top3Items}
-        selectedSpotId={selectedSpotId}
-        onSelectTop3Spot={onSelectTop3Spot}
       />
       <MainScoreGuideSheet
         visible={guideSheetOpen}

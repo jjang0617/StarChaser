@@ -18,7 +18,6 @@ export interface NotificationPreference {
   starIndexAlertEnabled: boolean;
   locationStarIndexAlertEnabled: boolean;
   starIndexAlertThreshold: StarIndexAlertThreshold;
-  top3AlertEnabled: boolean;
   /** Star-Index 임계 알림용 기준 명소 */
   alertSpotId: string | null;
   createdAt: Date;
@@ -39,17 +38,11 @@ export interface NotificationRepository {
     starIndexAlertEnabled: boolean;
     locationStarIndexAlertEnabled: boolean;
     starIndexAlertThreshold: StarIndexAlertThreshold;
-    top3AlertEnabled: boolean;
     alertSpotId: string | null;
   }): Promise<NotificationPreference>;
 
   /** 실발송 테스트 등: 활성 토큰만 */
   findActiveTokensByUserId(userId: string): Promise<NotificationToken[]>;
-
-  /** 주간 TOP3 등 알림: 알림·TOP3 허용 + 안드로이드 활성 토큰 행 */
-  findAndroidRecipientsTop3Enabled(): Promise<
-    Array<{ userId: string; fcmToken: string }>
-  >;
 
   /** Star-Index 임계 알림: 알림·Star-Index ON + 기준 명소 지정 + 안드로이드 토큰 */
   findAndroidRecipientsStarIndexThreshold(): Promise<
