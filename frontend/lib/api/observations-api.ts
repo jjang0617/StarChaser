@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from '../config';
+import { prepareImageForUpload, UPLOAD_IMAGE_FORMAT_ERROR } from '../prepare-upload-image';
 import {
   clearSession,
   loadTokens,
@@ -65,13 +66,24 @@ export async function uploadObservationPhoto(
     throw new SessionExpiredError();
   }
 
+  let prepared;
+  try {
+    prepared = await prepareImageForUpload(localUri, mimeType);
+  } catch {
+    throw new ApiRequestError(UPLOAD_IMAGE_FORMAT_ERROR, 400, null);
+  }
+
   const ext =
-    mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+    prepared.mimeType === 'image/png'
+      ? 'png'
+      : prepared.mimeType === 'image/webp'
+        ? 'webp'
+        : 'jpg';
   const form = new FormData();
   form.append('file', {
-    uri: localUri,
+    uri: prepared.uri,
     name: `diary.${ext}`,
-    type: mimeType,
+    type: prepared.mimeType,
   } as unknown as Blob);
 
   const path = `/observations/${observationId}/photos`;

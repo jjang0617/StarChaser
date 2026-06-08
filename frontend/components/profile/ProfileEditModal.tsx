@@ -17,6 +17,10 @@ import {
   uploadMyAvatar,
 } from '../../lib/api-client';
 import type { UserProfileDto } from '../../lib/types/api';
+import {
+  prepareImageForUpload,
+  UPLOAD_IMAGE_FORMAT_ERROR,
+} from '../../lib/prepare-upload-image';
 import { Button, Input } from '../ui';
 import { ProfileAvatar } from './ProfileAvatar';
 import { ProfileImageCropModal, type PickedImage } from './ProfileImageCropModal';
@@ -94,11 +98,20 @@ export function ProfileEditModal({
     if (result.canceled || !result.assets[0]) return;
 
     const asset = result.assets[0];
-    setCropTarget({
-      uri: asset.uri,
-      width: asset.width,
-      height: asset.height,
-    });
+    try {
+      const prepared = await prepareImageForUpload(
+        asset.uri,
+        asset.mimeType,
+        asset.fileName ?? null,
+      );
+      setCropTarget({
+        uri: prepared.uri,
+        width: asset.width,
+        height: asset.height,
+      });
+    } catch {
+      setError(UPLOAD_IMAGE_FORMAT_ERROR);
+    }
   }, []);
 
   const uploadCropped = useCallback(async (uri: string) => {
