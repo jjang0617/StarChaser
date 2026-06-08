@@ -16,7 +16,12 @@ interface MapFloatingControlsProps {
   onToggleViirs: () => void;
   onMyLocation: () => void;
   locationReady: boolean;
+  searchOpen?: boolean;
+  onOpenSearch: () => void;
 }
+
+const TOP_BTN = 44;
+const TOP_BTN_GAP = 8;
 
 export function MapFloatingControls({
   theme,
@@ -24,17 +29,40 @@ export function MapFloatingControls({
   onToggleViirs,
   onMyLocation,
   locationReady,
+  searchOpen = false,
+  onOpenSearch,
 }: MapFloatingControlsProps) {
   const insets = useSafeAreaInsets();
+  const top = Math.max(insets.top, 8) + spacing.sm;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    <View style={[StyleSheet.absoluteFill, styles.layer]} pointerEvents="box-none">
+      <Pressable
+        onPress={onOpenSearch}
+        style={({ pressed }) => [
+          styles.topBtn,
+          {
+            top,
+            right: spacing.lg + TOP_BTN + TOP_BTN_GAP,
+            backgroundColor: theme.deepNavy,
+            borderColor: searchOpen ? theme.primaryGlow : theme.cardBorder,
+            borderWidth: searchOpen ? 1.5 : 1,
+            opacity: pressed ? 0.88 : 1,
+          },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="명소 검색"
+      >
+        <Feather name="search" size={20} color={theme.primaryGlow} />
+      </Pressable>
+
       <Pressable
         onPress={onMyLocation}
         style={({ pressed }) => [
-          styles.locBtn,
+          styles.topBtn,
           {
-            top: Math.max(insets.top, 8) + spacing.sm,
+            top,
+            right: spacing.lg,
             backgroundColor: theme.deepNavy,
             borderColor: theme.cardBorder,
             opacity: pressed ? 0.88 : locationReady ? 1 : 0.75,
@@ -86,12 +114,14 @@ export function MapFloatingControls({
 }
 
 const styles = StyleSheet.create({
-  locBtn: {
+  layer: {
+    zIndex: 30,
+  },
+  topBtn: {
     position: 'absolute',
-    right: spacing.lg,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: TOP_BTN,
+    height: TOP_BTN,
+    borderRadius: TOP_BTN / 2,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
