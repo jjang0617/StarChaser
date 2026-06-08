@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   Pressable,
   StyleSheet,
@@ -35,9 +34,10 @@ export function ProfileDeleteAccountModal({
   }, []);
 
   const handleClose = useCallback(() => {
+    if (busy) return;
     resetForm();
     onClose();
-  }, [onClose, resetForm]);
+  }, [busy, onClose, resetForm]);
 
   const handleDelete = useCallback(async () => {
     setFormError(null);
@@ -62,13 +62,18 @@ export function ProfileDeleteAccountModal({
   }, [onDeleted, password, resetForm]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
-      <Pressable style={styles.backdrop} onPress={handleClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={busy ? undefined : handleClose}
+    >
+      <Pressable style={styles.backdrop} onPress={busy ? undefined : handleClose}>
         <Pressable
           style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.border }]}
           onPress={(e) => e.stopPropagation()}
         >
-          <Text style={[styles.title, { color: danger.title }]}>회원 탈퇴</Text>
+          <Text style={[styles.title, { color: danger.subtitle }]}>회원 탈퇴</Text>
           <Text style={[styles.warning, { color: danger.subtitle }]}>
             탈퇴하면 프로필·관측 기록·알림 설정 등 모든 데이터가 삭제되며 복구할 수 없습니다.
           </Text>
@@ -91,10 +96,6 @@ export function ProfileDeleteAccountModal({
             <Text style={[styles.err, { color: theme.destructive }]}>{formError}</Text>
           ) : null}
 
-          {busy ? (
-            <ActivityIndicator color={theme.starGold} style={{ marginVertical: 8 }} />
-          ) : null}
-
           <View style={styles.btnRow}>
             <View style={{ flex: 1 }}>
               <Button
@@ -110,6 +111,7 @@ export function ProfileDeleteAccountModal({
                 label="탈퇴하기"
                 variant="red"
                 fullWidth
+                loading={busy}
                 disabled={busy}
                 onPress={() => void handleDelete()}
               />
