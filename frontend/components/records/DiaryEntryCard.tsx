@@ -57,7 +57,9 @@ export function DiaryEntryCard({ row, onPress }: DiaryEntryCardProps) {
     <AppPressable onPress={onPress} style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}>
       <GlassCard padding={0} style={styles.card} glow>
         {cover ? (
-          <Image source={{ uri: cover }} style={styles.cover} resizeMode="cover" />
+          <View style={[styles.coverFrame, { backgroundColor: theme.inputBackground }]}>
+            <Image source={{ uri: cover }} style={styles.cover} resizeMode="contain" />
+          </View>
         ) : (
           <View style={[styles.coverPlaceholder, { backgroundColor: theme.inputBackground }]}>
             <Feather name="moon" size={28} color={theme.mutedForeground} />
@@ -119,9 +121,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     overflow: 'hidden',
   },
-  cover: {
+  coverFrame: {
     width: '100%',
     height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cover: {
+    width: '100%',
+    height: '100%',
   },
   coverPlaceholder: {
     width: '100%',
