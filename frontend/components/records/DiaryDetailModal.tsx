@@ -6,7 +6,6 @@ import Feather from '@expo/vector-icons/Feather';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Image,
   Modal,
   Pressable,
@@ -16,6 +15,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { DiaryImagePreviewModal } from './DiaryImagePreviewModal';
 import {
   ApiRequestError,
   deleteObservation,
@@ -208,8 +208,10 @@ function MismatchReportSection({
 
 function DiaryPhotoGallery({
   photos,
+  onPhotoPress,
 }: {
   photos: ObservationRowDto['photos'];
+  onPhotoPress: (index: number) => void;
 }) {
   const { theme } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
@@ -219,39 +221,44 @@ function DiaryPhotoGallery({
 
   return (
     <View style={styles.photoSection}>
-      <FlatList
-        data={photos}
+      <ScrollView
         horizontal
-        keyExtractor={(item) => item.id}
-        showsHorizontalScrollIndicator={false}
         nestedScrollEnabled
-        directionalLockEnabled
+        showsHorizontalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={photoWidth + spacing.sm}
         snapToAlignment="start"
         disableIntervalMomentum
         style={styles.photoList}
         contentContainerStyle={styles.photoRow}
-        ItemSeparatorComponent={() => <View style={{ width: spacing.sm }} />}
-        renderItem={({ item }) => (
-          <Image
-            source={{ uri: item.imageUrl }}
-            style={[
-              styles.photo,
-              {
-                width: photoWidth,
-                borderColor: theme.cardBorder,
-              },
-            ]}
-            resizeMode="cover"
-          />
-        )}
-      />
-      {photos.length > 1 ? (
-        <Text style={[styles.photoSwipeHint, { color: theme.mutedForeground }]}>
-          ← 좌우로 밀어 {photos.length}장 보기
-        </Text>
-      ) : null}
+        keyboardShouldPersistTaps="handled"
+      >
+        {photos.map((item, index) => (
+          <React.Fragment key={item.id}>
+            {index > 0 ? <View style={{ width: spacing.sm }} /> : null}
+            <Pressable
+              onPress={() => onPhotoPress(index)}
+              accessibilityRole="imagebutton"
+              accessibilityLabel={`일기 사진 ${index + 1}장 크게 보기`}
+              style={({ pressed }) => [
+                styles.photoFrame,
+                {
+                  width: photoWidth,
+                  borderColor: theme.cardBorder,
+                  backgroundColor: theme.inputBackground,
+                  opacity: pressed ? 0.88 : 1,
+                },
+              ]}
+            >
+              <Image
+                source={{ uri: item.imageUrl }}
+                style={styles.photoImage}
+                resizeMode="contain"
+              />
+            </Pressable>
+          </React.Fragment>
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -275,11 +282,13 @@ export function DiaryDetailModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!visible) {
       setDeleteConfirmOpen(false);
       setError(null);
+      setPreviewIndex(null);
     }
   }, [visible]);
 
@@ -351,7 +360,12 @@ export function DiaryDetailModal({
               <StarIndexStatCard value={row.starIndexVal} />
             </View>
 
-            {row.photos.length > 0 ? <DiaryPhotoGallery photos={row.photos} /> : null}
+            {row.photos.length > 0 ? (
+              <DiaryPhotoGallery
+                photos={row.photos}
+                onPhotoPress={(index) => setPreviewIndex(index)}
+              />
+            ) : null}
 
             <Text style={[styles.content, { color: theme.foreground }]}>
               {(row.content ?? '').trim() || '내용 없음'}
@@ -438,6 +452,13 @@ export function DiaryDetailModal({
               </View>
             </View>
           ) : null}
+
+          <DiaryImagePreviewModal
+            visible={previewIndex != null}
+            photos={row.photos}
+            initialIndex={previewIndex ?? 0}
+            onClose={() => setPreviewIndex(null)}
+          />
         </View>
       </View>
     </Modal>
@@ -586,16 +607,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingRight: spacing.lg + spacing.sm,
   },
-  photo: {
+  photoFrame: {
     height: 140,
     borderRadius: 12,
     borderWidth: 1,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  photoSwipeHint: {
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: 6,
-    paddingHorizontal: spacing.lg,
+  photoImage: {
+    width: '100%',
+    height: '100%',
   },
   content: {
     fontSize: 15,
