@@ -68,12 +68,20 @@ function applyEmailFieldError(
 export function AuthScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { login, register, justLoggedOut, clearJustLoggedOut } = useAuth();
+  const {
+    login,
+    register,
+    justLoggedOut,
+    clearJustLoggedOut,
+    justAccountDeleted,
+    clearJustAccountDeleted,
+  } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
   const [formOpen, setFormOpen] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const [kbHeight, setKbHeight] = useState(0);
   const [logoutSuccessOpen, setLogoutSuccessOpen] = useState(false);
+  const [accountDeletedSuccessOpen, setAccountDeletedSuccessOpen] = useState(false);
   const sheetY = useRef(new Animated.Value(SHEET_CLOSED_Y)).current;
   const welcomeOpacity = useRef(new Animated.Value(1)).current;
   const brandReveal = useRef(new Animated.Value(0)).current;
@@ -86,6 +94,12 @@ export function AuthScreen() {
     setLogoutSuccessOpen(true);
     clearJustLoggedOut();
   }, [justLoggedOut, clearJustLoggedOut]);
+
+  useEffect(() => {
+    if (!justAccountDeleted) return;
+    setAccountDeletedSuccessOpen(true);
+    clearJustAccountDeleted();
+  }, [justAccountDeleted, clearJustAccountDeleted]);
 
   useEffect(() => {
     const show = Keyboard.addListener(
@@ -822,6 +836,17 @@ export function AuthScreen() {
         autoDismissMs={2400}
         onPrimary={() => setLogoutSuccessOpen(false)}
         onRequestClose={() => setLogoutSuccessOpen(false)}
+      />
+
+      <AppAlertModal
+        visible={accountDeletedSuccessOpen}
+        tone="success"
+        title="회원 탈퇴가 완료되었습니다"
+        message="계정과 데이터가 삭제되었습니다. 이용해 주셔서 감사합니다."
+        primaryLabel="확인"
+        autoDismissMs={3200}
+        onPrimary={() => setAccountDeletedSuccessOpen(false)}
+        onRequestClose={() => setAccountDeletedSuccessOpen(false)}
       />
     </Screen>
   );

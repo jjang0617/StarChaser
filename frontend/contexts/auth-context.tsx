@@ -30,6 +30,11 @@ interface AuthContextValue {
   /** 로그아웃 직후 Auth 화면에서 완료 알림 */
   justLoggedOut: boolean;
   clearJustLoggedOut: () => void;
+  /** 회원 탈퇴 완료 직후 Auth 화면 안내 */
+  justAccountDeleted: boolean;
+  clearJustAccountDeleted: () => void;
+  /** 탈퇴 API 성공 후 세션은 이미 정리된 상태 — 화면 전환만 수행 */
+  completeAccountDeletion: () => void;
   /** refresh 실패 등 — 저장소 비우고 로그인 화면으로 */
   onSessionInvalidated: () => Promise<void>;
   /** 프로필 수정 후 context·AsyncStorage 동기화 */
@@ -63,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [hasValidSession, setHasValidSession] = useState(false);
   const [user, setUser] = useState<StoredUser | null>(null);
   const [justLoggedOut, setJustLoggedOut] = useState(false);
+  const [justAccountDeleted, setJustAccountDeleted] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,11 +128,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await clearSession();
     setHasValidSession(false);
     setUser(null);
+    setJustAccountDeleted(false);
     setJustLoggedOut(true);
   }, []);
 
   const clearJustLoggedOut = useCallback(() => {
     setJustLoggedOut(false);
+  }, []);
+
+  const clearJustAccountDeleted = useCallback(() => {
+    setJustAccountDeleted(false);
+  }, []);
+
+  const completeAccountDeletion = useCallback(() => {
+    setHasValidSession(false);
+    setUser(null);
+    setJustLoggedOut(false);
+    setJustAccountDeleted(true);
   }, []);
 
   const onSessionInvalidated = useCallback(async () => {
@@ -151,6 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       justLoggedOut,
       clearJustLoggedOut,
+      justAccountDeleted,
+      clearJustAccountDeleted,
+      completeAccountDeletion,
       onSessionInvalidated,
       applyProfile,
     }),
@@ -163,6 +184,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       justLoggedOut,
       clearJustLoggedOut,
+      justAccountDeleted,
+      clearJustAccountDeleted,
+      completeAccountDeletion,
       onSessionInvalidated,
       applyProfile,
     ],

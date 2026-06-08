@@ -76,7 +76,7 @@ export function ProfileTabScreen({
 }: ProfileTabScreenProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { applyProfile } = useAuth();
+  const { applyProfile, completeAccountDeletion } = useAuth();
   const [profile, setProfile] = useState<UserProfileDto | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -511,6 +511,7 @@ export function ProfileTabScreen({
               subtitle="계정과 데이터가 삭제됩니다"
               chevron
               danger
+              dangerMuted
               isRedMode={isRedMode}
               onPress={() => setDeleteOpen(true)}
             />
@@ -616,7 +617,7 @@ export function ProfileTabScreen({
         onClose={() => setDeleteOpen(false)}
         onDeleted={() => {
           setDeleteOpen(false);
-          onLogout();
+          completeAccountDeletion();
         }}
       />
 
@@ -650,6 +651,7 @@ function SettingRow({
   chevron,
   trailingText,
   danger = false,
+  dangerMuted = false,
   isRedMode = false,
   onPress,
 }: {
@@ -664,10 +666,16 @@ function SettingRow({
   chevron?: boolean;
   trailingText?: string;
   danger?: boolean;
+  /** danger일 때 제목·아이콘을 subtitle 톤(연한 빨강)으로 맞춤 */
+  dangerMuted?: boolean;
   isRedMode?: boolean;
   onPress?: () => void;
 }) {
   const accent = danger ? dangerAccent(theme, isRedMode) : null;
+  const mutedDanger = danger && dangerMuted && accent;
+  const titleColor = mutedDanger ? accent.subtitle : (accent?.title ?? theme.foreground);
+  const iconColor = mutedDanger ? accent.subtitle : (accent?.icon ?? theme.primaryGlow);
+  const chevronColor = mutedDanger ? accent.subtitle : (accent?.icon ?? theme.mutedForeground);
   const inner = (
     <>
       <View
@@ -680,12 +688,12 @@ function SettingRow({
       >
         <ProfileSettingIcon
           name={icon}
-          color={accent?.icon ?? theme.primaryGlow}
+          color={iconColor}
           size={16}
         />
       </View>
       <View style={styles.rowText}>
-        <Text style={[styles.rowTitle, { color: accent?.title ?? theme.foreground }]}>
+        <Text style={[styles.rowTitle, { color: titleColor }]}>
           {title}
         </Text>
         {subtitle ? (
@@ -706,7 +714,7 @@ function SettingRow({
       ) : chevron ? (
         <ProfileSettingIcon
           name="chevron-right"
-          color={accent?.icon ?? theme.mutedForeground}
+          color={chevronColor}
           size={18}
         />
       ) : null}
