@@ -4,7 +4,7 @@
 
 import Feather from '@expo/vector-icons/Feather';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Image,
   ScrollView,
@@ -14,6 +14,10 @@ import {
 } from 'react-native';
 import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
+import {
+  prepareImageForUpload,
+  UPLOAD_IMAGE_FORMAT_ERROR,
+} from '../../lib/prepare-upload-image';
 import { AppPressable } from '../ui/AppPressable';
 
 export interface LocalDiaryPhoto {
@@ -35,9 +39,11 @@ export function DiaryPhotoPicker({
   error = null,
 }: DiaryPhotoPickerProps) {
   const { theme } = useTheme();
+  const [pickError, setPickError] = useState<string | null>(null);
 
   const pickPhotos = useCallback(async () => {
     if (disabled) return;
+    setPickError(null);
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return;
 
@@ -49,10 +55,26 @@ export function DiaryPhotoPicker({
     });
     if (result.canceled || !result.assets.length) return;
 
-    const next = result.assets.map((asset) => ({
-      uri: asset.uri,
-      mimeType: asset.mimeType ?? 'image/jpeg',
-    }));
+    const next: LocalDiaryPhoto[] = [];
+    let failed = 0;
+    for (const asset of result.assets) {
+      try {
+        const prepared = await prepareImageForUpload(
+          asset.uri,
+          asset.mimeType,
+          asset.fileName ?? null,
+        );
+        next.push(prepared);
+      } catch {
+        failed += 1;
+      }
+    }
+
+    if (failed > 0) {
+      setPickError(UPLOAD_IMAGE_FORMAT_ERROR);
+    }
+    if (next.length === 0) return;
+
     onChange([...photos, ...next].slice(0, 10));
   }, [disabled, onChange, photos]);
 
@@ -104,8 +126,10 @@ export function DiaryPhotoPicker({
       <Text style={[styles.hint, { color: theme.mutedForeground }]}>
         최대 10장 · {photos.length}장 선택됨
       </Text>
-      {error ? (
-        <Text style={[styles.error, { color: theme.destructive }]}>{error}</Text>
+      {pickError || error ? (
+        <Text style={[styles.error, { color: theme.destructive }]}>
+          {pickError ?? error}
+        </Text>
       ) : null}
     </View>
   );
