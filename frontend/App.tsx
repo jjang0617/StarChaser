@@ -37,6 +37,7 @@ import {
 } from './components/map/KakaoMapWebView';
 import { MapClusterSpotsSheet } from './components/map/MapClusterSpotsSheet';
 import { MapFloatingControls } from './components/map/MapFloatingControls';
+import { MapSpotSearchOverlay } from './components/map/MapSpotSearchOverlay';
 import { MapSpotDetailModal } from './components/map/MapSpotDetailModal';
 import { ProfileTabScreen } from './components/profile/ProfileTabScreen';
 import { useDeviceLocationState } from './hooks/use-device-location';
@@ -52,6 +53,8 @@ import { getDefaultSpotId } from './lib/config';
 import * as Location from 'expo-location';
 import { starIndexCardErrorFromApi } from './lib/star-index-errors';
 import type { ClusterSpotRnDto } from './lib/types/map-spot';
+import { spotNameWithoutRegionPrefix } from './lib/spot-display-name';
+import type { SpotDto } from './lib/types/api';
 
 function AppContent() {
   const { theme, toggleRed, isRedMode } = useTheme();
@@ -102,6 +105,11 @@ function AppContent() {
   } | null>(null);
   /** MAP 탭 — NASA VIIRS 타일 오버레이 ON/OFF */
   const [mapViirsEnabled, setMapViirsEnabled] = useState(false);
+  const [mapSpotSearchOpen, setMapSpotSearchOpen] = useState(false);
+
+  useEffect(() => {
+    if (!mapExploring) setMapSpotSearchOpen(false);
+  }, [mapExploring]);
   const [mapClusterScoreRefreshToken, setMapClusterScoreRefreshToken] = useState(0);
 
   const defaultSpotId = getDefaultSpotId();
@@ -180,6 +188,15 @@ function AppContent() {
     }
     void requestLocationPermission();
   }, [deviceLat, deviceLng, requestLocationPermission]);
+
+  const onMapSearchPickSpot = useCallback((spot: SpotDto) => {
+    setMapSpotSearchOpen(false);
+    if (!Number.isFinite(spot.lat) || !Number.isFinite(spot.lng)) return;
+    const ref = mapWebViewRef.current;
+    if (!ref) return;
+    const label = spotNameWithoutRegionPrefix(spot.name) || spot.name;
+    ref.focusMap(spot.lat, spot.lng, 7, label, spot.id);
+  }, []);
 
   const {
     loading: mapSiLoading,
@@ -328,13 +345,24 @@ function AppContent() {
             />
 
             {mapExploring ? (
-              <MapFloatingControls
-                theme={theme}
-                viirsEnabled={mapViirsEnabled}
-                onToggleViirs={() => setMapViirsEnabled((v) => !v)}
-                onMyLocation={onMapMyLocation}
-                locationReady={deviceLat != null && deviceLng != null}
-              />
+              <>
+                <MapSpotSearchOverlay
+                  theme={theme}
+                  visible={mapSpotSearchOpen}
+                  onClose={() => setMapSpotSearchOpen(false)}
+                  onPickSpot={onMapSearchPickSpot}
+                  onSessionInvalidated={onSessionInvalidated}
+                />
+                <MapFloatingControls
+                  theme={theme}
+                  viirsEnabled={mapViirsEnabled}
+                  onToggleViirs={() => setMapViirsEnabled((v) => !v)}
+                  onMyLocation={onMapMyLocation}
+                  locationReady={deviceLat != null && deviceLng != null}
+                  searchOpen={mapSpotSearchOpen}
+                  onOpenSearch={() => setMapSpotSearchOpen((v) => !v)}
+                />
+              </>
             ) : null}
             </View>
           </Animated.View>
