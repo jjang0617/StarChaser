@@ -23,6 +23,7 @@ export function SkyObserverEmptyState({
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
 
+  const locationOff = !locationFeaturesEnabled;
   const locDenied =
     Platform.OS !== 'web' &&
     locationPermissionStatus === Location.PermissionStatus.DENIED;
@@ -49,22 +50,34 @@ export function SkyObserverEmptyState({
 
         <Text style={[styles.title, { color: theme.foreground }]}>가상 밤하늘</Text>
         <Text style={[styles.sub, { color: theme.mutedForeground }]}>
-          위치를 허용하면 지금 서 있는 곳의{'\n'}천구가 화면을 채웁니다.
+          {locationOff
+            ? '위치 사용을 켜면 지금 서 있는 곳의\n천구가 화면을 채웁니다.'
+            : '위치를 허용하면 지금 서 있는 곳의\n천구가 화면을 채웁니다.'}
         </Text>
 
         <GlassCard glow padding={spacing.lg} style={styles.card}>
           <View style={styles.cardHeader}>
             <Feather name="map-pin" size={18} color={theme.primaryGlow} />
             <Text style={[styles.cardTitle, { color: theme.foreground }]}>
-              관측 위치가 필요해요
+              {locationOff ? '위치 사용이 꺼져 있어요' : '관측 위치가 필요해요'}
             </Text>
           </View>
           <Text style={[styles.cardBody, { color: theme.mutedForeground }]}>
-            위치 권한을 허용하거나 MAIN·지도에서 명소를 고르면 별자리와 행성을 볼 수
-            있어요.
+            {locationOff
+              ? '가상 밤하늘은 위치를 기준으로 그려져요. ME 설정이나 아래에서 위치 사용을 켜 주세요.'
+              : '위치 권한을 허용하거나 MAIN·지도에서 명소를 고르면 별자리와 행성을 볼 수 있어요.'}
           </Text>
 
-          {showPermissionCard ? (
+          {locationOff ? (
+            <View style={[styles.permissionBlock, { borderTopColor: theme.borderSubtle }]}>
+              <Button
+                label="위치 사용 켜기"
+                variant="secondary"
+                size="sm"
+                onPress={() => void onRequestLocationPermission?.()}
+              />
+            </View>
+          ) : showPermissionCard ? (
             <View style={[styles.permissionBlock, { borderTopColor: theme.borderSubtle }]}>
               <Text style={[styles.permissionHint, { color: theme.mutedForeground }]}>
                 {locDenied
@@ -90,9 +103,11 @@ export function SkyObserverEmptyState({
           ) : null}
         </GlassCard>
 
-        <Text style={[styles.footerHint, { color: theme.mutedForeground }]}>
-          GPS가 꺼져 있으면 기본 명소 좌표로도 볼 수 있어요.
-        </Text>
+        {!locationOff ? (
+          <Text style={[styles.footerHint, { color: theme.mutedForeground }]}>
+            GPS가 꺼져 있으면 기본 명소 좌표로도 볼 수 있어요.
+          </Text>
+        ) : null}
       </View>
     </View>
   );

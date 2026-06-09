@@ -13,9 +13,9 @@ export const STAR_INDEX_GUIDE_ROWS: StarIndexGuideRow[] = [
   {
     minScore: null,
     maxScore: STAR_INDEX_DISPLAY_MIN_SCORE - 1,
-    badge: '측정불가',
+    badge: '관측 어려움',
     title: `${STAR_INDEX_DISPLAY_MIN_SCORE}점 미만`,
-    body: '구름·미세먼지·달빛 등 조건이 좋지 않아 신뢰할 수 있는 점수로 보기 어려워요. 화면에는 측정불가(원점수)로 표시됩니다.',
+    body: '구름·미세먼지·달빛 등 여러 조건이 겹쳐 점수가 매우 낮은 구간이에요. 별을 관측하기 어려운 밤이에요.',
   },
   {
     minScore: STAR_INDEX_DISPLAY_MIN_SCORE,

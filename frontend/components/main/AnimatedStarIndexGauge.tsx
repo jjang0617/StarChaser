@@ -265,7 +265,8 @@ export function AnimatedStarIndexGauge({
             style={[
               styles.score,
               {
-                color: theme.foreground,
+                // 50점 미만(관측 어려움)은 숫자도 빨간색으로 — 그 외 구간은 흰색 유지
+                color: display.measurable ? theme.foreground : theme.destructive,
                 fontFamily: 'SpaceMono-Regular',
               },
             ]}

@@ -79,30 +79,19 @@ function ScoreBlock({
     );
   }
 
-  if (display.measurable) {
-    return (
-      <View style={styles.scoreRow}>
-        <Text style={[styles.scoreValue, { color: theme.starGold }]}>
-          {display.label}
-        </Text>
-        <Text style={[styles.scoreUnit, { color: theme.mutedForeground }]}>
-          / 100
-        </Text>
-      </View>
-    );
-  }
-
-  const raw = display.label.match(/\((\d+)\)\s*$/);
-  const subScore = raw?.[1];
-
   return (
     <View style={styles.scoreRow}>
-      <Text style={[styles.scoreUnmeasurable, { color: theme.destructive }]}>
-        측정불가
+      <Text
+        style={[
+          styles.scoreValue,
+          { color: display.measurable ? theme.starGold : theme.destructive },
+        ]}
+      >
+        {display.label}
       </Text>
-      {subScore != null ? (
-        <Text style={[styles.scoreRaw, { color: theme.destructive }]}>({subScore})</Text>
-      ) : null}
+      <Text style={[styles.scoreUnit, { color: theme.mutedForeground }]}>
+        / 100
+      </Text>
     </View>
   );
 }
@@ -577,15 +566,6 @@ const styles = StyleSheet.create({
   scoreUnit: {
     fontSize: 11,
     fontWeight: '500',
-  },
-  scoreUnmeasurable: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  scoreRaw: {
-    fontSize: 20,
-    fontWeight: '300',
-    fontVariant: ['tabular-nums'],
   },
   scoreHint: {
     fontSize: 10,

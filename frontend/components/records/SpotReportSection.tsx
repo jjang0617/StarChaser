@@ -1,12 +1,10 @@
 /**
- * 명소 제보 — GPS + 텍스트를 관리자에게 전송
+ * 명소 제보 — 일기와 동일한 관측 위치 선택(현재 위치/명소 검색/직접 입력) + 설명을 관리자에게 전송
  */
 
 import Feather from '@expo/vector-icons/Feather';
-import * as Location from 'expo-location';
 import React, { useCallback, useState } from 'react';
 import {
-  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -17,45 +15,69 @@ import {
   SessionExpiredError,
   submitSpotReport,
 } from '../../lib/api-client';
+import { fetchSpotById } from '../../lib/spots-api';
 import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 import { Button } from '../ui';
 import { GlassCard } from '../ui/GlassCard';
 import { DiarySectionHeader } from './DiarySectionHeader';
+import {
+  DiaryLocationField,
+  type DiaryLocationValue,
+} from './DiaryLocationField';
 
 interface SpotReportSectionProps {
   observerLat?: number | null;
   observerLng?: number | null;
-  useDeviceLocation?: boolean;
+  placeLabel?: string | null;
   onSessionInvalidated: () => Promise<void>;
 }
 
-async function resolveGps(
+function hasCoords(lat?: number | null, lng?: number | null): boolean {
+  return lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng);
+}
+
+function initialLocation(placeLabel?: string | null): DiaryLocationValue {
+  return {
+    mode: 'current',
+    spotId: null,
+    label: placeLabel?.trim() || '현재 위치',
+  };
+}
+
+/** 선택한 위치를 제보용 좌표·라벨로 변환. GPS 없이도 명소·직접 입력으로 제보 가능 */
+async function resolveReportLocation(
+  location: DiaryLocationValue,
   observerLat: number | null | undefined,
   observerLng: number | null | undefined,
-  useDeviceLocation: boolean,
-): Promise<{ lat: number; lng: number } | null> {
-  if (useDeviceLocation && Platform.OS !== 'web') {
-    try {
-      const perm = await Location.getForegroundPermissionsAsync();
-      if (perm.status === Location.PermissionStatus.GRANTED) {
-        const pos = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        return { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      }
-    } catch {
-      /* 폴백 */
+): Promise<{ lat: number; lng: number; label: string } | null> {
+  if (location.mode === 'custom') {
+    if (hasCoords(location.customLat, location.customLng)) {
+      return {
+        lat: location.customLat as number,
+        lng: location.customLng as number,
+        label: location.label,
+      };
     }
+    return null;
   }
 
-  if (
-    observerLat != null &&
-    observerLng != null &&
-    Number.isFinite(observerLat) &&
-    Number.isFinite(observerLng)
-  ) {
-    return { lat: observerLat, lng: observerLng };
+  if (location.mode === 'spot' && location.spotId) {
+    const spot = await fetchSpotById(location.spotId);
+    return {
+      lat: spot.lat,
+      lng: spot.lng,
+      label: location.spotFullName || location.label,
+    };
+  }
+
+  // 현재 위치 — GPS 좌표가 있을 때만
+  if (hasCoords(observerLat, observerLng)) {
+    return {
+      lat: observerLat as number,
+      lng: observerLng as number,
+      label: location.label?.trim() || '현재 위치',
+    };
   }
 
   return null;
@@ -64,11 +86,14 @@ async function resolveGps(
 export function SpotReportSection({
   observerLat = null,
   observerLng = null,
-  useDeviceLocation = true,
+  placeLabel = null,
   onSessionInvalidated,
 }: SpotReportSectionProps) {
   const { theme } = useTheme();
   const [message, setMessage] = useState('');
+  const [location, setLocation] = useState<DiaryLocationValue>(() =>
+    initialLocation(placeLabel),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -85,19 +110,27 @@ export function SpotReportSection({
     setSuccess(null);
 
     try {
-      const coords = await resolveGps(observerLat, observerLng, useDeviceLocation);
-      if (!coords) {
-        setError('위치 권한을 허용하거나 GPS를 켜 주세요.');
+      const resolved = await resolveReportLocation(
+        location,
+        observerLat,
+        observerLng,
+      );
+      if (!resolved) {
+        setError(
+          '관측 위치를 선택해 주세요. 현재 위치 좌표가 없으면 명소 검색이나 직접 입력으로 위치를 골라 주세요.',
+        );
         return;
       }
 
       await submitSpotReport({
         message: trimmed,
-        lat: coords.lat,
-        lng: coords.lng,
+        lat: resolved.lat,
+        lng: resolved.lng,
+        placeLabel: resolved.label?.trim() || undefined,
       });
 
       setMessage('');
+      setLocation(initialLocation(placeLabel));
       setSuccess('제보를 보냈습니다. 검토 후 명소 목록에 반영될 수 있어요.');
     } catch (e) {
       if (e instanceof SessionExpiredError) {
@@ -110,15 +143,33 @@ export function SpotReportSection({
     } finally {
       setBusy(false);
     }
-  }, [message, observerLat, observerLng, onSessionInvalidated, useDeviceLocation]);
+  }, [message, location, observerLat, observerLng, placeLabel, onSessionInvalidated]);
 
   return (
     <GlassCard glow>
       <DiarySectionHeader
         icon="map-pin"
         title="명소 제보"
-        subtitle="목록에 없는 관측지를 알려 주세요. GPS와 Star-Index가 함께 전달됩니다."
+        subtitle="목록에 없는 관측지를 알려 주세요. 선택한 위치와 Star-Index가 함께 전달됩니다."
       />
+
+      <View style={styles.field}>
+        <DiaryLocationField
+          value={location}
+          onChange={(next) => {
+            setLocation(next);
+            setError(null);
+            setSuccess(null);
+          }}
+          observerLat={observerLat}
+          observerLng={observerLng}
+          placeLabel={placeLabel}
+          disabled={busy}
+          fieldLabel="제보 위치"
+          pickerTitle="제보 위치 선택"
+          onSessionInvalidated={onSessionInvalidated}
+        />
+      </View>
 
       <View style={styles.field}>
         <Text style={[styles.label, { color: theme.foreground }]}>명소 설명</Text>

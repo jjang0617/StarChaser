@@ -30,7 +30,6 @@ import {
 interface RecordsTabScreenProps {
   observerLat?: number | null;
   observerLng?: number | null;
-  useDeviceLocation?: boolean;
   onSessionInvalidated: () => Promise<void>;
   starIndexPlaceLabel?: string | null;
 }
@@ -38,7 +37,6 @@ interface RecordsTabScreenProps {
 export function RecordsTabScreen({
   observerLat = null,
   observerLng = null,
-  useDeviceLocation = true,
   onSessionInvalidated,
   starIndexPlaceLabel = null,
 }: RecordsTabScreenProps) {
@@ -121,7 +119,7 @@ export function RecordsTabScreen({
             <SpotReportSection
               observerLat={observerLat}
               observerLng={observerLng}
-              useDeviceLocation={useDeviceLocation}
+              placeLabel={starIndexPlaceLabel}
               onSessionInvalidated={onSessionInvalidated}
             />
           ) : null}

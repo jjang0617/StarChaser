@@ -43,7 +43,7 @@
 <body>
   <div class="wrap">
     <h1>명소 제보 관리</h1>
-    <p class="sub">사용자가 GPS와 함께 보낸 새 관측지 제보입니다. 확인 후 DB에 명소를 직접 추가하세요.</p>
+    <p class="sub">사용자가 선택한 관측 위치(현재 위치·명소·직접 입력)와 함께 보낸 새 관측지 제보입니다. 확인 후 DB에 명소를 직접 추가하세요.</p>
 
     <div class="panel">
       <div class="row">
@@ -152,6 +152,7 @@
           ' · ' + escapeHtml(item.user.nickname || item.user.email) + '</div>' +
           '<div class="stats">' +
           '<span class="stat">' + formatStarIndexScore(item.starIndexVal) + '</span>' +
+          (item.placeLabel ? '<span class="stat">위치 ' + escapeHtml(item.placeLabel) + '</span>' : '') +
           '<span class="stat">GPS ' + Number(item.latitude).toFixed(5) + ', ' + Number(item.longitude).toFixed(5) + '</span>' +
           '</div>' +
           '<a class="map" href="' + mapsUrl(item.latitude, item.longitude) + '" target="_blank" rel="noopener">지도에서 보기 ↗</a>' +

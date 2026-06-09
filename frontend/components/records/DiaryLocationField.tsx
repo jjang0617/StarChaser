@@ -36,6 +36,9 @@ interface DiaryLocationFieldProps {
   observerLng?: number | null;
   placeLabel?: string | null;
   disabled?: boolean;
+  /** 필드 라벨·모달 제목 — 맥락에 맞게 교체 (기본: 일기 작성용 '관측 위치') */
+  fieldLabel?: string;
+  pickerTitle?: string;
   onSessionInvalidated: () => Promise<void>;
 }
 
@@ -57,6 +60,8 @@ export function DiaryLocationField({
   observerLng,
   placeLabel,
   disabled = false,
+  fieldLabel = '관측 위치',
+  pickerTitle = '관측 위치 선택',
   onSessionInvalidated,
 }: DiaryLocationFieldProps) {
   const { theme } = useTheme();
@@ -164,7 +169,7 @@ export function DiaryLocationField({
 
   return (
     <View style={styles.wrap}>
-      <Text style={[styles.label, { color: theme.foreground }]}>관측 위치</Text>
+      <Text style={[styles.label, { color: theme.foreground }]}>{fieldLabel}</Text>
 
       <AppPressable
         onPress={() => !disabled && setPickerOpen(true)}
@@ -178,7 +183,7 @@ export function DiaryLocationField({
           },
         ]}
         accessibilityRole="button"
-        accessibilityLabel="관측 위치 선택"
+        accessibilityLabel={pickerTitle}
       >
         <Feather name="map-pin" size={18} color={theme.primaryGlow} style={styles.selectorIcon} />
         <View style={styles.selectorTextBlock}>
@@ -214,7 +219,7 @@ export function DiaryLocationField({
             onPress={(e) => e.stopPropagation()}
           >
             <Text style={[styles.modalTitle, { color: theme.foreground }]}>
-              관측 위치 선택
+              {pickerTitle}
             </Text>
 
             {searchErr ? (

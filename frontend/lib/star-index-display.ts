@@ -1,6 +1,10 @@
 import type { StarIndexResponseDto } from './types/api';
 
-/** 가중 합산 점수가 이 값 미만이면 UI에 측정불가(점수) 표시 */
+/**
+ * 이 값 미만이면 별 관측이 어려운 저점수 구간. UI에는 다른 구간과 동일하게 점수 숫자만 표시하고,
+ * 차이는 색·게이지 등 보조 스타일(measurable 플래그)로만 구분한다.
+ * '관측 어려움' 등 상태 라벨은 가이드 시트(MainScoreGuideSheet)에만 노출한다.
+ */
 export const STAR_INDEX_DISPLAY_MIN_SCORE = 50;
 
 export type StarIndexScoreDisplay = {
@@ -9,28 +13,15 @@ export type StarIndexScoreDisplay = {
   gaugePercent: number;
 };
 
-/** 50점 미만 — 원점수를 괄호에 표시 (예: 측정불가(42)) */
-export function formatUnmeasurableStarIndexLabel(score: number): string {
-  const n = Math.round(score);
-  if (!Number.isFinite(n)) return '측정불가';
-  return `측정불가(${n})`;
-}
-
 export function getStarIndexScoreDisplay(score: number): StarIndexScoreDisplay {
   const n = Math.round(score);
-  if (!Number.isFinite(n) || n < STAR_INDEX_DISPLAY_MIN_SCORE) {
-    const clamped = Math.min(100, Math.max(0, Number.isFinite(n) ? n : 0));
-    return {
-      measurable: false,
-      label: formatUnmeasurableStarIndexLabel(score),
-      /** 측정불가여도 MAIN 링·게이지는 원점수 비율로 표시 */
-      gaugePercent: clamped,
-    };
-  }
+  const finite = Number.isFinite(n);
+  const clamped = Math.min(100, Math.max(0, finite ? n : 0));
   return {
-    measurable: true,
-    label: String(n),
-    gaugePercent: Math.min(100, Math.max(0, n)),
+    measurable: finite && n >= STAR_INDEX_DISPLAY_MIN_SCORE,
+    /** 모든 구간 숫자만 — 50점 미만도 예외 없이 원점수 그대로 */
+    label: finite ? String(n) : '—',
+    gaugePercent: clamped,
   };
 }
 
