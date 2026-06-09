@@ -147,16 +147,24 @@ export function SkyTabScreen({
   const [locSiLoading, setLocSiLoading] = useState(false);
   const [locSiErr, setLocSiErr] = useState<string | null>(null);
 
-  const obsLat =
-    observerLat != null && Number.isFinite(observerLat)
+  /** 앱 '위치 사용'이 꺼져 있으면 GPS·명소 폴백 모두 무시 — SKY는 빈 상태만 표시 */
+  const obsLat = !locationFeaturesEnabled
+    ? null
+    : observerLat != null && Number.isFinite(observerLat)
       ? observerLat
       : spotFallback?.lat ?? null;
-  const obsLng =
-    observerLng != null && Number.isFinite(observerLng)
+  const obsLng = !locationFeaturesEnabled
+    ? null
+    : observerLng != null && Number.isFinite(observerLng)
       ? observerLng
       : spotFallback?.lng ?? null;
 
   useEffect(() => {
+    // 위치 사용 OFF — 폴백 좌표를 만들지 않아 빈 상태로 떨어지게 한다
+    if (!locationFeaturesEnabled) {
+      setSpotFallback(null);
+      return;
+    }
     const hasSi =
       observerLat != null &&
       observerLng != null &&
@@ -186,7 +194,13 @@ export function SkyTabScreen({
     return () => {
       cancelled = true;
     };
-  }, [observerLat, observerLng, observerSpotId, onSessionInvalidated]);
+  }, [
+    observerLat,
+    observerLng,
+    observerSpotId,
+    locationFeaturesEnabled,
+    onSessionInvalidated,
+  ]);
 
   const {
     data,
