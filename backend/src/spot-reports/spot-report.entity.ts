@@ -23,6 +23,10 @@ export class SpotReportEntity {
   @Column({ type: 'text' })
   message: string;
 
+  /** 제보자가 선택한 관측 위치 라벨 (현재 위치/명소/직접 입력) */
+  @Column({ name: 'place_label', type: 'varchar', length: 120, nullable: true })
+  placeLabel: string | null;
+
   @Column({ name: 'star_index_val', type: 'smallint' })
   starIndexVal: number;
 

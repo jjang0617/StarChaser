@@ -47,6 +47,7 @@ export class SpotReportsService {
       latitude: dto.lat,
       longitude: dto.lng,
       message,
+      placeLabel: dto.placeLabel?.trim() || null,
       starIndexVal: starResult.score,
       weatherSnapshot: starResult.weatherSnapshot,
     });
@@ -72,6 +73,7 @@ export class SpotReportsService {
         'r.latitude AS latitude',
         'r.longitude AS longitude',
         'r.message AS message',
+        'r.place_label AS "placeLabel"',
         'r.star_index_val AS "starIndexVal"',
         'r.weather_snapshot AS "weatherSnapshot"',
         'r.created_at AS "createdAt"',
@@ -85,6 +87,7 @@ export class SpotReportsService {
         latitude: number;
         longitude: number;
         message: string;
+        placeLabel: string | null;
         starIndexVal: number;
         weatherSnapshot: SpotReportEntity['weatherSnapshot'];
         createdAt: Date;
@@ -98,6 +101,7 @@ export class SpotReportsService {
       latitude: row.latitude,
       longitude: row.longitude,
       message: row.message,
+      placeLabel: row.placeLabel,
       starIndexVal: row.starIndexVal,
       weatherSnapshot: row.weatherSnapshot,
       createdAt: row.createdAt.toISOString(),

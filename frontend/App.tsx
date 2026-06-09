@@ -413,7 +413,6 @@ function AppContent() {
             <RecordsTabScreen
               observerLat={deviceLat}
               observerLng={deviceLng}
-              useDeviceLocation={deviceLocationActive}
               onSessionInvalidated={onSessionInvalidated}
               starIndexPlaceLabel={observerStarIndex.placeLabel}
             />

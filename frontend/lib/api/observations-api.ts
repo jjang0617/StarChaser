@@ -153,6 +153,8 @@ export interface SubmitSpotReportPayload {
   message: string;
   lat: number;
   lng: number;
+  /** 선택한 관측 위치 라벨 (현재 위치/명소/직접 입력) */
+  placeLabel?: string;
 }
 
 export function submitSpotReport(
