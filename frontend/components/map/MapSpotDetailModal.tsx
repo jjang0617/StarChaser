@@ -17,10 +17,7 @@ import {
 import type { StarIndexResponseDto } from '../../lib/types/api';
 import { useAuth } from '../../contexts/auth-context';
 import { isSpotBookmarked, toggleSpotBookmark } from '../../lib/spot-activity-storage';
-import {
-  getStarIndexScoreDisplay,
-  starIndexResponseToCardModel,
-} from '../../lib/star-index-display';
+import { starIndexResponseToCardModel } from '../../lib/star-index-display';
 import { Button, Card, SpotCard, StarIndexCard, StatefulCard, type StatefulCardError } from '../ui';
 import { CorrectionScoreInput } from './CorrectionScoreInput';
 
@@ -62,9 +59,6 @@ export function MapSpotDetailModal({
   const { theme } = useTheme();
   const { user } = useAuth();
   const starProps = data ? starIndexResponseToCardModel(data) : null;
-  const appScoreDisplay = data
-    ? getStarIndexScoreDisplay(data.score)
-    : null;
 
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
@@ -193,11 +187,11 @@ export function MapSpotDetailModal({
                 {data ? (
                   <SpotCard
                     bare
+                    showIndex={false}
                     name={data.name}
                     region={`${data.lat.toFixed(4)} · ${data.lng.toFixed(4)}`}
                     elevation={data.elevationM}
                     bortleClass={data.bortleClass}
-                    starIndex={data.score}
                     hasParking={false}
                     hasToilet={false}
                   />
@@ -208,40 +202,18 @@ export function MapSpotDetailModal({
                 title="Star-Index 보정 제보"
                 description="점수가 불안정할 경우, 현장에서 느낀 Star-Index 점수를 제보해 주세요."
               >
-                <View style={styles.corrStatsRow}>
-                  <View style={styles.corrStat}>
-                    <Text style={[styles.corrStatLabel, { color: theme.mutedForeground }]}>
-                      제보
-                    </Text>
-                    <Text
-                      style={[
-                        styles.corrStatValue,
-                        { color: theme.foreground, fontFamily: 'SpaceMono-Regular' },
-                      ]}
-                    >
-                      {submissionCount}건
-                    </Text>
-                  </View>
-                  {appScoreDisplay ? (
-                    <View style={[styles.corrStat, styles.corrStatRight]}>
-                      <Text style={[styles.corrStatLabel, { color: theme.mutedForeground }]}>
-                        앱 표시 점수
-                      </Text>
-                      <Text
-                        style={[
-                          styles.corrStatValue,
-                          {
-                            color: appScoreDisplay.measurable
-                              ? theme.primaryGlow
-                              : theme.destructive,
-                            fontFamily: 'SpaceMono-Regular',
-                          },
-                        ]}
-                      >
-                        {appScoreDisplay.label}
-                      </Text>
-                    </View>
-                  ) : null}
+                <View style={styles.corrStat}>
+                  <Text style={[styles.corrStatLabel, { color: theme.mutedForeground }]}>
+                    제보
+                  </Text>
+                  <Text
+                    style={[
+                      styles.corrStatValue,
+                      { color: theme.foreground, fontFamily: 'SpaceMono-Regular' },
+                    ]}
+                  >
+                    {submissionCount}건
+                  </Text>
                 </View>
 
                 <CorrectionScoreInput
@@ -319,15 +291,7 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   scroll: { flex: 1 },
   scrollInner: { padding: 16, gap: 12, paddingBottom: 40 },
-  corrStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 16,
-    marginBottom: 4,
-  },
-  corrStat: { gap: 4 },
-  corrStatRight: { alignItems: 'flex-end' },
+  corrStat: { gap: 4, marginBottom: 4 },
   corrStatLabel: {
     fontSize: 12,
     fontWeight: '500',

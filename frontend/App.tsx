@@ -379,7 +379,10 @@ function AppContent() {
               starIndexError={observerStarIndex.error}
               starIndexPlaceLabel={observerStarIndex.placeLabel}
               locationUnavailable={observerStarIndex.locationUnavailable}
-              onReloadStarIndex={() => void observerStarIndex.reload()}
+              starIndexRefreshing={observerStarIndex.manualRefreshing}
+              starIndexLastRefreshedAt={observerStarIndex.lastRefreshedAt}
+              starIndexRefreshFeedback={observerStarIndex.refreshFeedback}
+              onReloadStarIndex={() => void observerStarIndex.reload({ force: true })}
               onSessionInvalidated={onSessionInvalidated}
             />
           ) : activeTab === 'sky' ? (
