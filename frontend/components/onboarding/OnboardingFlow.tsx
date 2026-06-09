@@ -37,7 +37,7 @@ const NOTIF_INFO_ITEMS = [
   },
   {
     icon: '★',
-    title: 'Star-Index 알림',
+    title: '기준 명소 알림',
     desc: '기준 명소 점수가 올라가면 하루 1회 알려 드려요.',
   },
 ] as const;

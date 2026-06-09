@@ -9,7 +9,7 @@ export function locationStarIndexAlertMeSubtitle(
   if (!enabled) {
     return '위치한 곳 점수가 선택한 기준을 넘으면 하루 1회 알려 드려요';
   }
-  return `알림 기준 ${threshold}점 이상 · 하루 1회`;
+  return `위치한 곳 점수가 ${threshold}점 이상이면 하루 1회 알려 드려요`;
 }
 
 export const LOCATION_ALERT_THRESHOLD_HINT =
