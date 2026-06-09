@@ -388,11 +388,11 @@ export function ProfileTabScreen({
                   <SettingRow
                     theme={theme}
                     icon="star"
-                    title="Star-Index 알림"
+                    title="기준 명소 알림"
                     subtitle={
                       prefs.starIndexAlertEnabled && !prefs.alertSpotId
                         ? '기준 명소를 선택해야 알림이 발송됩니다'
-                        : `기준 명소 Star-Index가 ${starIndexThreshold}점 이상이면 하루 1회 알려 드려요`
+                        : `기준 명소 점수가 ${starIndexThreshold}점 이상이면 하루 1회 알려 드려요`
                     }
                     toggle
                     value={prefs.starIndexAlertEnabled}
