@@ -12,16 +12,13 @@ import { spacing } from '../../themes/design-tokens';
 import { dangerAccent } from '../../themes/themes';
 import { useTheme } from '../../themes/ThemeContext';
 import {
-  authorizedGetJson,
+  fetchNotificationHistory,
   SessionExpiredError,
 } from '../../lib/api-client';
-import type {
-  NotificationPreferenceDto,
-  StarIndexResponseDto,
-} from '../../lib/types/api';
+import type { StarIndexResponseDto } from '../../lib/types/api';
 import { MainHeaderIconButton } from './MainHeaderIconButton';
+import { MainNotificationHistorySheet } from './MainNotificationHistorySheet';
 import { MainScoreGuideSheet } from './MainScoreGuideSheet';
-import { MainStarIndexAlertSheet } from './MainStarIndexAlertSheet';
 import {
   formatCloudForCard,
   formatPm25Stat,
@@ -224,11 +221,12 @@ export function MainTabScreen({
   onSessionInvalidated,
 }: MainTabScreenProps) {
   const { theme, isRedMode } = useTheme();
-  const [alertSheetOpen, setAlertSheetOpen] = useState(false);
+  const [historySheetOpen, setHistorySheetOpen] = useState(false);
   const [guideSheetOpen, setGuideSheetOpen] = useState(false);
   const [alertEnabled, setAlertEnabled] = useState(false);
   /** 마지막 갱신 시각 라벨이 경과에 맞게 바뀌도록 주기적 리렌더 */
   const [refreshLabelTick, setRefreshLabelTick] = useState(0);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
 
   useEffect(() => {
     if (starIndexLastRefreshedAt == null) return;
@@ -259,14 +257,10 @@ export function MainTabScreen({
       : null;
   }, [starIndexLastRefreshedAt, refreshLabelTick]);
 
-  const refreshAlertBadge = useCallback(async () => {
+  const refreshUnreadBadge = useCallback(async () => {
     try {
-      const prefs = await authorizedGetJson<NotificationPreferenceDto>(
-        '/notifications/preferences',
-      );
-      setAlertEnabled(
-        Boolean(prefs.alertsEnabled && prefs.locationStarIndexAlertEnabled),
-      );
+      const data = await fetchNotificationHistory({ limit: 1 });
+      setHasUnreadNotifications(data.unreadCount > 0);
     } catch (e) {
       if (e instanceof SessionExpiredError) {
         await onSessionInvalidated();
@@ -275,12 +269,12 @@ export function MainTabScreen({
   }, [onSessionInvalidated]);
 
   useEffect(() => {
-    void refreshAlertBadge();
-  }, [refreshAlertBadge]);
+    void refreshUnreadBadge();
+  }, [refreshUnreadBadge]);
 
   useEffect(() => {
-    if (!alertSheetOpen) void refreshAlertBadge();
-  }, [alertSheetOpen, refreshAlertBadge]);
+    if (!historySheetOpen) void refreshUnreadBadge();
+  }, [historySheetOpen, refreshUnreadBadge]);
 
   const hasObserverGps =
     observerLat != null &&
@@ -403,9 +397,9 @@ export function MainTabScreen({
         <View style={styles.headerActions}>
           <MainHeaderIconButton
             icon="bell"
-            active={alertEnabled}
-            accessibilityLabel="Star-Index 알림 설정"
-            onPress={() => setAlertSheetOpen(true)}
+            active={hasUnreadNotifications}
+            accessibilityLabel="알림 내역"
+            onPress={() => setHistorySheetOpen(true)}
           />
           <MainHeaderIconButton
             icon="info"
@@ -415,10 +409,11 @@ export function MainTabScreen({
         </View>
       </View>
 
-      <MainStarIndexAlertSheet
-        visible={alertSheetOpen}
-        onClose={() => setAlertSheetOpen(false)}
+      <MainNotificationHistorySheet
+        visible={historySheetOpen}
+        onClose={() => setHistorySheetOpen(false)}
         onSessionInvalidated={onSessionInvalidated}
+        onReadStateChanged={() => setHasUnreadNotifications(false)}
       />
       <MainScoreGuideSheet
         visible={guideSheetOpen}

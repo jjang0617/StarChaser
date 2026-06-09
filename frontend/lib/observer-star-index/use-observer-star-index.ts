@@ -8,6 +8,7 @@ import {
   ApiRequestError,
   fetchStarIndex,
   fetchStarIndexAtLocation,
+  reportObserverLocation,
   SessionExpiredError,
 } from '../api-client';
 import type { StarIndexResponseDto } from '../types/api';
@@ -21,6 +22,19 @@ import {
   saveLocalStarIndexCache,
 } from './local-cache';
 import { resolveObserverPlaceLabel } from './resolve-place-label';
+
+function syncObserverLocationToServer(
+  lat: number,
+  lng: number,
+  placeLabel?: string,
+): void {
+  void reportObserverLocation({ lat, lng, placeLabel }).catch((e) => {
+    if (__DEV__) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn('[syncObserverLocationToServer]', msg);
+    }
+  });
+}
 
 export function useObserverStarIndex({
   activeSpotId,
@@ -314,8 +328,10 @@ export function useObserverStarIndex({
         setFromGps(true);
         lastFetchedCoordsRef.current = { lat: lat!, lng: lng! };
         void saveLocalStarIndexCache(lat!, lng!, d, null);
+        syncObserverLocationToServer(lat!, lng!);
         resolveObserverPlaceLabel(lat!, lng!, isLatest, setPlaceLabel, (label) => {
           void saveLocalStarIndexCache(lat!, lng!, d, label);
+          syncObserverLocationToServer(lat!, lng!, label);
         });
         if (force) {
           setLastRefreshedAt(Date.now());

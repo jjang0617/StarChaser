@@ -1,6 +1,8 @@
 import { DataSource } from 'typeorm';
 import { ObservationEntity } from '../observations/observation.entity';
 import { StarIndexCorrectionSubmissionEntity } from '../corrections/star-index-correction-submission.entity';
+import { LocationStarIndexPushSentEntity } from '../notifications/location-star-index-push-sent.entity';
+import { NotificationHistoryEntity } from '../notifications/notification-history.entity';
 import { NotificationPreferenceEntity } from '../notifications/notification-preference.entity';
 import { NotificationTokenEntity } from '../notifications/notification-token.entity';
 import { PhotoEntity } from '../photos/photo.entity';
@@ -31,6 +33,8 @@ export default new DataSource({
     PhotoEntity,
     NotificationTokenEntity,
     NotificationPreferenceEntity,
+    LocationStarIndexPushSentEntity,
+    NotificationHistoryEntity,
     StarIndexCorrectionSubmissionEntity,
     EmailVerificationEntity,
     ObservationMismatchReportEntity,

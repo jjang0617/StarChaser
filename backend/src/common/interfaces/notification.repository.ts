@@ -20,8 +20,23 @@ export interface NotificationPreference {
   starIndexAlertThreshold: StarIndexAlertThreshold;
   /** Star-Index 임계 알림용 기준 명소 */
   alertSpotId: string | null;
+  lastObserverLat: number | null;
+  lastObserverLng: number | null;
+  lastObserverPlaceLabel: string | null;
+  lastObserverAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface NotificationHistoryItem {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  body: string;
+  data: Record<string, string> | null;
+  readAt: Date | null;
+  createdAt: Date;
 }
 
 export interface NotificationRepository {
@@ -54,6 +69,27 @@ export interface NotificationRepository {
     }>
   >;
 
+  /** 위치한 곳 Star-Index 임계 알림 */
+  findAndroidRecipientsLocationStarIndexThreshold(params: {
+    maxObserverAgeDays: number;
+  }): Promise<
+    Array<{
+      userId: string;
+      fcmToken: string;
+      starIndexAlertThreshold: StarIndexAlertThreshold;
+      lastObserverLat: number;
+      lastObserverLng: number;
+      lastObserverPlaceLabel: string | null;
+    }>
+  >;
+
+  upsertLastObserverLocation(params: {
+    userId: string;
+    lat: number;
+    lng: number;
+    placeLabel?: string | null;
+  }): Promise<void>;
+
   hasStarIndexPushSentForKstDay(params: {
     userId: string;
     spotId: string;
@@ -65,6 +101,35 @@ export interface NotificationRepository {
     spotId: string;
     dayKstYmd: string;
   }): Promise<void>;
+
+  hasLocationStarIndexPushSentForKstDay(params: {
+    userId: string;
+    dayKstYmd: string;
+  }): Promise<boolean>;
+
+  recordLocationStarIndexPushSent(params: {
+    userId: string;
+    dayKstYmd: string;
+  }): Promise<void>;
+
+  recordNotificationHistory(params: {
+    userId: string;
+    type: string;
+    title: string;
+    body: string;
+    data?: Record<string, string> | null;
+  }): Promise<NotificationHistoryItem>;
+
+  listNotificationHistory(params: {
+    userId: string;
+    limit: number;
+    /** 이 시각보다 이전 항목만 (다음 페이지) */
+    before?: Date;
+  }): Promise<NotificationHistoryItem[]>;
+
+  countUnreadNotificationHistory(userId: string): Promise<number>;
+
+  markAllNotificationHistoryRead(userId: string): Promise<void>;
 }
 
 export const NOTIFICATION_REPOSITORY = 'NOTIFICATION_REPOSITORY';

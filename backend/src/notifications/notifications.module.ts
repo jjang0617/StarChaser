@@ -5,6 +5,8 @@ import { NOTIFICATION_REPOSITORY } from '../common/interfaces/notification.repos
 import { StarIndexModule } from '../star-index/star-index.module';
 import { SpotsModule } from '../spots/spots.module';
 import { FcmPushService } from './fcm-push.service';
+import { NotificationHistoryEntity } from './notification-history.entity';
+import { LocationStarIndexPushSentEntity } from './location-star-index-push-sent.entity';
 import { NotificationPreferenceEntity } from './notification-preference.entity';
 import { NotificationSchedulerService } from './notification-scheduler.service';
 import { NotificationTokenEntity } from './notification-token.entity';
@@ -19,6 +21,8 @@ import { TypeOrmNotificationRepository } from './typeorm-notification.repository
       NotificationTokenEntity,
       NotificationPreferenceEntity,
       StarIndexPushSentEntity,
+      LocationStarIndexPushSentEntity,
+      NotificationHistoryEntity,
     ]),
     AuthModule,
     StarIndexModule,

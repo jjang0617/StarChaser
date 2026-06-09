@@ -5,3 +5,4 @@ export * from './api/star-index-api';
 export * from './api/sky-api';
 export * from './api/corrections-api';
 export * from './api/observations-api';
+export * from './api/notifications-api';
