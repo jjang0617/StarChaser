@@ -12,7 +12,11 @@ import {
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { locationStarIndexAlertMeSubtitle } from '../../lib/notification-copy';
-import { normalizeStarIndexAlertThreshold } from '../../lib/star-index-alert-threshold';
+import {
+  normalizeStarIndexAlertThreshold,
+  type StarIndexAlertThreshold,
+} from '../../lib/star-index-alert-threshold';
+import { StarIndexAlertThresholdPicker } from '../notifications/StarIndexAlertThresholdPicker';
 import {
   glassCardStyle,
   spacing,
@@ -260,6 +264,14 @@ export function ProfileTabScreen({
     [persistPrefs, prefs],
   );
 
+  const selectThreshold = useCallback(
+    (threshold: StarIndexAlertThreshold) => {
+      if (!prefs || prefsSaving || starIndexThreshold === threshold) return;
+      void persistPrefs({ ...prefs, starIndexAlertThreshold: threshold });
+    },
+    [persistPrefs, prefs, prefsSaving, starIndexThreshold],
+  );
+
   return (
     <>
       <ScrollView
@@ -391,6 +403,11 @@ export function ProfileTabScreen({
                         setSpotPickerOpen(true);
                       }
                     }}
+                  />
+                  <StarIndexAlertThresholdPicker
+                    selected={starIndexThreshold}
+                    disabled={prefsSaving}
+                    onSelect={selectThreshold}
                   />
                   <View style={styles.spotPickBlock}>
                     <Text style={[styles.spotPickLabel, { color: theme.mutedForeground }]}>

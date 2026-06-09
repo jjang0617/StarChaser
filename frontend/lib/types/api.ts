@@ -77,6 +77,23 @@ export interface SpotDto {
   locationRadiusM: number;
 }
 
+/** GET /notifications/history */
+export interface NotificationHistoryItemDto {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  data?: Record<string, string> | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationHistoryResponseDto {
+  items: NotificationHistoryItemDto[];
+  unreadCount: number;
+  hasMore: boolean;
+}
+
 /** GET/PUT /notifications/preferences */
 export interface NotificationPreferenceDto {
   userId: string;

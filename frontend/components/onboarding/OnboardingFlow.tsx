@@ -256,8 +256,8 @@ export function OnboardingFlow({
                 알림 안내
               </Text>
               <Text style={[styles.sectionBody, { color: theme.mutedForeground }]}>
-                StarChaser 알림은 아래 세 가지로 구성되어 있어요.{'\n'}
-                마이페이지(ME)에서 언제든 켜거나 끌 수 있어요.
+                StarChaser 알림은 아래 두 가지예요.{'\n'}
+                종류·기준 점수(80·85·90·95)는 마이페이지(ME) 알림 설정에서 바꿀 수 있어요.
               </Text>
 
               <View style={styles.notifList}>
@@ -285,6 +285,12 @@ export function OnboardingFlow({
                   </View>
                 ))}
               </View>
+
+              <Text style={[styles.notifFootnote, { color: theme.mutedForeground }]}>
+                받은 알림은 메인(MAIN) 화면 우측 상단{' '}
+                <Text style={{ color: theme.foreground }}>종 아이콘</Text>
+                에서 확인할 수 있어요.
+              </Text>
             </View>
 
             <AuthSubmitButton
@@ -350,5 +356,10 @@ const styles = StyleSheet.create({
   notifDesc: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  notifFootnote: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: spacing.sm,
   },
 });

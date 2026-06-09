@@ -36,6 +36,19 @@ export class NotificationPreferenceEntity {
   @Column({ name: 'alert_spot_id', type: 'uuid', nullable: true })
   alertSpotId: string | null;
 
+  /** 위치한 곳 알림용 — 앱에서 보고한 마지막 GPS */
+  @Column({ name: 'last_observer_lat', type: 'double precision', nullable: true })
+  lastObserverLat: number | null;
+
+  @Column({ name: 'last_observer_lng', type: 'double precision', nullable: true })
+  lastObserverLng: number | null;
+
+  @Column({ name: 'last_observer_place_label', type: 'varchar', length: 120, nullable: true })
+  lastObserverPlaceLabel: string | null;
+
+  @Column({ name: 'last_observer_at', type: 'timestamptz', nullable: true })
+  lastObserverAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

@@ -6,6 +6,7 @@ import {
   Get,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,6 +14,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { JwtValidatedUser } from '../auth/strategies/jwt.strategy';
+import { NotificationHistoryResponseDto } from './dto/notification-history-item.dto';
+import { ReportObserverLocationDto } from './dto/report-observer-location.dto';
 import { DeactivateNotificationTokenDto } from './dto/deactivate-notification-token.dto';
 import { NotificationTestSendDto } from './dto/notification-test-send.dto';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
@@ -48,6 +51,37 @@ export class NotificationsController {
   ) {
     await this.notificationsService.deactivateToken(user.userId, dto.fcmToken);
     return { message: '토큰 비활성화 완료' };
+  }
+
+  @Get('history')
+  @ApiOperation({ summary: '내 알림 내역 (MAIN 종 아이콘)' })
+  getHistory(
+    @CurrentUser() user: JwtValidatedUser,
+    @Query('limit') limit?: string,
+    @Query('before') before?: string,
+  ): Promise<NotificationHistoryResponseDto> {
+    const n = limit != null ? Number.parseInt(limit, 10) : 20;
+    return this.notificationsService.getHistory(user.userId, {
+      limit: Number.isFinite(n) ? n : 20,
+      before,
+    });
+  }
+
+  @Post('history/read-all')
+  @ApiOperation({ summary: '알림 내역 모두 읽음 처리' })
+  markAllHistoryRead(@CurrentUser() user: JwtValidatedUser) {
+    return this.notificationsService.markAllHistoryRead(user.userId);
+  }
+
+  @Post('observer-location')
+  @ApiOperation({
+    summary: '위치한 곳 알림용 마지막 GPS 보고 (앱 위치 사용 시)',
+  })
+  reportObserverLocation(
+    @CurrentUser() user: JwtValidatedUser,
+    @Body() dto: ReportObserverLocationDto,
+  ) {
+    return this.notificationsService.reportObserverLocation(user.userId, dto);
   }
 
   @Get('preferences')
@@ -90,12 +124,12 @@ export class NotificationsController {
     if (!allowed) {
       throw new ForbiddenException('이 기능은 사용할 수 없습니다.');
     }
-    await this.notificationScheduler.sendStarIndexThresholdDigest();
+    await this.notificationScheduler.runScheduledStarIndexPushes();
     return {
       ok: true,
       triggeredBy: user.userId,
       message:
-        'Star-Index 스케줄 로직을 1회 실행했습니다. 서버 로그([Star-Index push])를 확인하세요.',
+        'Star-Index 스케줄(기준 명소·위치한 곳)을 1회 실행했습니다. 서버 로그를 확인하세요.',
     };
   }
 
