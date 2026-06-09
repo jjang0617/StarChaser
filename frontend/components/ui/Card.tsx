@@ -295,7 +295,9 @@ interface SpotCardProps {
   region:      string;
   elevation:   number;
   bortleClass: number;
-  starIndex:   number;
+  starIndex?:  number;
+  /** false면 우측 INDEX 점수 숨김 (명소 상세 등 상단 Star-Index 카드와 중복 방지) */
+  showIndex?:  boolean;
   hasParking:  boolean;
   hasToilet:   boolean;
   distanceKm?: number;
@@ -305,11 +307,11 @@ interface SpotCardProps {
 
 export function SpotCard({
   name, region, elevation, bortleClass,
-  starIndex, hasParking, hasToilet, distanceKm, onPress,
+  starIndex = 0, showIndex = true, hasParking, hasToilet, distanceKm, onPress,
   bare = false,
 }: SpotCardProps) {
   const { theme } = useTheme();
-  const scoreDisplay = getStarIndexScoreDisplay(starIndex);
+  const scoreDisplay = showIndex ? getStarIndexScoreDisplay(starIndex) : null;
 
   const bortleVariant =
     bortleClass <= 3 ? 'glow' :
@@ -324,24 +326,26 @@ export function SpotCard({
             {region}{distanceKm != null ? `  ·  ${distanceKm.toFixed(0)}km` : ''}
           </Text>
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text
-            style={[
-              styles.spotScore,
-              {
-                color: scoreDisplay.measurable ? theme.primaryGlow : theme.destructive,
-                fontFamily: 'SpaceMono-Regular',
-                fontSize: scoreDisplay.measurable ? 22 : 13,
-                lineHeight: scoreDisplay.measurable ? 24 : 18,
-              },
-            ]}
-          >
-            {scoreDisplay.label}
-          </Text>
-          <Text style={[styles.spotScoreLabel, { color: theme.mutedForeground }]}>
-            INDEX
-          </Text>
-        </View>
+        {scoreDisplay ? (
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text
+              style={[
+                styles.spotScore,
+                {
+                  color: scoreDisplay.measurable ? theme.primaryGlow : theme.destructive,
+                  fontFamily: 'SpaceMono-Regular',
+                  fontSize: scoreDisplay.measurable ? 22 : 13,
+                  lineHeight: scoreDisplay.measurable ? 24 : 18,
+                },
+              ]}
+            >
+              {scoreDisplay.label}
+            </Text>
+            <Text style={[styles.spotScoreLabel, { color: theme.mutedForeground }]}>
+              INDEX
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={[styles.divider, { backgroundColor: theme.borderSubtle }]} />

@@ -1,6 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   StyleSheet,
@@ -29,7 +30,11 @@ import {
   windLabelFromScore,
 } from '../../lib/star-index-headline';
 import { formatObserverPlaceLabel } from '../../lib/observer-place-label';
-import { formatStarIndexStaleHint } from '../../lib/star-index-stale';
+import {
+  formatLastRefreshLabel,
+  formatStarIndexStaleHint,
+  msUntilNextRefreshLabelChange,
+} from '../../lib/star-index-stale';
 import type { ObserverLocationUnavailable } from '../../lib/use-observer-star-index';
 import { AnimatedStarIndexGauge } from './AnimatedStarIndexGauge';
 
@@ -43,6 +48,9 @@ interface MainTabScreenProps {
   starIndexError: string | null;
   starIndexPlaceLabel: string | null;
   locationUnavailable?: ObserverLocationUnavailable | null;
+  starIndexRefreshing?: boolean;
+  starIndexLastRefreshedAt?: number | null;
+  starIndexRefreshFeedback?: { tone: 'success' | 'error'; message: string } | null;
   onReloadStarIndex: () => void;
   onSessionInvalidated: () => void | Promise<void>;
 }
@@ -206,13 +214,48 @@ export function MainTabScreen({
   starIndexError,
   starIndexPlaceLabel,
   locationUnavailable = null,
+  starIndexRefreshing = false,
+  starIndexLastRefreshedAt = null,
+  starIndexRefreshFeedback = null,
   onReloadStarIndex,
   onSessionInvalidated,
 }: MainTabScreenProps) {
   const { theme, isRedMode } = useTheme();
   const [historySheetOpen, setHistorySheetOpen] = useState(false);
   const [guideSheetOpen, setGuideSheetOpen] = useState(false);
+  const [alertEnabled, setAlertEnabled] = useState(false);
+  /** 마지막 갱신 시각 라벨이 경과에 맞게 바뀌도록 주기적 리렌더 */
+  const [refreshLabelTick, setRefreshLabelTick] = useState(0);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+
+  useEffect(() => {
+    if (starIndexLastRefreshedAt == null) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const schedule = () => {
+      const delay = msUntilNextRefreshLabelChange(starIndexLastRefreshedAt);
+      if (delay == null || cancelled) return;
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        setRefreshLabelTick((t) => t + 1);
+        schedule();
+      }, delay);
+    };
+
+    schedule();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [starIndexLastRefreshedAt]);
+
+  const lastRefreshLabel = useMemo(() => {
+    void refreshLabelTick;
+    return starIndexLastRefreshedAt != null
+      ? formatLastRefreshLabel(starIndexLastRefreshedAt)
+      : null;
+  }, [starIndexLastRefreshedAt, refreshLabelTick]);
 
   const refreshUnreadBadge = useCallback(async () => {
     try {
@@ -455,16 +498,53 @@ export function MainTabScreen({
         </View>
       ) : null}
 
-      {canLoad && !starIndexLoading && starIndexData ? (
+      {canLoad && starIndexData ? (
         <Pressable
           onPress={onReloadStarIndex}
-          style={({ pressed }) => [styles.refreshTap, pressed && { opacity: 0.7 }]}
+          disabled={starIndexRefreshing}
+          style={({ pressed }) => [
+            styles.refreshTap,
+            starIndexRefreshing && styles.refreshTapBusy,
+            pressed && !starIndexRefreshing && { opacity: 0.7 },
+          ]}
           accessibilityRole="button"
-          accessibilityLabel="Star-Index 새로고침"
+          accessibilityLabel={
+            starIndexRefreshing ? 'Star-Index 갱신 중' : 'Star-Index 새로고침'
+          }
+          accessibilityState={{ busy: starIndexRefreshing }}
         >
-          <Text style={[styles.refreshText, { color: theme.mutedForeground }]}>
-            탭하여 갱신
-          </Text>
+          {starIndexRefreshing ? (
+            <View style={styles.refreshRow}>
+              <ActivityIndicator size="small" color={theme.primaryGlow} />
+              <Text style={[styles.refreshText, { color: theme.primaryGlow }]}>
+                갱신 중…
+              </Text>
+            </View>
+          ) : starIndexRefreshFeedback?.tone === 'error' ? (
+            <Text style={[styles.refreshText, { color: theme.destructive }]}>
+              {starIndexRefreshFeedback.message}
+            </Text>
+          ) : starIndexRefreshFeedback?.tone === 'success' ? (
+            <View style={styles.refreshCol}>
+              <Text style={[styles.refreshText, { color: theme.primaryGlow }]}>
+                탭하여 갱신
+              </Text>
+              <Text style={[styles.refreshSubText, { color: theme.primaryGlow }]}>
+                {starIndexRefreshFeedback.message}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.refreshCol}>
+              <Text style={[styles.refreshText, { color: theme.mutedForeground }]}>
+                탭하여 갱신
+              </Text>
+              {lastRefreshLabel ? (
+                <Text style={[styles.refreshSubText, { color: theme.mutedForeground }]}>
+                  {lastRefreshLabel}
+                </Text>
+              ) : null}
+            </View>
+          )}
         </Pressable>
       ) : null}
     </View>
@@ -617,9 +697,27 @@ const styles = StyleSheet.create({
   refreshTap: {
     alignItems: 'center',
     paddingVertical: spacing.xs,
+    minHeight: 28,
+    justifyContent: 'center',
+  },
+  refreshTapBusy: {
+    opacity: 0.92,
+  },
+  refreshRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  refreshCol: {
+    alignItems: 'center',
+    gap: 2,
   },
   refreshText: {
     fontSize: 11,
+  },
+  refreshSubText: {
+    fontSize: 10,
+    opacity: 0.85,
   },
   retryBtn: {
     paddingVertical: spacing.xs,
