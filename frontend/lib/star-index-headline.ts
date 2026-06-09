@@ -1,7 +1,4 @@
-import {
-  formatUnmeasurableStarIndexLabel,
-  STAR_INDEX_DISPLAY_MIN_SCORE,
-} from './star-index-display';
+import { STAR_INDEX_DISPLAY_MIN_SCORE } from './star-index-display';
 
 /** MAIN 화면 헤드라인 — 점수 구간별 UX 카피 */
 export type StarIndexHeadline = {
@@ -16,10 +13,10 @@ export function getStarIndexHeadline(score: number): StarIndexHeadline {
 
   if (!Number.isFinite(n) || n < STAR_INDEX_DISPLAY_MIN_SCORE) {
     return {
-      line1: '현재 하늘은',
-      highlight: formatUnmeasurableStarIndexLabel(score),
-      line2: '예요',
-      hint: '조건이 좋지 않아요. 잠시 후 다시 확인해 보세요.',
+      line1: '오늘 밤은',
+      highlight: '별 보기 어려운 ',
+      line2: '하늘이에요',
+      hint: '관측 조건이 전반적으로 좋지 않아요.',
     };
   }
 
@@ -83,7 +80,7 @@ function scoreBandLabel(score: number): string {
   if (score >= 80) return '양호';
   if (score >= 70) return '보통';
   if (score >= STAR_INDEX_DISPLAY_MIN_SCORE) return '나쁨';
-  return formatUnmeasurableStarIndexLabel(score);
+  return '관측 어려움';
 }
 
 export function windLabelFromScore(windScore: number): string {

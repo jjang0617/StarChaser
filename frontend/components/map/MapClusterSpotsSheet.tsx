@@ -234,7 +234,7 @@ export function MapClusterSpotsSheet({
                             color: scDisplay?.measurable
                               ? theme.primaryGlow
                               : theme.destructive,
-                            fontSize: scDisplay?.measurable ? 18 : 12,
+                            fontSize: 18,
                           },
                         ]}
                         numberOfLines={1}

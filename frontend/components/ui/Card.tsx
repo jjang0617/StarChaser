@@ -168,7 +168,7 @@ export function StarIndexCard({
   const scoreDisplay = getStarIndexScoreDisplay(score);
 
   const status = !scoreDisplay.measurable
-    ? scoreDisplay.label
+    ? '관측 어려움'
     : score >= 75
       ? '관측 적합'
       : '부분 관측';
@@ -229,8 +229,8 @@ export function StarIndexCard({
                 {
                   color: scoreColor,
                   fontFamily: 'SpaceMono-Regular',
-                  fontSize: scoreDisplay.measurable ? 40 : 22,
-                  lineHeight: scoreDisplay.measurable ? 44 : 28,
+                  fontSize: 40,
+                  lineHeight: 44,
                 },
               ]}
             >
@@ -334,8 +334,8 @@ export function SpotCard({
                 {
                   color: scoreDisplay.measurable ? theme.primaryGlow : theme.destructive,
                   fontFamily: 'SpaceMono-Regular',
-                  fontSize: scoreDisplay.measurable ? 22 : 13,
-                  lineHeight: scoreDisplay.measurable ? 24 : 18,
+                  fontSize: 22,
+                  lineHeight: 24,
                 },
               ]}
             >
