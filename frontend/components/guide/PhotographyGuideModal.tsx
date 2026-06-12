@@ -11,7 +11,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '../../themes/ThemeContext';
 import type { ThemeTokens } from '../../themes/themes';
-import { Button } from '../ui';
 
 interface PhotographyGuideModalProps {
   visible: boolean;
@@ -105,10 +104,6 @@ export function PhotographyGuideModal({
             본 내용은 일반 참고용이며 기기 매뉴얼·현장 안전 수칙이 우선합니다.
           </Text>
         </ScrollView>
-
-        <View style={[styles.footer, { borderTopColor: theme.border }]}>
-          <Button label="확인" variant="primary" fullWidth onPress={onClose} />
-        </View>
       </View>
     </Modal>
   );
@@ -166,9 +161,4 @@ const styles = StyleSheet.create({
   bulletDot: { fontSize: 14, lineHeight: 21, width: 18 },
   bulletText: { flex: 1, fontSize: 13, lineHeight: 21 },
   disclaimer: { fontSize: 12, lineHeight: 18, marginTop: 8 },
-  footer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
 });
