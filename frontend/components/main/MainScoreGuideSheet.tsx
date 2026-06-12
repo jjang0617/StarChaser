@@ -49,8 +49,20 @@ export function MainScoreGuideSheet({ visible, onClose }: MainScoreGuideSheetPro
             },
           ]}
         >
+          <View style={styles.header}>
+            <View style={styles.headerTitleRow}>
+              <Feather name="info" size={18} color={theme.primaryGlow} />
+              <Text style={[styles.title, { color: theme.foreground }]}>
+                Star-Index 가이드
+              </Text>
+            </View>
+            <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="닫기">
+              <Feather name="x" size={20} color={theme.mutedForeground} />
+            </Pressable>
+          </View>
+
           <ScrollView
-            style={{ maxHeight: sheetMaxHeight - spacing.lg * 2 }}
+            style={styles.scroll}
             contentContainerStyle={[
               styles.scrollContent,
               { paddingBottom: Math.max(insets.bottom, spacing.lg) },
@@ -59,18 +71,6 @@ export function MainScoreGuideSheet({ visible, onClose }: MainScoreGuideSheetPro
             bounces
             nestedScrollEnabled
           >
-            <View style={styles.header}>
-              <View style={styles.headerTitleRow}>
-                <Feather name="info" size={18} color={theme.primaryGlow} />
-                <Text style={[styles.title, { color: theme.foreground }]}>
-                  Star-Index 가이드
-                </Text>
-              </View>
-              <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="닫기">
-                <Feather name="x" size={20} color={theme.mutedForeground} />
-              </Pressable>
-            </View>
-
             <Text style={[styles.lead, { color: theme.mutedForeground }]}>
               메인 화면 문구와 같은 기준으로 점수를 해석해요. 숫자가 높을수록 별·은하수
               관측에 유리한 밤에 가깝습니다.
@@ -115,6 +115,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
     maxWidth: 400,
+  },
+  scroll: {
+    flexShrink: 1,
   },
   scrollContent: {
     gap: spacing.sm,
