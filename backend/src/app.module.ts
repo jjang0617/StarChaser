@@ -1,7 +1,10 @@
+import { join } from 'path';
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CacheModule } from '@nestjs/cache-manager';
+import { AppCacheModule } from './cache/app-cache.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
@@ -9,68 +12,86 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { CronModule } from './cron/cron.module';
 import { SpotsModule } from './spots/spots.module';
+import { StarIndexModule } from './star-index/star-index.module';
+import { SkyModule } from './sky/sky.module';
+import { ObservationsModule } from './observations/observations.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { CorrectionsModule } from './corrections/corrections.module';
+import { ViirsModule } from './viirs/viirs.module';
+import { UsersModule } from './users/users.module';
+import { KakaoPageController } from './kakao-page.controller';
+import { ObservationReportsModule } from './observation-reports/observation-reports.module';
+import { AdminModule } from './admin/admin.module';
+import { AdminPageController } from './admin/admin-page.controller';
+import { SpotReportsModule } from './spot-reports/spot-reports.module';
+import { PlacesModule } from './places/places.module';
+import { CacheHydrationModule } from './cache-hydration/cache-hydration.module';
+import { LegalPagesController } from './legal/legal-pages.controller';
 
 @Module({
   imports: [
-    // ── 환경변수 — 전역 사용 ──────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      /**
+       * 1) 컴파일 결과 기준 backend/.env — cwd 와 무관하게 동일 서버 설정.
+       * 2) cwd 의 .env / 레포 루트에서 실행 시 backend/.env 보조.
+       * dotenv 는 이미 설정된 키를 나중 파일에서 덮어쓰지 않으므로, 가장 신뢰할 소스를 앞에 둠.
+       */
+      envFilePath: [
+        join(__dirname, '..', '.env'),
+        join(process.cwd(), '.env'),
+        join(process.cwd(), 'backend', '.env'),
+      ],
     }),
-
-    // ── DB (Supabase PostgreSQL + PostGIS) ──────────── DB적용후 주석처리 빼기
-// TypeOrmModule.forRootAsync({
-//   imports: [ConfigModule],
-//   useFactory: (config: ConfigService) => ({
-//     type: 'postgres',
-//     url: config.get<string>('DATABASE_URL'),
-//     autoLoadEntities: true,
-//     synchronize: false,
-//     ssl: { rejectUnauthorized: false },
-//     logging: config.get('NODE_ENV') === 'development',
-//     retryAttempts: 3,
-//     retryDelay: 3000,
-//     connectTimeoutMS: 3000,
-//   }),
-//   inject: [ConfigService],
-// }),
-
-    // ── 캐시 (Phase 1: 메모리 / Phase 2: Redis 교체) ──
-    // Phase 2 전환 시 여기만 수정하면 됨 — 서비스 코드 불변
-    CacheModule.register({
-      isGlobal: true,
-      ttl: 3600, // 기본 TTL 1시간
-      max: 500,  // 최대 캐시 항목 수
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres',
+        url: config.get<string>('DATABASE_URL'),
+        autoLoadEntities: true,
+        synchronize: false,
+        ssl: { rejectUnauthorized: false },
+        logging: config.get('NODE_ENV') === 'development',
+        retryAttempts: 3,
+        retryDelay: 3000,
+        connectTimeoutMS: 3000,
+      }),
+      inject: [ConfigService],
     }),
-
-    // ── Cron 스케줄러 ─────────────────────────────────
+    AppCacheModule,
+    CacheHydrationModule,
     ScheduleModule.forRoot(),
-
-    // ── Rate Limit (API 남용 방지) ────────────────────
     ThrottlerModule.forRoot([
       {
         name: 'default',
-        ttl: 600,  // 60초 윈도우
-        limit: 30,   // IP당 최대 30회
+        ttl: 6000,
+        limit: 30,
       },
     ]),
-
     AuthModule,
-
     CronModule,
-
     SpotsModule,
-
-    // ── 기능 모듈 (각 담당자가 채워나감) ─────────────
-    // AuthModule,       // 장성재(A) — 2주차
-    // StarIndexModule,  // 장성재(A) — 2~3주차
-    // SpotsModule,      // 김세희(B) — 3주차
-    // ObservationsModule, // 장성재(A) — 5주차
-    // SkyModule,        // 지영재(C) — 4주차
-    // NotificationsModule, // 지영재(C) — 4~5주차
-    // CronModule,       // 장성재(A) — 3주차
+    StarIndexModule,
+    SkyModule,
+    ObservationsModule,
+    NotificationsModule,
+    CorrectionsModule,
+    ViirsModule,
+    UsersModule,
+    ObservationReportsModule,
+    SpotReportsModule,
+    PlacesModule,
+    AdminModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [
+    AppController,
+    KakaoPageController,
+    AdminPageController,
+    LegalPagesController,
+  ],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

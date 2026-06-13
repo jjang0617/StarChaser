@@ -1,49 +1,52 @@
-# StarChaser — Cursor Rules
+---
+description: 
+alwaysApply: true
+---
 
+---
+description: 
+alwaysApply: true
+---
+
+# StarChaser --- Cursor Rules
 ## 프로젝트 개요
-- 서비스: StarChaser — 별 관측 성공 확률(Star-Index) 특화 앱
-- 기술 스택: React Native + Expo (FE) / NestJS (BE) / PostgreSQL+PostGIS (Supabase) / NestJS 메모리 캐시 / Railway
+- 서비스: StarChaser --- 별 관측 성공 확률(Star-Index) 특화 앱
+- 기술 스택: React Native + Expo (FE) / NestJS (BE) /
+ PostgreSQL+PostGIS (Supabase) / NestJS 메모리 캐시 / Railway
 - Phase 1: Docker·Redis·AWS·CI/CD 없이 로컬 직접 실행
-
 ## 코드 스타일
 - 언어: TypeScript 엄격 모드 (strict: true)
-- 포매터: Prettier (스페이스 2칸)
+- 포매터: Prettier (탭 대신 스페이스 2칸)
 - 린터: ESLint (airbnb-typescript 기반)
-- 함수: camelCase / 컴포넌트: PascalCase / 파일: kebab-case
-
+- 함수 네이밍: camelCase / 컴포넌트: PascalCase
+- 파일 네이밍: kebab-case (예: star-index.service.ts)
 ## 절대 하면 안 되는 것
-- API 키·비밀번호를 코드에 하드코딩 — 반드시 .env + ConfigService 사용
-- 앱에서 외부 API 직접 호출 — 반드시 서버 경유
-- console.log 프로덕션 코드 — NestJS Logger 사용
-- any 타입 사용 — 부득이한 경우 // eslint-disable-next-line 주석 필수
-- process.env 직접 접근 — ConfigService 통해서만
-
+- API 키·비밀번호를 코드에 하드코딩 --- 반드시 .env 사용
+- 앱에서 외부 API 직접 호출 --- 반드시 서버 경유
+- console.log를 프로덕션 코드에 남기기 --- NestJS Logger 사용
+- any 타입 사용 금지 (부득이한 경우 주석 필수)
 ## BE 규칙 (NestJS)
-- 모든 외부 API는 Cron 수집 → CacheService → 앱이 읽는 구조
-- DB 접근은 Repository 패턴만 사용 (서비스에서 dataSource 직접 호출 금지)
+- 모든 외부 API는 Cron이 수집 → 캐시 → 앱이 읽는 구조
+- DB 직접 접근은 Repository 패턴만 사용 (서비스에서 dataSource 직접 호출 금지)
 - 캐시 접근은 CacheService 인터페이스로만 (Phase 2 Redis 교체 대비)
-- 환경변수: ConfigService 통해 접근
+- 환경변수: ConfigService 통해 접근 (process.env 직접 사용 금지)
 - 에러 처리: HttpException 또는 커스텀 Exception Filter
-
 ## FE 규칙 (React Native)
 - 스타일: NativeWind
 - 상태 관리: useState/useContext (zustand는 Phase 2부터)
 - 네비게이션: Expo Router
-- 이미지: expo-image
-
+- 이미지: expo-image 사용
+- primary color : 샤드시엔에 있는 스타일 가이드(tailwind css)의 대표적인 레퍼런스 스타일 가져오기
+- 배경은 검은색, 글씨는 흰색으로 모던하게
 ## DB 규칙 (PostgreSQL + PostGIS via Supabase)
-- 위경도: 반드시 GEOMETRY(Point, 4326) — SRID 4326 필수
+- 위경도: 반드시 GEOMETRY(Point, 4326) --- SRID 4326 필수
 - 인덱스: GEOMETRY 컬럼은 반드시 GIST 인덱스
-- ST_MakePoint(경도, 위도) — 순서 주의! (경도 먼저)
-- elevation_m: 명소 시딩 시 반드시 입력 (Star-Index GPS 고도 변수)
-- 컬럼명: snake_case / TS 필드명: camelCase / 변환은 DTO 레이어에서만
-
-## Star-Index 알고리즘 (10개 변수)
-- 운량×0.28 + PM2.5×0.17 + 광공해×0.17 + 달영향×0.12 + 습도×0.10
-  + GPS고도×0.06 + 풍속×0.04 + 시정×0.03 + 기온×0.02 + 보정×0.01
+- ST_MakePoint(경도, 위도) --- 순서 주의!
+- elevation_m 컬럼: 명소 시딩 시 반드시 입력 (Star-Index GPS 고도 변수)
+## Star-Index 알고리즘 (10개 변수)- 운량×0.28 + PM2.5×0.17 + 광공해×0.17 + 달영향×0.12 + 습도×0.10
+ + GPS고도×0.06 + 풍속×0.04 + 시정×0.03 + 기온×0.02 + 보정×0.01
 - 달 고도(moonAltitude)와 GPS 고도(elevation_m)는 절대 생략 불가
-
-## 코드 생성 시 항상 포함
+## 코드 생성 요청 시 항상 포함할 것
 - TypeScript 타입 명시
 - 에러 핸들링 (try/catch 또는 NestJS ExceptionFilter)
 - 주요 로직에 한국어 주석

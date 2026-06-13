@@ -1,0 +1,20 @@
+{
+  "epoch": "J2000",
+  "note": "HIP 쌍 — hip-bright-subset.json에 있는 별만 연결. 3~4주차 스틱피겨 MVP.",
+  "segments": [
+    { "fromHip": 25336, "toHip": 24436, "con": "Ori" },
+    { "fromHip": 24436, "toHip": 25930, "con": "Ori" },
+    { "fromHip": 25930, "toHip": 27989, "con": "Ori" },
+    { "fromHip": 24436, "toHip": 32349, "con": "Ori" },
+    { "fromHip": 32349, "toHip": 26311, "con": "Ori" },
+    { "fromHip": 27989, "toHip": 27913, "con": "Ori" },
+    { "fromHip": 62956, "toHip": 63125, "con": "UMa" },
+    { "fromHip": 63125, "toHip": 65378, "con": "UMa" },
+    { "fromHip": 65378, "toHip": 65360, "con": "UMa" },
+    { "fromHip": 65360, "toHip": 58001, "con": "UMa" },
+    { "fromHip": 58001, "toHip": 54061, "con": "UMa" },
+    { "fromHip": 54061, "toHip": 53910, "con": "UMa" },
+    { "fromHip": 91262, "toHip": 102098, "con": "Tri" },
+    { "fromHip": 102098, "toHip": 102978, "con": "Tri" }
+  ]
+}

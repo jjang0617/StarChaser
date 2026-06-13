@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "866969342807",
+    "project_id": "starchaser-23530",
+    "storage_bucket": "starchaser-23530.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:866969342807:android:1bfb60b45b8965fc0fe412",
+        "android_client_info": {
+          "package_name": "com.starchaser.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYLeDCXBkoLGpBbQAWWlT48e_DJAXyb3A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

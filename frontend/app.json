@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "StarChaser",
+    "slug": "frontend",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-starchaser.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#030712"
+    },
+    "plugins": [
+      [
+        "expo-navigation-bar",
+        {
+          "backgroundColor": "#030712",
+          "barStyle": "light"
+        }
+      ],
+      "expo-dev-client",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "StarChaser가 주변 관측 조건을 안내하기 위해 현재 위치가 필요합니다.",
+          "locationAlwaysAndWhenInUsePermission": "StarChaser가 관측 알림을 위해 위치 정보를 사용합니다."
+        }
+      ],
+      "expo-notifications",
+      "expo-screen-orientation",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "프로필 사진을 선택하기 위해 사진 라이브러리 접근이 필요합니다."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "StarChaser가 주변 관측 조건을 안내하기 위해 현재 위치가 필요합니다.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "StarChaser가 관측 알림을 위해 위치 정보를 사용합니다."
+      }
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#030712",
+      "barStyle": "light-content"
+    },
+    "android": {
+      "package": "com.starchaser.app",
+      "googleServicesFile": "./google-services.json",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
