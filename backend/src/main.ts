@@ -16,10 +16,10 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalPipes(createGlobalValidationPipe());
 
-  // CORS — 개발 환경에서 Expo 허용
+  // CORS — 개발 환경에서 Expo 허용, 프로덕션에서는 공식 도메인 및 관리자 서브도메인 허용
   app.enableCors({
     origin: process.env.NODE_ENV === 'production'
-      ? ['https://starchaser.app']
+      ? ['https://starchaser.app', 'https://admin.starchaser.app']
       : true,
   });
 
