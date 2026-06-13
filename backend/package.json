@@ -4,6 +4,9 @@
   "description": "StarChaser API Server",
   "author": "StarChaser Team",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "build": "nest build",
     "start": "nest start",
