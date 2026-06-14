@@ -34,7 +34,8 @@
         {
           "photosPermission": "프로필 사진을 선택하기 위해 사진 라이브러리 접근이 필요합니다."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "ios": {
       "supportsTablet": true,
@@ -50,7 +51,6 @@
     "android": {
       "package": "com.starchaser.app",
       "googleServicesFile": "./google-services.json",
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
