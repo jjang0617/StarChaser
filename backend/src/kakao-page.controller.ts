@@ -14,7 +14,7 @@ export class KakaoPageController {
   @Get('kakao.html')
   kakaoHtml(@Res() res: Response) {
     // dist 실행 환경에서도 동작하도록 프로젝트 루트 기준 상대경로로 계산
-    const filePath = path.resolve(process.cwd(), '..', 'map-site', 'kakao.html');
+    const filePath = path.resolve(process.cwd(), 'map-site', 'kakao.html');
 
     const raw = fs.readFileSync(filePath, 'utf8');
     const key = (process.env.KAKAO_JS_KEY ?? '').trim();
