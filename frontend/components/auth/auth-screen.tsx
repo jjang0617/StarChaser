@@ -866,7 +866,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: WINDOW_HEIGHT * 0.82,
+    height: WINDOW_HEIGHT * 0.94,
     paddingHorizontal: spacing.lg,
     zIndex: 10,
   },
