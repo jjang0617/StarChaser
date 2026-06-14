@@ -59,13 +59,24 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "POST_NOTIFICATIONS"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "expo-navigation-bar": {
+        "backgroundColor": "#030712",
+        "barStyle": "light"
+      },
+      "eas": {
+        "projectId": "6b65a3ab-ee8e-4bb5-b2d8-9f2c0e2d2503"
+      }
+    },
+    "owner": "beomb"
   }
 }
