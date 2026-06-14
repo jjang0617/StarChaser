@@ -41,8 +41,10 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "StarChaser가 주변 관측 조건을 안내하기 위해 현재 위치가 필요합니다.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "StarChaser가 관측 알림을 위해 위치 정보를 사용합니다."
-      }
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "StarChaser가 관측 알림을 위해 위치 정보를 사용합니다.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.starchaser.app"
     },
     "androidNavigationBar": {
       "backgroundColor": "#030712",
@@ -53,8 +55,7 @@
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#030712",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
