@@ -13,7 +13,7 @@ export const TERMS_OF_SERVICE_PUBLIC_URL =
   'https://starchaser.app/terms';
 
 /** 이용자 문의 — Play·방침에 동일하게 기재 */
-export const SUPPORT_EMAIL = 'support@starchaser.app';
+export const SUPPORT_EMAIL = 'starchaser.app.mail@gmail.com';
 
 export const TERMS_OF_SERVICE = `StarChaser 이용약관
 
