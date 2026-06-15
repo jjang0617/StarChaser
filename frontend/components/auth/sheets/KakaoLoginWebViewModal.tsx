@@ -63,6 +63,37 @@ export function KakaoLoginWebViewModal({
     }
   };
 
+  // 카카오톡 앱 직접 연동 로그인 버튼을 DOM에서 찾아 숨김 처리하는 스크립트 주입
+  const injectedJs = `
+    (function() {
+      const hideTalkBtn = () => {
+        // 1. 텍스트 매칭으로 찾기
+        const els = document.querySelectorAll('a, button, span, div');
+        els.forEach(el => {
+          if (el.textContent && el.textContent.trim() === '카카오톡으로 로그인') {
+            const btn = el.closest('a') || el.closest('button') || el;
+            btn.style.setProperty('display', 'none', 'important');
+          }
+        });
+        // 2. 클래스 및 속성 선택자로 찾기
+        const selectors = [
+          '.btn_talk',
+          'a[href*="kakaotalk"]',
+          'a[href*="talk-login"]',
+          '.link_talk'
+        ];
+        selectors.forEach(sel => {
+          document.querySelectorAll(sel).forEach(el => {
+            if (el) el.style.setProperty('display', 'none', 'important');
+          });
+        });
+      };
+      hideTalkBtn();
+      setInterval(hideTalkBtn, 100); // 동적 렌더링 대응을 위해 주기적으로 실행
+    })();
+    true;
+  `;
+
   return (
     <Modal
       visible={visible}
@@ -83,6 +114,7 @@ export function KakaoLoginWebViewModal({
           ref={webViewRef}
           source={{ uri: authUrl }}
           onNavigationStateChange={handleNavigationStateChange}
+          injectedJavaScript={injectedJs}
           onShouldStartLoadWithRequest={(request) => {
             const { url } = request;
             // 카카오톡 앱 전환 스킴 또는 기타 외부 앱 스킴 허용 및 처리
