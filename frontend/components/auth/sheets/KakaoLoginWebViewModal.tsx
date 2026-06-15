@@ -71,7 +71,7 @@ export function KakaoLoginWebViewModal({
       if (window.scInitialized) return;
       window.scInitialized = true;
 
-      // 1. 여백 제거 및 인풋/버튼 확대용 CSS 주입
+      // 1. 인풋/버튼 확대용 CSS 주입
       const injectStyles = () => {
         try {
           if (document.getElementById('sc-injected-style')) return;
@@ -80,15 +80,15 @@ export function KakaoLoginWebViewModal({
           style.textContent = \`
             /* 인풋 필드 크기 및 글꼴 확대 */
             input[type="text"], input[type="email"], input[type="password"], input[type="tel"], .tf_g, .tf_cc {
-              font-size: 18px !important;
-              height: 54px !important;
-              padding: 10px 16px !important;
+              font-size: 16px !important;
+              height: 48px !important;
+              padding: 8px 12px !important;
               box-sizing: border-box !important;
             }
             /* 로그인 버튼 크기 확대 */
             button[type="submit"], .btn_g.btn_confirm {
-              font-size: 18px !important;
-              height: 54px !important;
+              font-size: 16px !important;
+              height: 48px !important;
               box-sizing: border-box !important;
             }
             /* 컨테이너 흰색 여백 축소 */
@@ -96,25 +96,11 @@ export function KakaoLoginWebViewModal({
               padding: 0 !important;
               margin: 0 !important;
             }
-            /* 모든 레이아웃 박스의 가로 고정크기 제한 해제 및 화면 꽉 차게 확장 */
-            div, section, main {
-              max-width: 100% !important;
-              box-sizing: border-box !important;
-            }
-            /* 로그인 컨테이너 패딩 최소화 및 꽉 차게 확장 */
+            /* 로그인 컨테이너 패딩 조절 */
             .cont_login, .inner_login, .card_login, main, [class*="cont_"], [class*="inner_"], [class*="card_"] {
-              padding-left: 16px !important;
-              padding-right: 16px !important;
-              padding-top: 4px !important;
-              padding-bottom: 4px !important;
-              margin: 0 auto !important;
-              width: 100% !important;
-              max-width: 100% !important;
+              padding-left: 20px !important;
+              padding-right: 20px !important;
               box-sizing: border-box !important;
-            }
-            /* 기타 간격 미세 조정 */
-            .box_tf, [class*="box_tf"], [class*="item_ip"] {
-              margin-bottom: 12px !important;
             }
           \`;
           document.head.appendChild(style);
@@ -148,30 +134,12 @@ export function KakaoLoginWebViewModal({
           els.forEach(el => {
             if (!el) return;
 
-            // (1) 로고 및 헤더 영역 전체 숨김 & 공백 제거
-            const tagName = el.tagName ? el.tagName.toUpperCase() : '';
-            const className = el.className && typeof el.className === 'string' ? el.className.toLowerCase() : '';
-            
-            if (
-              tagName === 'HEADER' ||
-              tagName === 'H1' ||
-              className.includes('logo') ||
-              className.includes('tit_') ||
-              className.includes('header')
-            ) {
-              if (typeof el.querySelector === 'function' && el.querySelector('input, form') === null) {
-                el.style.setProperty('display', 'none', 'important');
-                el.style.setProperty('height', '0', 'important');
-                el.style.setProperty('margin', '0', 'important');
-                el.style.setProperty('padding', '0', 'important');
-                el.style.setProperty('border', 'none', 'important');
-              }
-            }
+            // 로고/헤더는 사용자의 요청에 따라 숨기지 않고 원래 자연스러운 위치(왼쪽 정렬)로 놔둠
 
             if (el.textContent) {
               const text = el.textContent.trim();
               
-              // (2) 카카오톡으로 로그인 버튼 감지
+              // (1) 카카오톡으로 로그인 버튼 감지
               if (text.includes('카카오톡') && text.includes('로그인')) {
                 const btn = (typeof el.closest === 'function') ? (el.closest('a') || el.closest('button')) : null;
                 if (btn) {
@@ -205,7 +173,7 @@ export function KakaoLoginWebViewModal({
                 }
               }
               
-              // (3) 가이드 문구 감지 및 숨김
+              // (2) 가이드 문구 감지 및 숨김
               if (
                 text === '또는' ||
                 text === 'or' ||
