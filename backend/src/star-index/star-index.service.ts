@@ -242,7 +242,7 @@ export class StarIndexService {
     await this.cache.set(
       this.spotScoreCache.spotIndexCacheKey(spotId),
       payload,
-      3600 * 1000,
+      7 * 24 * 3600 * 1000, // 7 days fallback cache TTL
     );
     this.logger.log(`Star-Index 계산 완료 — spot: ${spotId}, score: ${payload.score}`);
     return payload;

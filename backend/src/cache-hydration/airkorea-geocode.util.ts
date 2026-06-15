@@ -34,6 +34,7 @@ export async function reverseGeocodeKo(
     '&format=json&accept-language=ko';
   const response = await fetch(url, {
     headers: { 'User-Agent': NOMINATIM_UA },
+    signal: AbortSignal.timeout(5000),
   });
   if (!response.ok) {
     throw new Error(`Nominatim reverse HTTP ${response.status}`);
@@ -54,6 +55,7 @@ export async function geocodeStation(
   const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`;
   const response = await fetch(url, {
     headers: { 'User-Agent': NOMINATIM_UA },
+    signal: AbortSignal.timeout(5000),
   });
   if (!response.ok) {
     logger.warn(`Nominatim search HTTP ${response.status} — ${stationName}`);

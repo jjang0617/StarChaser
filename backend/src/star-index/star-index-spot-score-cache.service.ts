@@ -43,7 +43,7 @@ export class StarIndexSpotScoreCacheService {
     await this.cache.set(
       this.spotIndexCacheKey(spotId),
       { ...payload, cachedAt: new Date().toISOString() },
-      3600 * 1000,
+      7 * 24 * 3600 * 1000, // 7 days fallback cache TTL
     );
   }
 }

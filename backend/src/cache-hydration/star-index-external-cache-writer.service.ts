@@ -178,7 +178,7 @@ export class StarIndexExternalCacheWriterService {
       'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst' +
       `?serviceKey=${encodeURIComponent(serviceKey)}&numOfRows=300&pageNo=1&dataType=JSON` +
       `&base_date=${baseDate}&base_time=${baseTime}&nx=${nx}&ny=${ny}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(3500) });
     const rawText = await response.text();
 
     if (!response.ok) {
@@ -329,7 +329,7 @@ export class StarIndexExternalCacheWriterService {
       sidoName,
       ver: '1.0',
     });
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(3500) });
     const rawText = await response.text();
     if (!response.ok) {
       throw new Error(

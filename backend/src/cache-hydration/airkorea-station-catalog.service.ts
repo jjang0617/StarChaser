@@ -171,7 +171,7 @@ export class AirkoreaStationCatalogService {
           sidoName,
           ver: '1.0',
         });
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
         const text = await res.text();
         if (!res.ok) {
           this.logger.warn(

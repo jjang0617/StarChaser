@@ -151,6 +151,7 @@ export class PlacesService {
     try {
       const response = await fetch(url, {
         headers: { Authorization: `KakaoAK ${apiKey}` },
+        signal: AbortSignal.timeout(4000),
       });
       if (!response.ok) {
         const body = await response.text().catch(() => '');
@@ -183,6 +184,7 @@ export class PlacesService {
     try {
       const response = await fetch(url, {
         headers: { 'User-Agent': NOMINATIM_UA },
+        signal: AbortSignal.timeout(4000),
       });
       if (!response.ok) {
         this.logger.warn(`Nominatim search HTTP ${response.status}`);
