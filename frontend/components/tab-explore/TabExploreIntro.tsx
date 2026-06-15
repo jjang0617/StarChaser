@@ -33,7 +33,7 @@ const COPY: Record<
   }
 > = {
   sky: {
-    titleLine1: '가상 밤하늘 뷰어',
+    titleLine1: '가상 스카이 뷰어',
     titleHighlight: '',
     titleLine2: '',
     subtitle:
@@ -45,7 +45,7 @@ const COPY: Record<
     titleHighlight: '지도',
     titleLine2: '로 찾아가요',
     subtitle:
-      '전국 명소와 Star-Index.\n광공해를 켜면 불빛이 덜한 곳을 찾을 수 있어요.',
+      '전국 별 관측 명소와 Star-Index.\n광공해를 켜면 불빛이 덜한 곳을 찾을 수 있어요.',
     buttonLabel: '지도 열기',
   },
 };

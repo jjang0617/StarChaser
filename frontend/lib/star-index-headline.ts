@@ -13,7 +13,7 @@ export function getStarIndexHeadline(score: number): StarIndexHeadline {
 
   if (!Number.isFinite(n) || n < STAR_INDEX_DISPLAY_MIN_SCORE) {
     return {
-      line1: '오늘 밤은',
+      line1: '지금은',
       highlight: '별 보기 어려운 ',
       line2: '하늘이에요',
       hint: '관측 조건이 전반적으로 좋지 않아요.',
@@ -22,7 +22,7 @@ export function getStarIndexHeadline(score: number): StarIndexHeadline {
 
   if (n >= 95) {
     return {
-      line1: '오늘 밤,',
+      line1: '지금은',
       highlight: '은하수',
       line2: '가 육안으로도 보여요',
       hint: '도심에서도 은하수 중심부가 선명할 수 있는 밤이에요.',
@@ -31,7 +31,7 @@ export function getStarIndexHeadline(score: number): StarIndexHeadline {
 
   if (n >= 90) {
     return {
-      line1: '오늘 밤,',
+      line1: '지금은',
       highlight: '은하수',
       line2: '를 찍기 좋은 밤이에요',
       hint: '장노출 사진으로 은하수를 담기에 아주 좋은 조건이에요.',
@@ -40,7 +40,7 @@ export function getStarIndexHeadline(score: number): StarIndexHeadline {
 
   if (n >= 85) {
     return {
-      line1: '오늘 밤,',
+      line1: '지금은',
       highlight: '별',
       line2: '이 아주 잘 보여요',
       hint: '밤하늘이 선명해요. 희미한 별까지 눈에 들어올 수 있어요.',
@@ -49,7 +49,7 @@ export function getStarIndexHeadline(score: number): StarIndexHeadline {
 
   if (n >= 80) {
     return {
-      line1: '오늘 밤,',
+      line1: '지금은',
       highlight: '별',
       line2: '을 만나기 좋은 밤이에요',
       hint: '산책하며 하늘을 올려다보기 좋은 관측 조건이에요.',
@@ -58,7 +58,7 @@ export function getStarIndexHeadline(score: number): StarIndexHeadline {
 
   if (n >= 70) {
     return {
-      line1: '오늘 밤,',
+      line1: '지금은',
       highlight: '별',
       line2: '은 보이지만 은하수는 어려울 수 있어요',
       hint: '밝은 별은 괜찮지만, 은하수·희미한 별은 기대하기 어려워요.',

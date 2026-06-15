@@ -15,14 +15,14 @@ export const STAR_INDEX_GUIDE_ROWS: StarIndexGuideRow[] = [
     maxScore: STAR_INDEX_DISPLAY_MIN_SCORE - 1,
     badge: '관측 어려움',
     title: `${STAR_INDEX_DISPLAY_MIN_SCORE}점 미만`,
-    body: '구름·미세먼지·달빛 등 여러 조건이 겹쳐 점수가 매우 낮은 구간이에요. 별을 관측하기 어려운 밤이에요.',
+    body: '구름·미세먼지·달빛 등 여러 조건이 겹쳐 점수가 매우 낮은 구간이에요. 별을 관측하기 어려워요.',
   },
   {
     minScore: STAR_INDEX_DISPLAY_MIN_SCORE,
     maxScore: 69,
     badge: '흐림',
     title: '50 ~ 69점',
-    body: '별이 잘 안 보일 수 있어요. 밝은 별 위주로만 확인하기 어려운 밤이에요.',
+    body: '별이 잘 안 보일 수 있어요. 밝은 별 위주로만 확인하기 어려워요.',
   },
   {
     minScore: 70,
