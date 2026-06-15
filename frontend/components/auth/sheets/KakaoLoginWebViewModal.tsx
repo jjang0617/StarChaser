@@ -6,11 +6,11 @@ import {
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '../../../themes/ThemeContext';
 import { getKakaoRedirectUri, getKakaoRestApiKey } from '../../../lib/config';
@@ -29,6 +29,7 @@ export function KakaoLoginWebViewModal({
   onFailure,
 }: KakaoLoginWebViewModalProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const webViewRef = useRef<WebView>(null);
 
   const clientId = getKakaoRestApiKey();
@@ -63,16 +64,23 @@ export function KakaoLoginWebViewModal({
     }
   };
 
-  // 카카오톡 앱 직접 연동 로그인 버튼을 DOM에서 찾아 숨김 처리하는 스크립트 주입
+  // 카카오톡 앱 직접 연동 로그인 버튼 및 불필요한 가이드 텍스트를 DOM에서 찾아 숨김 처리하는 스크립트 주입
   const injectedJs = `
     (function() {
       const hideTalkBtn = () => {
-        // 1. 텍스트 매칭으로 찾기
-        const els = document.querySelectorAll('a, button, span, div');
+        // 1. 텍스트 매칭으로 찾기 (includes 매칭을 이용해 버튼 및 가이드 글 전체 숨김)
+        const els = document.querySelectorAll('a, button, span, div, p');
         els.forEach(el => {
-          if (el.textContent && el.textContent.trim() === '카카오톡으로 로그인') {
-            const btn = el.closest('a') || el.closest('button') || el;
-            btn.style.setProperty('display', 'none', 'important');
+          if (el.textContent) {
+            const text = el.textContent.trim();
+            if (
+              text.includes('카카오톡으로 로그인') ||
+              text.includes('계정과 비밀번호 입력 없이') ||
+              (text.includes('로그인') && text.includes('할 수'))
+            ) {
+              const btn = el.closest('a') || el.closest('button') || el;
+              btn.style.setProperty('display', 'none', 'important');
+            }
           }
         });
         // 2. 클래스 및 속성 선택자로 찾기
@@ -101,7 +109,15 @@ export function KakaoLoginWebViewModal({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: theme.background,
+            paddingTop: Platform.OS === 'android' ? insets.top : 0,
+          },
+        ]}
+      >
         <View style={[styles.header, { borderBottomColor: theme.cardBorder }]}>
           <Pressable onPress={onClose} hitSlop={12} style={styles.closeBtn}>
             <Text style={[styles.closeText, { color: theme.foreground }]}>✕</Text>
@@ -147,7 +163,7 @@ export function KakaoLoginWebViewModal({
               : undefined
           }
         />
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
