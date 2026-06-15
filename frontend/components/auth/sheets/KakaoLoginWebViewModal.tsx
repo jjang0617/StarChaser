@@ -64,12 +64,61 @@ export function KakaoLoginWebViewModal({
     }
   };
 
-  // 카카오톡 앱 직접 연동 로그인 버튼 및 불필요한 가이드 텍스트를 DOM에서 찾아 숨김 처리하는 스크립트 주입
+  // 카카오톡 앱 직접 연동 로그인 버튼 및 불필요한 가이드 텍스트를 DOM에서 찾아 숨김 처리하고 여백 및 인풋 크기를 조절하는 CSS 주입
   const injectedJs = `
     (function() {
+      // 1. 여백 제거 및 인풋/버튼 확대용 CSS 주입
+      const injectStyles = () => {
+        try {
+          if (document.getElementById('sc-injected-style')) return;
+          const style = document.createElement('style');
+          style.id = 'sc-injected-style';
+          style.textContent = \`
+            /* 인풋 필드 크기 및 글꼴 확대 */
+            input[type="text"], input[type="email"], input[type="password"], input[type="tel"], .tf_g, .tf_cc {
+              font-size: 16px !important;
+              height: 48px !important;
+              padding: 8px 12px !important;
+              box-sizing: border-box !important;
+            }
+            /* 로그인 버튼 크기 확대 */
+            button[type="submit"], .btn_g.btn_confirm {
+              font-size: 16px !important;
+              height: 48px !important;
+              box-sizing: border-box !important;
+            }
+            /* 컨테이너 흰색 여백 축소 */
+            body, html {
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+            /* 로그인 컨테이너 패딩 최소화 및 꽉 차게 확장 */
+            .cont_login, .inner_login, .card_login, main, [class*="cont_"], [class*="inner_"], [class*="card_"] {
+              padding-left: 16px !important;
+              padding-right: 16px !important;
+              padding-top: 8px !important;
+              padding-bottom: 8px !important;
+              margin: 0 auto !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              box-sizing: border-box !important;
+            }
+            /* 기타 간격 미세 조정 */
+            .box_tf {
+              margin-bottom: 8px !important;
+            }
+          \`;
+          document.head.appendChild(style);
+        } catch (e) {
+          console.error('Style injection error:', e);
+        }
+      };
+
       const hideTalkBtn = () => {
         try {
-          // 1. 클래스 및 속성 선택자로 카카오톡 직접 연결 요소를 감지하여 숨김
+          injectStyles();
+
+          // 2. 클래스 및 속성 선택자로 카카오톡 직접 연결 요소를 감지하여 숨김
           const selectors = [
             '.btn_talk',
             'a[href*="kakaotalk"]',
@@ -85,7 +134,7 @@ export function KakaoLoginWebViewModal({
             });
           });
 
-          // 2. 텍스트 매칭으로 카카오톡 로그인 유도 버튼 및 불필요한 가이드 텍스트 숨김 (div 컨테이너는 절대 건드리지 않음)
+          // 3. 텍스트 매칭으로 카카오톡 로그인 유도 버튼 및 불필요한 가이드 텍스트 숨김 (div 컨테이너는 절대 건드리지 않음)
           const els = document.querySelectorAll('a, button, span, p, li, div');
           els.forEach(el => {
             if (el && el.textContent) {
@@ -110,7 +159,8 @@ export function KakaoLoginWebViewModal({
                 text.includes('계정과 비밀번호 입력 없이') ||
                 text.includes('로그인할 수 있어요') ||
                 text.includes('로그인 할 수 있어요') ||
-                text.includes('간편하게 로그인')
+                text.includes('간편하게 로그인') ||
+                text.includes('계정 정보 입력으로도')
               ) {
                 // 부모/자식 관계에 input, form, button, a가 전혀 포함되지 않은 텍스트 컨테이너만 안전하게 숨김
                 if (el.querySelector('input, form, button, a') === null) {
@@ -125,6 +175,7 @@ export function KakaoLoginWebViewModal({
           console.error(e);
         }
       };
+      
       hideTalkBtn();
       setInterval(hideTalkBtn, 100); // 동적 렌더링 대응
     })();
