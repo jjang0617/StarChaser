@@ -69,8 +69,24 @@ export function KakaoLoginWebViewModal({
     (function() {
       const hideTalkBtn = () => {
         try {
-          // 자식 노드가 없는 최하단 텍스트 엘리먼트들만 감지하여 상위 버튼을 숨김
-          const els = document.querySelectorAll('a, button, span, p, div');
+          // 1. 클래스 및 속성 선택자로 카카오톡 직접 연결 요소를 감지하여 숨김
+          const selectors = [
+            '.btn_talk',
+            'a[href*="kakaotalk"]',
+            'a[href*="talk-login"]',
+            '.link_talk',
+            '.btn_login[href*="talk"]'
+          ];
+          selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+              if (el && el.style && el.style.display !== 'none') {
+                el.style.setProperty('display', 'none', 'important');
+              }
+            });
+          });
+
+          // 2. 텍스트 매칭으로 카카오톡 로그인 유도 버튼 및 불필요한 가이드 텍스트 숨김 (div 컨테이너는 절대 건드리지 않음)
+          const els = document.querySelectorAll('a, button, span, p, li');
           els.forEach(el => {
             if (el && el.children.length === 0 && el.textContent) {
               const text = el.textContent.trim();
@@ -81,27 +97,17 @@ export function KakaoLoginWebViewModal({
                 text.includes('로그인할 수 있어요') ||
                 text.includes('로그인 할 수 있어요')
               ) {
-                const btn = el.closest('a') || el.closest('button') || el;
-                if (btn && btn.style) {
-                  btn.style.setProperty('display', 'none', 'important');
+                // a 또는 button 이면 그 버튼 전체를 숨기고, 일반 텍스트(span, p, li)면 텍스트 자체만 숨김
+                const target = el.closest('a') || el.closest('button') || el;
+                if (target && target.style && target.style.display !== 'none') {
+                  // 레이아웃 div나 body가 실수로 숨겨지지 않도록 태그 검증
+                  const tagName = target.tagName.toUpperCase();
+                  if (tagName !== 'DIV' && tagName !== 'BODY' && tagName !== 'HTML') {
+                    target.style.setProperty('display', 'none', 'important');
+                  }
                 }
               }
             }
-          });
-
-          // 클래스 및 속성 선택자로 감지하여 숨김
-          const selectors = [
-            '.btn_talk',
-            'a[href*="kakaotalk"]',
-            'a[href*="talk-login"]',
-            '.link_talk'
-          ];
-          selectors.forEach(sel => {
-            document.querySelectorAll(sel).forEach(el => {
-              if (el && el.style) {
-                el.style.setProperty('display', 'none', 'important');
-              }
-            });
           });
         } catch (e) {
           console.error(e);
