@@ -67,6 +67,10 @@ export function KakaoLoginWebViewModal({
   // 카카오톡 앱 직접 연동 로그인 버튼 및 불필요한 가이드 텍스트를 DOM에서 찾아 숨김 처리하고 여백 및 인풋 크기를 조절하는 CSS 주입
   const injectedJs = `
     (function() {
+      // 중복 초기화 및 setInterval 생성 방지 가드
+      if (window.scInitialized) return;
+      window.scInitialized = true;
+
       // 1. 여백 제거 및 인풋/버튼 확대용 CSS 주입
       const injectStyles = () => {
         try {
@@ -211,6 +215,9 @@ export function KakaoLoginWebViewModal({
           source={{ uri: authUrl }}
           onNavigationStateChange={handleNavigationStateChange}
           injectedJavaScript={injectedJs}
+          onLoadEnd={() => {
+            webViewRef.current?.injectJavaScript(injectedJs);
+          }}
           onShouldStartLoadWithRequest={(request) => {
             const { url } = request;
             // 카카오톡 앱 전환 스킴 또는 기타 외부 앱 스킴 허용 및 처리
