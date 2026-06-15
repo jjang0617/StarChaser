@@ -98,12 +98,17 @@ function StatPill({
   );
 }
 
-function formatSunState(sunAlt: number | undefined | null): string {
+function formatSunState(sunAlt: number | undefined | null, refDate?: Date): string {
   if (sunAlt == null || !Number.isFinite(sunAlt)) return '-';
   if (sunAlt <= -18) return '밤';
-  if (sunAlt <= -12) return '천문박명';
-  if (sunAlt <= -6) return '해양박명';
-  if (sunAlt < 0) return '시민박명';
+
+  const date = refDate || new Date();
+  const hour = date.getHours();
+  const suffix = hour < 12 ? '여명' : '황혼';
+
+  if (sunAlt <= -12) return `천문${suffix}`;
+  if (sunAlt <= -6) return `해양${suffix}`;
+  if (sunAlt < 0) return `시민${suffix}`;
   return '낮';
 }
 
@@ -372,7 +377,10 @@ export function MainTabScreen({
     return {
       sun: {
         primary: snap.sun_altitude_deg != null ? `${Math.round(snap.sun_altitude_deg)}°` : '-',
-        secondary: formatSunState(snap.sun_altitude_deg),
+        secondary: formatSunState(
+          snap.sun_altitude_deg,
+          starIndexData.cachedAt ? new Date(starIndexData.cachedAt) : new Date()
+        ),
       },
       lightPollution: {
         primary: `Bortle ${starIndexData.bortleClass}급`,
