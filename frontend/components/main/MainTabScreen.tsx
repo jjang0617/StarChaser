@@ -168,9 +168,17 @@ function MainUnknownStatsFooter() {
   ];
   return (
     <View style={[styles.footerStats, { borderTopColor: theme.borderSubtle }]}>
-      {items.map(({ caption, icon }) => (
-        <StatPill key={caption} caption={caption} icon={icon} primary="?" unknown />
-      ))}
+      <View style={styles.footerStatsRow}>
+        {items.slice(0, 3).map(({ caption, icon }) => (
+          <StatPill key={caption} caption={caption} icon={icon} primary="?" unknown />
+        ))}
+      </View>
+      <View style={[styles.footerRowDivider, { backgroundColor: theme.borderSubtle }]} />
+      <View style={styles.footerStatsRow}>
+        {items.slice(3, 6).map(({ caption, icon }) => (
+          <StatPill key={caption} caption={caption} icon={icon} primary="?" unknown />
+        ))}
+      </View>
     </View>
   );
 }
@@ -512,6 +520,56 @@ export function MainTabScreen({
                 {formatStarIndexStaleHint(starIndexData.cachedAt)}
               </Text>
             ) : null}
+
+            {canLoad && starIndexData ? (
+              <Pressable
+                onPress={onReloadStarIndex}
+                disabled={starIndexRefreshing}
+                style={({ pressed }) => [
+                  styles.refreshTap,
+                  starIndexRefreshing && styles.refreshTapBusy,
+                  pressed && !starIndexRefreshing && { opacity: 0.7 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  starIndexRefreshing ? 'Star-Index 갱신 중' : 'Star-Index 새로고침'
+                }
+                accessibilityState={{ busy: starIndexRefreshing }}
+              >
+                {starIndexRefreshing ? (
+                  <View style={styles.refreshRow}>
+                    <ActivityIndicator size="small" color={theme.primaryGlow} />
+                    <Text style={[styles.refreshText, { color: theme.primaryGlow }]}>
+                      갱신 중…
+                    </Text>
+                  </View>
+                ) : starIndexRefreshFeedback?.tone === 'error' ? (
+                  <Text style={[styles.refreshText, { color: theme.destructive }]}>
+                    {starIndexRefreshFeedback.message}
+                  </Text>
+                ) : starIndexRefreshFeedback?.tone === 'success' ? (
+                  <View style={styles.refreshCol}>
+                    <Text style={[styles.refreshText, { color: theme.primaryGlow }]}>
+                      탭하여 갱신
+                    </Text>
+                    <Text style={[styles.refreshSubText, { color: theme.primaryGlow }]}>
+                      {starIndexRefreshFeedback.message}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.refreshCol}>
+                    <Text style={[styles.refreshText, { color: theme.mutedForeground }]}>
+                      탭하여 갱신
+                    </Text>
+                    {lastRefreshLabel ? (
+                      <Text style={[styles.refreshSubText, { color: theme.mutedForeground }]}>
+                        {lastRefreshLabel}
+                      </Text>
+                    ) : null}
+                  </View>
+                )}
+              </Pressable>
+            ) : null}
           </>
         ) : null}
       </View>
@@ -520,113 +578,84 @@ export function MainTabScreen({
         <MainUnknownStatsFooter />
       ) : weatherFooter ? (
         <View style={[styles.footerStats, { borderTopColor: theme.borderSubtle }]}>
-          <StatPill
-            caption="태양고도"
-            icon="sun"
-            primary={weatherFooter.sun.primary}
-            secondary={weatherFooter.sun.secondary}
-          />
-          <StatPill
-            caption="빛공해"
-            icon="zap"
-            primary={weatherFooter.lightPollution.primary}
-            secondary={weatherFooter.lightPollution.secondary}
-          />
-          <StatPill
-            caption="구름"
-            icon="cloud"
-            primary={weatherFooter.cloud.primary}
-            secondary={weatherFooter.cloud.secondary}
-          />
-          <StatPill
-            caption="달고도"
-            icon="moon"
-            primary={weatherFooter.moon.primary}
-            secondary={weatherFooter.moon.secondary}
-          />
-          <StatPill
-            caption="습도"
-            icon="droplet"
-            primary={weatherFooter.humidity.primary}
-            secondary={weatherFooter.humidity.secondary}
-          />
-          <StatPill
-            caption="미세먼지"
-            icon="activity"
-            primary={weatherFooter.pm25.primary}
-            secondary={weatherFooter.pm25.secondary}
-          />
+          <View style={styles.footerStatsRow}>
+            <StatPill
+              caption="태양고도"
+              icon="sun"
+              primary={weatherFooter.sun.primary}
+              secondary={weatherFooter.sun.secondary}
+            />
+            <StatPill
+              caption="빛공해"
+              icon="zap"
+              primary={weatherFooter.lightPollution.primary}
+              secondary={weatherFooter.lightPollution.secondary}
+            />
+            <StatPill
+              caption="구름"
+              icon="cloud"
+              primary={weatherFooter.cloud.primary}
+              secondary={weatherFooter.cloud.secondary}
+            />
+          </View>
+          <View style={[styles.footerRowDivider, { backgroundColor: theme.borderSubtle }]} />
+          <View style={styles.footerStatsRow}>
+            <StatPill
+              caption="달고도"
+              icon="moon"
+              primary={weatherFooter.moon.primary}
+              secondary={weatherFooter.moon.secondary}
+            />
+            <StatPill
+              caption="습도"
+              icon="droplet"
+              primary={weatherFooter.humidity.primary}
+              secondary={weatherFooter.humidity.secondary}
+            />
+            <StatPill
+              caption="미세먼지"
+              icon="activity"
+              primary={weatherFooter.pm25.primary}
+              secondary={weatherFooter.pm25.secondary}
+            />
+          </View>
         </View>
       ) : showLoading || showFetchError ? (
         <View style={[styles.footerStats, styles.footerSkeleton, { borderTopColor: theme.borderSubtle }]}>
-          {(['태양고도', '빛공해', '구름', '달고도', '습도', '미세먼지'] as const).map((label) => {
-            const iconMap = {
-              태양고도: 'sun' as const,
-              빛공해: 'zap' as const,
-              구름: 'cloud' as const,
-              달고도: 'moon' as const,
-              습도: 'droplet' as const,
-              미세먼지: 'activity' as const,
-            };
-            return (
-              <View key={label} style={styles.statPill}>
-                <Text style={[styles.statCaption, { color: theme.foreground }]}>{label}</Text>
-                <Feather name={iconMap[label]} size={15} color={theme.borderSubtle} style={{ opacity: 0.3 }} />
-                <View style={[styles.skeletonValue, { backgroundColor: theme.borderSubtle }]} />
-              </View>
-            );
-          })}
+          <View style={styles.footerStatsRow}>
+            {(['태양고도', '빛공해', '구름'] as const).map((label) => {
+              const iconMap = {
+                태양고도: 'sun' as const,
+                빛공해: 'zap' as const,
+                구름: 'cloud' as const,
+              };
+              return (
+                <View key={label} style={styles.statPill}>
+                  <Text style={[styles.statCaption, { color: theme.foreground }]}>{label}</Text>
+                  <Feather name={iconMap[label]} size={15} color={theme.borderSubtle} style={{ opacity: 0.3 }} />
+                  <View style={[styles.skeletonValue, { backgroundColor: theme.borderSubtle }]} />
+                </View>
+              );
+            })}
+          </View>
+          <View style={[styles.footerRowDivider, { backgroundColor: theme.borderSubtle }]} />
+          <View style={styles.footerStatsRow}>
+            {(['달고도', '습도', '미세먼지'] as const).map((label) => {
+              const iconMap = {
+                달고도: 'moon' as const,
+                습도: 'droplet' as const,
+                미세먼지: 'activity' as const,
+              };
+              return (
+                <View key={label} style={styles.statPill}>
+                  <Text style={[styles.statCaption, { color: theme.foreground }]}>{label}</Text>
+                  <Feather name={iconMap[label]} size={15} color={theme.borderSubtle} style={{ opacity: 0.3 }} />
+                  <View style={[styles.skeletonValue, { backgroundColor: theme.borderSubtle }]} />
+                </View>
+              );
+            })}
+          </View>
         </View>
-      ) : null}
-
-      {canLoad && starIndexData ? (
-        <Pressable
-          onPress={onReloadStarIndex}
-          disabled={starIndexRefreshing}
-          style={({ pressed }) => [
-            styles.refreshTap,
-            starIndexRefreshing && styles.refreshTapBusy,
-            pressed && !starIndexRefreshing && { opacity: 0.7 },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={
-            starIndexRefreshing ? 'Star-Index 갱신 중' : 'Star-Index 새로고침'
-          }
-          accessibilityState={{ busy: starIndexRefreshing }}
-        >
-          {starIndexRefreshing ? (
-            <View style={styles.refreshRow}>
-              <ActivityIndicator size="small" color={theme.primaryGlow} />
-              <Text style={[styles.refreshText, { color: theme.primaryGlow }]}>
-                갱신 중…
-              </Text>
-            </View>
-          ) : starIndexRefreshFeedback?.tone === 'error' ? (
-            <Text style={[styles.refreshText, { color: theme.destructive }]}>
-              {starIndexRefreshFeedback.message}
-            </Text>
-          ) : starIndexRefreshFeedback?.tone === 'success' ? (
-            <View style={styles.refreshCol}>
-              <Text style={[styles.refreshText, { color: theme.primaryGlow }]}>
-                탭하여 갱신
-              </Text>
-              <Text style={[styles.refreshSubText, { color: theme.primaryGlow }]}>
-                {starIndexRefreshFeedback.message}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.refreshCol}>
-              <Text style={[styles.refreshText, { color: theme.mutedForeground }]}>
-                탭하여 갱신
-              </Text>
-              {lastRefreshLabel ? (
-                <Text style={[styles.refreshSubText, { color: theme.mutedForeground }]}>
-                  {lastRefreshLabel}
-                </Text>
-              ) : null}
-            </View>
-          )}
-        </Pressable>
       ) : null}
     </View>
   );
@@ -722,14 +751,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   footerStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
     paddingTop: spacing.md,
     paddingBottom: spacing.xs,
     paddingHorizontal: spacing.xs,
     borderTopWidth: 1,
+    flexDirection: 'column',
+    gap: 8,
+  },
+  footerStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     gap: 4,
+  },
+  footerRowDivider: {
+    height: 1,
+    marginVertical: 4,
   },
   footerSkeleton: {
     opacity: 0.55,
