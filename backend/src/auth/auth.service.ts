@@ -470,13 +470,43 @@ export class AuthService {
     );
   }
 
+  private async getGmailAccessToken(
+    clientId: string,
+    clientSecret: string,
+    refreshToken: string,
+  ): Promise<string> {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }).toString(),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`Failed to refresh Gmail access token: ${errBody}`);
+    }
+
+    const data = (await response.json()) as { access_token: string };
+    return data.access_token;
+  }
+
   /** SMTP 설정 시 실제 메일 발송, 미설정 시 콘솔 출력 (개발용) */
   private async sendEmail(
     to: string,
     code: string,
     purpose: VerificationPurpose,
   ): Promise<void> {
-    const resendApiKey = this.config.get<string>('RESEND_API_KEY');
+    const gmailUser = this.config.get<string>('GMAIL_USER'); // starchaser.app.mail@gmail.com
+    const clientId = this.config.get<string>('GMAIL_CLIENT_ID');
+    const clientSecret = this.config.get<string>('GMAIL_CLIENT_SECRET');
+    const refreshToken = this.config.get<string>('GMAIL_REFRESH_TOKEN');
 
     const isReset = purpose === 'reset-password';
     const subject = isReset
@@ -488,7 +518,64 @@ export class AuthService {
     const text = `${intro}\n\n인증번호: ${code}\n\n이 인증번호는 10분간 유효합니다.`;
     const html = `<p>${intro}</p><h2>인증번호: <strong>${code}</strong></h2><p>이 인증번호는 10분간 유효합니다.</p>`;
 
-    // 1. Resend API Key가 설정되어 있다면 Resend HTTPS API 사용 (방화벽 차단 우회)
+    // 1. Gmail API (OAuth2) 설정이 되어 있다면 사용 (포트 차단 우회 및 무료 전송)
+    if (gmailUser && clientId && clientSecret && refreshToken) {
+      try {
+        const accessToken = await this.getGmailAccessToken(
+          clientId,
+          clientSecret,
+          refreshToken,
+        );
+
+        // MIME 메시지 작성 (한글 제목 지원을 위해 Base64 인코딩 적용)
+        const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
+        const messageParts = [
+          `From: StarChaser <${gmailUser}>`,
+          `To: ${to}`,
+          `Content-Type: text/html; charset=utf-8`,
+          `MIME-Version: 1.0`,
+          `Subject: ${utf8Subject}`,
+          ``,
+          html,
+        ];
+        const message = messageParts.join('\r\n');
+        const encodedMessage = Buffer.from(message)
+          .toString('base64')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, ''); // Base64URL encoding
+
+        const response = await fetch(
+          'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              raw: encodedMessage,
+            }),
+          },
+        );
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          throw new Error(
+            `Gmail API returned status ${response.status}: ${errBody}`,
+          );
+        }
+
+        this.logger.log(`[Gmail API] 인증 메일 발송 완료: ${to}`);
+        return;
+      } catch (err) {
+        this.logger.error(`[Gmail API] 메일 발송 실패: ${err.message}`, err.stack);
+        throw err;
+      }
+    }
+
+    // 2. Resend API Key가 설정되어 있다면 Resend HTTPS API 사용
+    const resendApiKey = this.config.get<string>('RESEND_API_KEY');
     if (resendApiKey) {
       const from =
         this.config.get<string>('SMTP_FROM') ?? 'StarChaser <onboarding@resend.dev>';
@@ -523,7 +610,7 @@ export class AuthService {
       }
     }
 
-    // 2. Resend API Key가 없다면 기존 SMTP 방식 사용
+    // 3. 기존 SMTP 방식 사용
     const host = this.config.get<string>('SMTP_HOST');
     const port = this.config.get<number>('SMTP_PORT');
     const user = this.config.get<string>('SMTP_USER');
@@ -533,7 +620,7 @@ export class AuthService {
 
     if (!host || !user || !pass) {
       this.logger.warn(
-        `[개발 모드] SMTP/Resend 미설정 — 인증번호를 콘솔에 출력합니다: ${to} → ${code}`,
+        `[개발 모드] SMTP/Resend/GmailAPI 미설정 — 인증번호를 콘솔에 출력합니다: ${to} → ${code}`,
       );
       return;
     }
@@ -557,4 +644,5 @@ export class AuthService {
     this.logger.log(`[SMTP] 인증 메일 발송 완료: ${to}`);
   }
 }
+
 
