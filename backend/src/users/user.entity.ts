@@ -21,6 +21,9 @@ export class UserEntity {
   @Column({ name: 'avatar_url', type: 'text', nullable: true })
   avatarUrl: string | null;
 
+  @Column({ name: 'kakao_id', type: 'varchar', length: 128, unique: true, nullable: true })
+  kakaoId: string | null;
+
   @Column({ name: 'password_hash', type: 'text' })
   passwordHash: string;
 

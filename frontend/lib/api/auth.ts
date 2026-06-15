@@ -3,10 +3,11 @@ import type { AuthTokensResponseDto } from '../types/api';
 import { ApiRequestError, clientErrorMessage, parseJsonSafe } from './http';
 
 export async function postAuthJson(
-  path: '/auth/login' | '/auth/register',
+  path: '/auth/login' | '/auth/register' | '/auth/kakao',
   payload:
     | { email: string; password: string }
-    | { email: string; password: string; nickname: string; verificationCode: string },
+    | { email: string; password: string; nickname: string; verificationCode: string }
+    | { code: string; redirectUri: string },
 ): Promise<AuthTokensResponseDto> {
   const res = await fetch(`${getApiBaseUrl()}${path}`, {
     method: 'POST',
@@ -18,7 +19,9 @@ export async function postAuthJson(
     const fallback =
       path === '/auth/register'
         ? '회원가입에 실패했습니다.'
-        : '로그인에 실패했습니다.';
+        : path === '/auth/kakao'
+          ? '카카오 로그인에 실패했습니다.'
+          : '로그인에 실패했습니다.';
     throw new ApiRequestError(
       clientErrorMessage(res.status, body, fallback),
       res.status,

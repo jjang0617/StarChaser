@@ -14,6 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
+import axios from 'axios';
 import { UserEntity } from '../users/user.entity';
 import { EmailVerificationEntity } from './email-verification.entity';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
@@ -22,6 +23,8 @@ import { SendCodeDto } from './dto/send-code.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { KakaoLoginDto } from './dto/kakao-login.dto';
+
 import { maskEmail } from './mask-email';
 
 type VerificationPurpose = 'register' | 'reset-password';
@@ -239,6 +242,132 @@ export class AuthService {
 
     const tokens = await this.issueTokenPair(user);
     this.logger.log(`로그인 성공: ${user.email}`);
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl,
+      },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  }
+
+  /* ───── 카카오 로그인 / 회원가입 ───── */
+  async kakaoLogin(dto: KakaoLoginDto) {
+    const clientId = this.config.get<string>('KAKAO_REST_API_KEY')?.trim();
+    if (!clientId) {
+      this.logger.error('KAKAO_REST_API_KEY 미설정');
+      throw new InternalServerErrorException('카카오 로그인 설정이 완료되지 않았습니다.');
+    }
+
+    // 1. 인가 코드를 카카오 Access Token으로 교환
+    let kakaoAccessToken: string;
+    try {
+      const tokenRes = await axios.post(
+        'https://kauth.kakao.com/oauth/token',
+        new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: clientId,
+          redirect_uri: dto.redirectUri,
+          code: dto.code,
+        }).toString(),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+          },
+        },
+      );
+      kakaoAccessToken = tokenRes.data.access_token;
+    } catch (e: any) {
+      this.logger.error(`카카오 토큰 교환 실패: ${e.response?.data ? JSON.stringify(e.response.data) : e.message}`);
+      throw new UnauthorizedException('카카오 인증에 실패했습니다.');
+    }
+
+    // 2. 카카오 Access Token으로 사용자 프로필 조회
+    let kakaoUser: any;
+    try {
+      const profileRes = await axios.get('https://kapi.kakao.com/v2/user/me', {
+        headers: {
+          Authorization: `Bearer ${kakaoAccessToken}`,
+          'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+        },
+      });
+      kakaoUser = profileRes.data;
+    } catch (e: any) {
+      this.logger.error(`카카오 프로필 조회 실패: ${e.response?.data ? JSON.stringify(e.response.data) : e.message}`);
+      throw new UnauthorizedException('카카오 사용자 정보 조회에 실패했습니다.');
+    }
+
+    const kakaoId = String(kakaoUser.id);
+    const kakaoAccount = kakaoUser.kakao_account;
+    const kakaoProfile = kakaoAccount?.profile;
+
+    // 3. 기존 kakaoId로 연동된 사용자가 있는지 조회
+    let user = await this.usersRepo.findOne({ where: { kakaoId } });
+
+    if (!user) {
+      // 4. 연동된 사용자가 없다면, 이메일 매칭 시도 (연동 처리) 또는 신규 회원 가입
+      const kakaoEmail = kakaoAccount?.email?.toLowerCase();
+      let existingUserByEmail: UserEntity | null = null;
+
+      if (kakaoEmail) {
+        existingUserByEmail = await this.usersRepo.findOne({ where: { email: kakaoEmail } });
+      }
+
+      if (existingUserByEmail) {
+        // 이미 가입된 이메일 계정이 있는 경우 -> kakaoId 연동 처리
+        existingUserByEmail.kakaoId = kakaoId;
+        if (!existingUserByEmail.avatarUrl && kakaoProfile?.thumbnail_image_url) {
+          existingUserByEmail.avatarUrl = kakaoProfile.thumbnail_image_url;
+        }
+        user = await this.usersRepo.save(existingUserByEmail);
+        this.logger.log(`기존 계정에 카카오 연동 완료: ${user.email} (Kakao ID: ${kakaoId})`);
+      } else {
+        // 기존 계정이 없는 경우 -> 신규 가입 처리
+        const email = kakaoEmail || `kakao_${kakaoId}@starchaser.app`;
+        
+        // 닉네임 중복 방지 처리
+        const originalNickname = kakaoProfile?.nickname?.trim() || `Kakao_${kakaoId}`;
+        let nickname = originalNickname;
+        
+        // 닉네임 유효성 검사 (길이 등) 및 중복 확인
+        let isNicknameAvailable = false;
+        let suffix = 0;
+        
+        while (!isNicknameAvailable) {
+          const testNickname = suffix === 0 ? nickname : `${nickname.slice(0, 20)}_${suffix}`;
+          const existingNicknameUser = await this.usersRepo.findOne({ where: { nickname: testNickname } });
+          if (!existingNicknameUser) {
+            nickname = testNickname;
+            isNicknameAvailable = true;
+          } else {
+            suffix = crypto.randomInt(1000, 9999);
+          }
+        }
+
+        // 임시 비밀번호 해시 생성 (로그인하지 못하도록 무작위 값 사용)
+        const dummyPassword = crypto.randomBytes(32).toString('hex');
+        const passwordHash = await this.hashPassword(dummyPassword);
+
+        const newUser = this.usersRepo.create({
+          email,
+          nickname,
+          passwordHash,
+          avatarUrl: kakaoProfile?.thumbnail_image_url || null,
+          kakaoId,
+        });
+
+        user = await this.usersRepo.save(newUser);
+        this.logger.log(`카카오 신규 회원가입 완료: ${user.email} (Kakao ID: ${kakaoId})`);
+      }
+    }
+
+    // 5. 토큰 발급 및 로그인 완료
+    const tokens = await this.issueTokenPair(user);
+    this.logger.log(`카카오 로그인 성공: ${user.email}`);
 
     return {
       user: {

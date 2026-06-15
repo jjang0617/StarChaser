@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Input } from '../../ui';
 import { AuthSubmitButton } from '../AuthSubmitButton';
+import { KakaoSubmitButton } from '../KakaoSubmitButton';
 import {
   emailValidationError,
   passwordValidationError,
@@ -23,6 +24,8 @@ export type LoginSheetProps = {
   loginLoading: boolean;
   onLoginSubmit: () => void | Promise<void>;
   onResetPassword: () => void;
+  kakaoLoading: boolean;
+  onKakaoPress: () => void;
 };
 
 export function LoginSheet({
@@ -40,6 +43,8 @@ export function LoginSheet({
   loginLoading,
   onLoginSubmit,
   onResetPassword,
+  kakaoLoading,
+  onKakaoPress,
 }: LoginSheetProps) {
   return (
     <View style={styles.form}>
@@ -84,6 +89,11 @@ export function LoginSheet({
         label="로그인"
         loading={loginLoading}
         onPress={() => void onLoginSubmit()}
+      />
+      <KakaoSubmitButton
+        loading={kakaoLoading}
+        onPress={onKakaoPress}
+        label="카카오 로그인"
       />
       <View style={styles.forgotLinksRow}>
         <Pressable onPress={onResetPassword} hitSlop={8}>

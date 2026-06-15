@@ -3,6 +3,7 @@ import type { ScrollView } from 'react-native';
 import { Pressable, Text, View } from 'react-native';
 import { Button, Input } from '../../ui';
 import { AuthSubmitButton } from '../AuthSubmitButton';
+import { KakaoSubmitButton } from '../KakaoSubmitButton';
 import { StatusText } from '../AuthFieldStatus';
 import type { FieldStatus } from '../auth-validation';
 import { authFormStyles as styles } from './auth-form-styles';
@@ -53,6 +54,8 @@ export type RegisterSheetProps = {
   onOpenTerms: () => void;
   onOpenPrivacy: () => void;
   onRegisterSubmit: () => void | Promise<void>;
+  kakaoLoading: boolean;
+  onKakaoPress: () => void;
 };
 
 export function RegisterSheet({
@@ -101,6 +104,8 @@ export function RegisterSheet({
   onOpenTerms,
   onOpenPrivacy,
   onRegisterSubmit,
+  kakaoLoading,
+  onKakaoPress,
 }: RegisterSheetProps) {
   const scrollToEnd = () =>
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
@@ -279,6 +284,11 @@ export function RegisterSheet({
         label="가입하기"
         loading={regLoading}
         onPress={() => void onRegisterSubmit()}
+      />
+      <KakaoSubmitButton
+        loading={kakaoLoading}
+        onPress={onKakaoPress}
+        label="카카오로 회원가입"
       />
     </View>
   );

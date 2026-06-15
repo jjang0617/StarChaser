@@ -18,6 +18,8 @@ import { CheckEmailDto } from './dto/check-email.dto';
 import { CheckNicknameDto } from './dto/check-nickname.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { KakaoLoginDto } from './dto/kakao-login.dto';
+
 
 @ApiTags('auth')
 @Controller('auth')
@@ -85,6 +87,15 @@ export class AuthController {
   @ApiBadRequestResponse({ description: '이메일 인증 미완료' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('kakao')
+  @ApiOperation({ summary: '카카오 로그인/회원가입 — 인가 코드로 토큰 발급' })
+  @ApiOkResponse({ description: 'accessToken, refreshToken 반환' })
+  @ApiUnauthorizedResponse({ description: '카카오 인증 실패' })
+  kakaoLogin(@Body() dto: KakaoLoginDto) {
+    return this.authService.kakaoLogin(dto);
   }
 
   @Throttle({ default: { ttl: 60000, limit: 10 } })

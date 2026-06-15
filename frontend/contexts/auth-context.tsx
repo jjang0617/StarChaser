@@ -26,6 +26,7 @@ interface AuthContextValue {
   user: StoredUser | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, nickname: string, verificationCode: string) => Promise<void>;
+  loginWithKakao: (code: string, redirectUri: string) => Promise<void>;
   logout: () => Promise<void>;
   /** 로그아웃 직후 Auth 화면에서 완료 알림 */
   justLoggedOut: boolean;
@@ -124,6 +125,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void registerDevicePushTokenWithServer();
   }, []);
 
+  const loginWithKakao = useCallback(async (code: string, redirectUri: string) => {
+    const data = await postAuthJson('/auth/kakao', { code, redirectUri });
+    const u = storedUserFromProfile(data.user);
+    await saveSession({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: u });
+    setHasValidSession(true);
+    setUser(u);
+    void registerDevicePushTokenWithServer();
+  }, []);
+
   const logout = useCallback(async () => {
     await clearSession();
     setHasValidSession(false);
@@ -166,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       login,
       register,
+      loginWithKakao,
       logout,
       justLoggedOut,
       clearJustLoggedOut,
@@ -181,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       login,
       register,
+      loginWithKakao,
       logout,
       justLoggedOut,
       clearJustLoggedOut,

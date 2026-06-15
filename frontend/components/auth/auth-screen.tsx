@@ -43,6 +43,7 @@ import { apiErrorMessage } from '../../lib/api-error';
 import { LoginSheet } from './sheets/LoginSheet';
 import { RegisterSheet } from './sheets/RegisterSheet';
 import { ResetPasswordSheet } from './sheets/ResetPasswordSheet';
+import { KakaoLoginWebViewModal } from './sheets/KakaoLoginWebViewModal';
 
 type Mode = 'login' | 'register' | 'resetPassword';
 
@@ -71,6 +72,7 @@ export function AuthScreen() {
   const {
     login,
     register,
+    loginWithKakao,
     justLoggedOut,
     clearJustLoggedOut,
     justAccountDeleted,
@@ -190,6 +192,42 @@ export function AuthScreen() {
     setResetError(null);
     setResetDone(false);
   }, [resetVerification]);
+
+  const [kakaoModalOpen, setKakaoModalOpen] = useState(false);
+  const [kakaoLoading, setKakaoLoading] = useState(false);
+
+  const handleKakaoSuccess = useCallback(
+    async (code: string, redirectUri: string) => {
+      setKakaoLoading(true);
+      setLoginError(null);
+      setRegError(null);
+      try {
+        await loginWithKakao(code, redirectUri);
+      } catch (e) {
+        const msg = apiErrorMessage(e, '카카오 로그인에 실패했습니다.');
+        if (mode === 'register') {
+          setRegError(msg);
+        } else {
+          setLoginError(msg);
+        }
+      } finally {
+        setKakaoLoading(false);
+      }
+    },
+    [loginWithKakao, mode],
+  );
+
+  const handleKakaoFailure = useCallback(
+    (err: Error) => {
+      const msg = err.message || '카카오 로그인 중 오류가 발생했습니다.';
+      if (mode === 'register') {
+        setRegError(msg);
+      } else {
+        setLoginError(msg);
+      }
+    },
+    [mode],
+  );
 
   const openForm = useCallback(
     (next: Mode) => {
@@ -597,6 +635,8 @@ export function AuthScreen() {
             resetResetForm();
             setMode('resetPassword');
           }}
+          kakaoLoading={kakaoLoading}
+          onKakaoPress={() => setKakaoModalOpen(true)}
         />
       );
     }
@@ -693,6 +733,8 @@ export function AuthScreen() {
         onOpenTerms={() => setRegisterLegalOpen('terms')}
         onOpenPrivacy={() => setRegisterLegalOpen('privacy')}
         onRegisterSubmit={onRegisterSubmit}
+        kakaoLoading={kakaoLoading}
+        onKakaoPress={() => setKakaoModalOpen(true)}
       />
     );
   };
@@ -847,6 +889,13 @@ export function AuthScreen() {
         autoDismissMs={3200}
         onPrimary={() => setAccountDeletedSuccessOpen(false)}
         onRequestClose={() => setAccountDeletedSuccessOpen(false)}
+      />
+
+      <KakaoLoginWebViewModal
+        visible={kakaoModalOpen}
+        onClose={() => setKakaoModalOpen(false)}
+        onSuccess={handleKakaoSuccess}
+        onFailure={handleKakaoFailure}
       />
     </Screen>
   );

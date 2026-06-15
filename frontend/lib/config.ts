@@ -14,3 +14,16 @@ export function getDefaultSpotId(): string | undefined {
   const id = process.env.EXPO_PUBLIC_DEFAULT_SPOT_ID?.trim();
   return id || undefined;
 }
+
+/** 카카오 REST API 키 */
+export function getKakaoRestApiKey(): string {
+  return process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY?.trim() || '';
+}
+
+/** 카카오 리다이렉트 URI */
+export function getKakaoRedirectUri(): string {
+  const custom = process.env.EXPO_PUBLIC_KAKAO_REDIRECT_URI?.trim();
+  if (custom) return custom;
+  return `${getApiBaseUrl()}/auth/kakao/callback`;
+}
+
