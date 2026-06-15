@@ -125,18 +125,17 @@ export function KakaoLoginWebViewModal({
               padding-top: 0 !important;
               padding-bottom: 0 !important;
               width: 100% !important;
+              background-position: center !important;
             }
-            h1 a, [class*="logo"] a, [class*="tit_"] a {
-              display: flex !important;
+            /* 로고 내부의 모든 자식 요소(a, span, img 등) 강제 중앙 정렬 및 배경 이미지 가운데 정렬 */
+            h1 *, [class*="logo"] *, [class*="tit_"] * {
+              margin-left: auto !important;
+              margin-right: auto !important;
+              float: none !important;
+              text-align: center !important;
+              background-position: center !important;
               justify-content: center !important;
               align-items: center !important;
-              margin: 0 auto !important;
-              text-align: center !important;
-              width: auto !important;
-            }
-            h1 img, [class*="logo"] img, [class*="tit_"] img {
-              margin: 0 auto !important;
-              display: block !important;
             }
             /* 기타 간격 미세 조정 */
             .box_tf, [class*="box_tf"], [class*="item_ip"] {
