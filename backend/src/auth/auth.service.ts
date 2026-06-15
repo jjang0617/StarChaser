@@ -282,8 +282,9 @@ export class AuthService {
       );
       kakaoAccessToken = tokenRes.data.access_token;
     } catch (e: any) {
-      this.logger.error(`카카오 토큰 교환 실패: ${e.response?.data ? JSON.stringify(e.response.data) : e.message}`);
-      throw new UnauthorizedException('카카오 인증에 실패했습니다.');
+      const kakaoError = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+      this.logger.error(`카카오 토큰 교환 실패: ${kakaoError}`);
+      throw new UnauthorizedException(`카카오 인증 실패 (토큰 교환): ${kakaoError}`);
     }
 
     // 2. 카카오 Access Token으로 사용자 프로필 조회
@@ -297,8 +298,9 @@ export class AuthService {
       });
       kakaoUser = profileRes.data;
     } catch (e: any) {
-      this.logger.error(`카카오 프로필 조회 실패: ${e.response?.data ? JSON.stringify(e.response.data) : e.message}`);
-      throw new UnauthorizedException('카카오 사용자 정보 조회에 실패했습니다.');
+      const profileError = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+      this.logger.error(`카카오 프로필 조회 실패: ${profileError}`);
+      throw new UnauthorizedException(`카카오 프로필 조회 실패: ${profileError}`);
     }
 
     const kakaoId = String(kakaoUser.id);
