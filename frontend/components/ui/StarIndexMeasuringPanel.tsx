@@ -18,7 +18,7 @@ interface StarIndexMeasuringPanelProps {
 export function StarIndexMeasuringPanel({
   compact = false,
   title = '점수 측정 중이에요',
-  hint = '구름·미세먼지·달빛·바람을 살펴보고 있어요',
+  hint = '구름·미세먼지·달빛·빛공해를 살펴보고 있어요',
 }: StarIndexMeasuringPanelProps) {
   const { theme } = useTheme();
 

@@ -98,6 +98,27 @@ function StatPill({
   );
 }
 
+function formatSunState(sunAlt: number | undefined | null): string {
+  if (sunAlt == null || !Number.isFinite(sunAlt)) return '-';
+  if (sunAlt <= -18) return '밤';
+  if (sunAlt <= -12) return '천문박명';
+  if (sunAlt <= -6) return '해양박명';
+  if (sunAlt < 0) return '시민박명';
+  return '낮';
+}
+
+function formatMoonPhase(phase: number | undefined | null): string {
+  if (phase == null || !Number.isFinite(phase)) return '';
+  if (phase < 0.06 || phase > 0.94) return '삭';
+  if (phase < 0.22) return '초승달';
+  if (phase < 0.28) return '상현달';
+  if (phase < 0.44) return '차오르는달';
+  if (phase < 0.56) return '보름달';
+  if (phase < 0.72) return '이우는달';
+  if (phase < 0.78) return '하현달';
+  return '그믐달';
+}
+
 function MainLocationUnavailableHero({
   mode,
 }: {
@@ -133,8 +154,10 @@ function MainLocationUnavailableHero({
 function MainUnknownStatsFooter() {
   const { theme } = useTheme();
   const items = [
+    { caption: '낮밤', icon: 'sun' as const },
+    { caption: '빛공해', icon: 'zap' as const },
     { caption: '구름', icon: 'cloud' as const },
-    { caption: '바람', icon: 'wind' as const },
+    { caption: '달고도', icon: 'moon' as const },
     { caption: '습도', icon: 'droplet' as const },
     { caption: '미세먼지', icon: 'activity' as const },
   ];
@@ -347,14 +370,27 @@ export function MainTabScreen({
       starIndexData.display?.pm25?.trim(),
     );
     return {
+      sun: {
+        primary: formatSunState(snap.sun_altitude_deg),
+        secondary: snap.sun_altitude_deg != null ? `${Math.round(snap.sun_altitude_deg)}°` : undefined,
+      },
+      lightPollution: {
+        primary: `Bortle ${starIndexData.bortleClass}급`,
+        secondary: snap.light_pollution_score != null ? `${Math.round(snap.light_pollution_score)}점` : undefined,
+      },
       cloud: {
         primary: starIndexData.display?.cloud?.trim() || formatCloudForCard(snap),
+        secondary: snap.cloud_cover_pct != null ? `${snap.cloud_cover_pct}%` : undefined,
       },
-      wind: {
-        primary: windLabelFromScore(snap.wind_score),
+      moon: {
+        primary: snap.moon_altitude_deg != null && snap.moon_altitude_known !== false
+          ? `${Math.round(snap.moon_altitude_deg)}°`
+          : '-',
+        secondary: formatMoonPhase(snap.lun_phase),
       },
       humidity: {
         primary: humidityLabelFromScore(snap.humidity_score),
+        secondary: snap.humidity_score != null ? `${Math.round(snap.humidity_score)}점` : undefined,
       },
       pm25: {
         primary: pm25.value,
@@ -476,9 +512,36 @@ export function MainTabScreen({
         <MainUnknownStatsFooter />
       ) : weatherFooter ? (
         <View style={[styles.footerStats, { borderTopColor: theme.borderSubtle }]}>
-          <StatPill caption="구름" icon="cloud" primary={weatherFooter.cloud.primary} />
-          <StatPill caption="바람" icon="wind" primary={weatherFooter.wind.primary} />
-          <StatPill caption="습도" icon="droplet" primary={weatherFooter.humidity.primary} />
+          <StatPill
+            caption="낮밤"
+            icon="sun"
+            primary={weatherFooter.sun.primary}
+            secondary={weatherFooter.sun.secondary}
+          />
+          <StatPill
+            caption="빛공해"
+            icon="zap"
+            primary={weatherFooter.lightPollution.primary}
+            secondary={weatherFooter.lightPollution.secondary}
+          />
+          <StatPill
+            caption="구름"
+            icon="cloud"
+            primary={weatherFooter.cloud.primary}
+            secondary={weatherFooter.cloud.secondary}
+          />
+          <StatPill
+            caption="달고도"
+            icon="moon"
+            primary={weatherFooter.moon.primary}
+            secondary={weatherFooter.moon.secondary}
+          />
+          <StatPill
+            caption="습도"
+            icon="droplet"
+            primary={weatherFooter.humidity.primary}
+            secondary={weatherFooter.humidity.secondary}
+          />
           <StatPill
             caption="미세먼지"
             icon="activity"
@@ -488,13 +551,23 @@ export function MainTabScreen({
         </View>
       ) : showLoading || showFetchError ? (
         <View style={[styles.footerStats, styles.footerSkeleton, { borderTopColor: theme.borderSubtle }]}>
-          {(['구름', '바람', '습도', '미세먼지'] as const).map((label) => (
-            <View key={label} style={styles.statPill}>
-              <Text style={[styles.statCaption, { color: theme.foreground }]}>{label}</Text>
-              <View style={[styles.skeletonIcon, { backgroundColor: theme.borderSubtle }]} />
-              <View style={[styles.skeletonValue, { backgroundColor: theme.borderSubtle }]} />
-            </View>
-          ))}
+          {(['낮밤', '빛공해', '구름', '달고도', '습도', '미세먼지'] as const).map((label) => {
+            const iconMap = {
+              낮밤: 'sun' as const,
+              빛공해: 'zap' as const,
+              구름: 'cloud' as const,
+              달고도: 'moon' as const,
+              습도: 'droplet' as const,
+              미세먼지: 'activity' as const,
+            };
+            return (
+              <View key={label} style={styles.statPill}>
+                <Text style={[styles.statCaption, { color: theme.foreground }]}>{label}</Text>
+                <Feather name={iconMap[label]} size={15} color={theme.borderSubtle} style={{ opacity: 0.3 }} />
+                <View style={[styles.skeletonValue, { backgroundColor: theme.borderSubtle }]} />
+              </View>
+            );
+          })}
         </View>
       ) : null}
 

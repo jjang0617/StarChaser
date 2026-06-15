@@ -20,6 +20,11 @@ export interface WeatherSnapshotDto {
   pm25_ug_m3?: number;
   pm25_label?: string;
   pm25_station_name?: string;
+  sun_altitude_deg?: number;
+  daylight_observation_score?: number;
+  precipitation_type?: number;
+  precipitation_score?: number;
+  visibility_known?: boolean;
 }
 
 export interface StarIndexCardDisplayDto {
