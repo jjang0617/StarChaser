@@ -154,7 +154,7 @@ function MainLocationUnavailableHero({
 function MainUnknownStatsFooter() {
   const { theme } = useTheme();
   const items = [
-    { caption: '낮밤', icon: 'sun' as const },
+    { caption: '태양고도', icon: 'sun' as const },
     { caption: '빛공해', icon: 'zap' as const },
     { caption: '구름', icon: 'cloud' as const },
     { caption: '달고도', icon: 'moon' as const },
@@ -371,8 +371,8 @@ export function MainTabScreen({
     );
     return {
       sun: {
-        primary: formatSunState(snap.sun_altitude_deg),
-        secondary: snap.sun_altitude_deg != null ? `${Math.round(snap.sun_altitude_deg)}°` : undefined,
+        primary: snap.sun_altitude_deg != null ? `${Math.round(snap.sun_altitude_deg)}°` : '-',
+        secondary: formatSunState(snap.sun_altitude_deg),
       },
       lightPollution: {
         primary: `Bortle ${starIndexData.bortleClass}급`,
@@ -513,7 +513,7 @@ export function MainTabScreen({
       ) : weatherFooter ? (
         <View style={[styles.footerStats, { borderTopColor: theme.borderSubtle }]}>
           <StatPill
-            caption="낮밤"
+            caption="태양고도"
             icon="sun"
             primary={weatherFooter.sun.primary}
             secondary={weatherFooter.sun.secondary}
@@ -551,9 +551,9 @@ export function MainTabScreen({
         </View>
       ) : showLoading || showFetchError ? (
         <View style={[styles.footerStats, styles.footerSkeleton, { borderTopColor: theme.borderSubtle }]}>
-          {(['낮밤', '빛공해', '구름', '달고도', '습도', '미세먼지'] as const).map((label) => {
+          {(['태양고도', '빛공해', '구름', '달고도', '습도', '미세먼지'] as const).map((label) => {
             const iconMap = {
-              낮밤: 'sun' as const,
+              태양고도: 'sun' as const,
               빛공해: 'zap' as const,
               구름: 'cloud' as const,
               달고도: 'moon' as const,
