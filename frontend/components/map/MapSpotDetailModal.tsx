@@ -175,10 +175,12 @@ export function MapSpotDetailModal({
                   <StarIndexCard
                     bare
                     score={starProps.score}
+                    sunAltLabel={starProps.sunAltLabel}
+                    lightPollutionLabel={starProps.lightPollutionLabel}
                     cloudLabel={starProps.cloudLabel}
+                    moonAltLabel={starProps.moonAltLabel}
+                    humidityLabel={starProps.humidityLabel}
                     pm25Level={starProps.pm25Level}
-                    moonAltitude={starProps.moonAltitude}
-                    moonAltitudeKnown={starProps.moonAltitudeKnown}
                   />
                 ) : null}
               </StatefulCard>

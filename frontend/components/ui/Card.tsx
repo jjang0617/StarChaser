@@ -145,10 +145,12 @@ export function StatefulCard({
 
 interface StarIndexCardProps {
   score:        number;
+  sunAltLabel?: string;
+  lightPollutionLabel?: string;
   cloudLabel:   string;
+  moonAltLabel?: string;
+  humidityLabel?: string;
   pm25Level:    string;
-  moonAltitude: number;
-  moonAltitudeKnown?: boolean;
   onPress?:     () => void;
   bare?: boolean;
   showCircularGauge?: boolean;
@@ -156,10 +158,12 @@ interface StarIndexCardProps {
 
 export function StarIndexCard({
   score,
+  sunAltLabel = '—',
+  lightPollutionLabel = '—',
   cloudLabel,
+  moonAltLabel = '—',
+  humidityLabel = '—',
   pm25Level,
-  moonAltitude,
-  moonAltitudeKnown = true,
   onPress,
   bare = false,
   showCircularGauge = true,
@@ -179,13 +183,13 @@ export function StarIndexCard({
       ? theme.primaryGlow
       : theme.moonlight;
 
-  const moonLabel =
-    moonAltitudeKnown ? `${moonAltitude}°` : '미상';
-
   const dataItems = [
-    { key: 'CLOUD', value: cloudLabel },
-    { key: 'PM2.5', value: pm25Level },
-    { key: 'MOON',  value: moonLabel },
+    { key: '태양고도', value: sunAltLabel },
+    { key: '빛공해',  value: lightPollutionLabel },
+    { key: '구름',    value: cloudLabel },
+    { key: '달고도',  value: moonAltLabel },
+    { key: '습도',    value: humidityLabel },
+    { key: '미세먼지', value: pm25Level },
   ];
 
   const gaugeR = 36;
@@ -258,22 +262,45 @@ export function StarIndexCard({
       <View style={[styles.divider, { backgroundColor: theme.borderSubtle }]} />
 
       <View style={styles.dataGrid}>
-        {dataItems.map((item, i) => (
-          <View
-            key={item.key}
-            style={[
-              styles.dataCell,
-              i > 0 && { borderLeftWidth: 1, borderLeftColor: theme.borderSubtle },
-            ]}
-          >
-            <Text style={[styles.dataKey, { color: theme.mutedForeground }]}>
-              {item.key}
-            </Text>
-            <Text style={[styles.dataVal, { color: theme.foreground, fontFamily: 'SpaceMono-Regular' }]}>
-              {item.value}
-            </Text>
-          </View>
-        ))}
+        {/* Row 1: 태양고도, 빛공해, 구름 */}
+        <View style={styles.dataRow}>
+          {dataItems.slice(0, 3).map((item, i) => (
+            <View
+              key={item.key}
+              style={[
+                styles.dataCell,
+                i > 0 && { borderLeftWidth: 1, borderLeftColor: theme.borderSubtle },
+              ]}
+            >
+              <Text style={[styles.dataKey, { color: theme.mutedForeground }]}>
+                {item.key}
+              </Text>
+              <Text style={[styles.dataVal, { color: theme.foreground, fontFamily: 'SpaceMono-Regular' }]}>
+                {item.value}
+              </Text>
+            </View>
+          ))}
+        </View>
+        <View style={[styles.rowDivider, { backgroundColor: theme.borderSubtle }]} />
+        {/* Row 2: 달고도, 습도, 미세먼지 */}
+        <View style={styles.dataRow}>
+          {dataItems.slice(3, 6).map((item, i) => (
+            <View
+              key={item.key}
+              style={[
+                styles.dataCell,
+                i > 0 && { borderLeftWidth: 1, borderLeftColor: theme.borderSubtle },
+              ]}
+            >
+              <Text style={[styles.dataKey, { color: theme.mutedForeground }]}>
+                {item.key}
+              </Text>
+              <Text style={[styles.dataVal, { color: theme.foreground, fontFamily: 'SpaceMono-Regular' }]}>
+                {item.value}
+              </Text>
+            </View>
+          ))}
+        </View>
       </View>
     </>
   );
@@ -437,7 +464,15 @@ const styles = StyleSheet.create({
   },
 
   dataGrid: {
+    flexDirection: 'column',
+    gap: 4,
+  },
+  dataRow: {
     flexDirection: 'row',
+  },
+  rowDivider: {
+    height: 1,
+    marginVertical: 4,
   },
   dataCell: {
     flex:          1,

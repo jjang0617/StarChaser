@@ -1,3 +1,4 @@
+import { humidityLabelFromScore } from './star-index-headline';
 import type { StarIndexResponseDto } from './types/api';
 
 /**
@@ -141,11 +142,17 @@ export function starIndexResponseToCardModel(d: StarIndexResponseDto) {
   const snapForFormat =
     pm25Ug !== undefined ? { ...snap, pm25_ug_m3: pm25Ug } : snap;
 
+  const pm25Info = formatPm25Stat(snapForFormat, d.display?.pm25?.trim());
+
   return {
     score: d.score,
+    sunAltLabel: snap.sun_altitude_deg != null ? `${Math.round(snap.sun_altitude_deg)}°` : '—',
+    lightPollutionLabel: `Bortle ${d.bortleClass}급`,
     cloudLabel: d.display?.cloud?.trim() || formatCloudForCard(snapForFormat),
-    pm25Level: d.display?.pm25?.trim() || formatPm25ForCard(snapForFormat),
-    moonAltitude: Math.round(snap.moon_altitude_deg ?? 0),
-    moonAltitudeKnown: snap.moon_altitude_known !== false,
+    moonAltLabel: snap.moon_altitude_deg != null && snap.moon_altitude_known !== false
+      ? `${Math.round(snap.moon_altitude_deg)}°`
+      : '—',
+    humidityLabel: humidityLabelFromScore(snap.humidity_score),
+    pm25Level: pm25Info.value,
   };
 }
