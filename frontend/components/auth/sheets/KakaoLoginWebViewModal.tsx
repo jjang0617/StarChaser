@@ -112,12 +112,31 @@ export function KakaoLoginWebViewModal({
               max-width: 100% !important;
               box-sizing: border-box !important;
             }
-            /* 로고 및 헤더 영역 마진 대폭 축소 */
+            /* 로고 및 헤더 영역 정가운데 정렬 및 마진 조정 */
             h1, [class*="logo"], [class*="tit_"] {
-              margin-top: 8px !important;
-              margin-bottom: 8px !important;
-              padding-top: 8px !important;
-              padding-bottom: 8px !important;
+              display: flex !important;
+              justify-content: center !important;
+              align-items: center !important;
+              text-align: center !important;
+              margin-left: auto !important;
+              margin-right: auto !important;
+              margin-top: 24px !important;
+              margin-bottom: 16px !important;
+              padding-top: 0 !important;
+              padding-bottom: 0 !important;
+              width: 100% !important;
+            }
+            h1 a, [class*="logo"] a, [class*="tit_"] a {
+              display: flex !important;
+              justify-content: center !important;
+              align-items: center !important;
+              margin: 0 auto !important;
+              text-align: center !important;
+              width: auto !important;
+            }
+            h1 img, [class*="logo"] img, [class*="tit_"] img {
+              margin: 0 auto !important;
+              display: block !important;
             }
             /* 기타 간격 미세 조정 */
             .box_tf, [class*="box_tf"], [class*="item_ip"] {
