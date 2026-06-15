@@ -38,7 +38,7 @@ const COPY: Record<
     titleLine2: '',
     subtitle:
       '떠 있는 별을 손끝으로 짚어 보세요.\n지금 이곳의 하늘을 그대로 펼쳐 드릴게요.',
-    buttonLabel: '밤하늘 보기',
+    buttonLabel: '하늘 펼쳐보기',
   },
   map: {
     titleLine1: '관측 명소',
