@@ -321,7 +321,7 @@ interface SpotCardProps {
   name:        string;
   region:      string;
   elevation:   number;
-  bortleClass: number;
+  bortleClass?: number;
   starIndex?:  number;
   /** false면 우측 INDEX 점수 숨김 (명소 상세 등 상단 Star-Index 카드와 중복 방지) */
   showIndex?:  boolean;
@@ -339,10 +339,6 @@ export function SpotCard({
 }: SpotCardProps) {
   const { theme } = useTheme();
   const scoreDisplay = showIndex ? getStarIndexScoreDisplay(starIndex) : null;
-
-  const bortleVariant =
-    bortleClass <= 3 ? 'glow' :
-    bortleClass <= 5 ? 'steel' : 'muted';
 
   const inner = (
     <>
@@ -378,13 +374,13 @@ export function SpotCard({
       <View style={[styles.divider, { backgroundColor: theme.borderSubtle }]} />
 
       <View style={styles.badgeRow}>
-        <Badge label={`Bortle ${bortleClass}`} variant={bortleVariant} mono />
         <Badge label={`▲ ${elevation}m`} variant="steel" mono />
         {hasParking && <Badge label="주차" variant="muted" />}
         {hasToilet  && <Badge label="화장실" variant="muted" />}
       </View>
     </>
   );
+
 
   if (bare) {
     if (!onPress) return inner;

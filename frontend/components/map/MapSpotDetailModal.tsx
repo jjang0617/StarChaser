@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../themes/ThemeContext';
 import {
   ApiRequestError,
@@ -57,6 +59,7 @@ export function MapSpotDetailModal({
   onBookmarkChange,
 }: MapSpotDetailModalProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const starProps = data ? starIndexResponseToCardModel(data) : null;
 
@@ -123,7 +126,15 @@ export function MapSpotDetailModal({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={[styles.sheet, { backgroundColor: theme.background }]}>
+      <View
+        style={[
+          styles.sheet,
+          {
+            backgroundColor: theme.background,
+            paddingTop: Platform.OS === 'android' ? insets.top : 0,
+          },
+        ]}
+      >
         <View style={[styles.header, { borderBottomColor: theme.border }]}>
           <Text style={[styles.headerTitle, { color: theme.foreground }]}>명소 상세</Text>
           <View style={styles.headerActions}>
@@ -194,8 +205,8 @@ export function MapSpotDetailModal({
                     region={`${data.lat.toFixed(4)} · ${data.lng.toFixed(4)}`}
                     elevation={data.elevationM}
                     bortleClass={data.bortleClass}
-                    hasParking={false}
-                    hasToilet={false}
+                    hasParking={data.hasParking ?? false}
+                    hasToilet={data.hasToilet ?? false}
                   />
                 ) : null}
               </StatefulCard>

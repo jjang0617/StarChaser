@@ -109,6 +109,8 @@ export class StarIndexController {
         lng: spot.lng,
         elevationM: spot.elevationM,
         bortleClass: spot.bortleClass,
+        hasParking: spot.hasParking,
+        hasToilet: spot.hasToilet,
         score: result.score,
         weatherSnapshot: result.weatherSnapshot,
         display,
@@ -160,6 +162,8 @@ export class StarIndexController {
       lng,
       elevationM: nearestSpot?.elevationM ?? 100,
       bortleClass: nearestSpot?.bortleClass ?? 5,
+      hasParking: nearestSpot?.hasParking ?? null,
+      hasToilet: nearestSpot?.hasToilet ?? null,
       score: result.score,
       weatherSnapshot: result.weatherSnapshot,
       display,
@@ -172,3 +176,4 @@ export class StarIndexController {
     };
   }
 }
+

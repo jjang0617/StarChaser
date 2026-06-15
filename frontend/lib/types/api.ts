@@ -40,6 +40,8 @@ export interface StarIndexResponseDto {
   lng: number;
   elevationM: number;
   bortleClass: number;
+  hasParking?: boolean | null;
+  hasToilet?: boolean | null;
   score: number;
   weatherSnapshot: WeatherSnapshotDto;
   display?: StarIndexCardDisplayDto;
