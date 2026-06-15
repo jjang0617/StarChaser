@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -31,6 +31,13 @@ export function KakaoLoginWebViewModal({
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const webViewRef = useRef<WebView>(null);
+  const isProcessed = useRef(false);
+
+  useEffect(() => {
+    if (visible) {
+      isProcessed.current = false;
+    }
+  }, [visible]);
 
   const clientId = getKakaoRestApiKey();
   const redirectUri = getKakaoRedirectUri();
@@ -46,6 +53,11 @@ export function KakaoLoginWebViewModal({
   const handleNavigationStateChange = (navState: any) => {
     const { url } = navState;
     if (url.startsWith(redirectUri)) {
+      if (isProcessed.current) {
+        return;
+      }
+      isProcessed.current = true;
+
       // 리다이렉트 포착 후 WebView 로딩 중지
       webViewRef.current?.stopLoading();
 

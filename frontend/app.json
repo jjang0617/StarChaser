@@ -72,6 +72,9 @@
       "expo-navigation-bar": {
         "backgroundColor": "#030712",
         "barStyle": "light"
+      },
+      "eas": {
+        "projectId": "f63bc5e9-5d90-4917-830e-1dbf939f9244"
       }
     },
     "owner": "jjang0617"
