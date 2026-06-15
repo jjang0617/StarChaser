@@ -495,7 +495,8 @@ export class AuthService {
       port: port || 587,
       secure: port === 465,
       auth: { user, pass },
-    });
+      family: 4, // Force IPv4 to prevent connection timeouts on IPv6-unreachable environments like Railway
+    } as any);
 
     const isReset = purpose === 'reset-password';
     const subject = isReset

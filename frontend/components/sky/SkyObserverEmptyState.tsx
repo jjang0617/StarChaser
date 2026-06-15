@@ -48,7 +48,7 @@ export function SkyObserverEmptyState({
           <Ionicons name="sparkles" size={36} color={theme.primaryGlow} />
         </View>
 
-        <Text style={[styles.title, { color: theme.foreground }]}>가상 밤하늘</Text>
+        <Text style={[styles.title, { color: theme.foreground }]}>가상 스카이 뷰어</Text>
         <Text style={[styles.sub, { color: theme.mutedForeground }]}>
           {locationOff
             ? '위치 사용을 켜면 지금 서 있는 곳의\n천구가 화면을 채웁니다.'
@@ -64,7 +64,7 @@ export function SkyObserverEmptyState({
           </View>
           <Text style={[styles.cardBody, { color: theme.mutedForeground }]}>
             {locationOff
-              ? '가상 밤하늘은 위치를 기준으로 그려져요. ME 설정이나 아래에서 위치 사용을 켜 주세요.'
+              ? '가상 스카이는 위치를 기준으로 그려져요. ME 설정이나 아래에서 위치 사용을 켜 주세요.'
               : '위치 권한을 허용하거나 MAIN·지도에서 명소를 고르면 별자리와 행성을 볼 수 있어요.'}
           </Text>
 
