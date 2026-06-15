@@ -19,6 +19,7 @@ import type { StarIndexResponseDto } from '../../lib/types/api';
 import { MainHeaderIconButton } from './MainHeaderIconButton';
 import { MainNotificationHistorySheet } from './MainNotificationHistorySheet';
 import { MainScoreGuideSheet } from './MainScoreGuideSheet';
+import { MainWeatherStatsGuideSheet, type WeatherStatType } from './MainWeatherStatsGuideSheet';
 import {
   formatCloudForCard,
   formatPm25Stat,
@@ -61,15 +62,17 @@ function StatPill({
   primary,
   secondary,
   unknown = false,
+  onPress,
 }: {
   caption: string;
   icon: React.ComponentProps<typeof Feather>['name'];
   primary: string;
   secondary?: string;
   unknown?: boolean;
+  onPress?: () => void;
 }) {
   const { theme } = useTheme();
-  return (
+  const content = (
     <View style={styles.statPill}>
       <Text style={[styles.statCaption, { color: theme.foreground }]} numberOfLines={1}>
         {caption}
@@ -96,6 +99,15 @@ function StatPill({
       ) : null}
     </View>
   );
+
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={{ flex: 1 }}>
+        {content}
+      </Pressable>
+    );
+  }
+  return content;
 }
 
 function formatSunState(sunAlt: number | undefined | null, refDate?: Date): string {
@@ -156,27 +168,45 @@ function MainLocationUnavailableHero({
   );
 }
 
-function MainUnknownStatsFooter() {
+function MainUnknownStatsFooter({
+  onPressStat,
+}: {
+  onPressStat?: (stat: WeatherStatType) => void;
+}) {
   const { theme } = useTheme();
   const items = [
-    { caption: '태양고도', icon: 'sun' as const },
-    { caption: '빛공해', icon: 'zap' as const },
-    { caption: '구름', icon: 'cloud' as const },
-    { caption: '달고도', icon: 'moon' as const },
-    { caption: '습도', icon: 'droplet' as const },
-    { caption: '미세먼지', icon: 'activity' as const },
+    { type: 'sun' as const, caption: '태양고도', icon: 'sun' as const },
+    { type: 'lightPollution' as const, caption: '빛공해', icon: 'zap' as const },
+    { type: 'cloud' as const, caption: '구름', icon: 'cloud' as const },
+    { type: 'moon' as const, caption: '달고도', icon: 'moon' as const },
+    { type: 'humidity' as const, caption: '습도', icon: 'droplet' as const },
+    { type: 'pm25' as const, caption: '미세먼지', icon: 'activity' as const },
   ];
   return (
     <View style={[styles.footerStats, { borderTopColor: theme.borderSubtle }]}>
       <View style={styles.footerStatsRow}>
-        {items.slice(0, 3).map(({ caption, icon }) => (
-          <StatPill key={caption} caption={caption} icon={icon} primary="?" unknown />
+        {items.slice(0, 3).map(({ type, caption, icon }) => (
+          <StatPill
+            key={caption}
+            caption={caption}
+            icon={icon}
+            primary="?"
+            unknown
+            onPress={onPressStat ? () => onPressStat(type) : undefined}
+          />
         ))}
       </View>
       <View style={[styles.footerRowDivider, { backgroundColor: theme.borderSubtle }]} />
       <View style={styles.footerStatsRow}>
-        {items.slice(3, 6).map(({ caption, icon }) => (
-          <StatPill key={caption} caption={caption} icon={icon} primary="?" unknown />
+        {items.slice(3, 6).map(({ type, caption, icon }) => (
+          <StatPill
+            key={caption}
+            caption={caption}
+            icon={icon}
+            primary="?"
+            unknown
+            onPress={onPressStat ? () => onPressStat(type) : undefined}
+          />
         ))}
       </View>
     </View>
@@ -259,6 +289,13 @@ export function MainTabScreen({
   const { theme, isRedMode } = useTheme();
   const [historySheetOpen, setHistorySheetOpen] = useState(false);
   const [guideSheetOpen, setGuideSheetOpen] = useState(false);
+  const [statsGuideOpen, setStatsGuideOpen] = useState(false);
+  const [activeGuideStat, setActiveGuideStat] = useState<WeatherStatType>('sun');
+
+  const openStatsGuide = useCallback((stat: WeatherStatType) => {
+    setActiveGuideStat(stat);
+    setStatsGuideOpen(true);
+  }, []);
   const [alertEnabled, setAlertEnabled] = useState(false);
   /** 마지막 갱신 시각 라벨이 경과에 맞게 바뀌도록 주기적 리렌더 */
   const [refreshLabelTick, setRefreshLabelTick] = useState(0);
@@ -471,6 +508,11 @@ export function MainTabScreen({
         visible={guideSheetOpen}
         onClose={() => setGuideSheetOpen(false)}
       />
+      <MainWeatherStatsGuideSheet
+        visible={statsGuideOpen}
+        onClose={() => setStatsGuideOpen(false)}
+        initialStat={activeGuideStat}
+      />
 
       <View style={styles.hero}>
         {!canLoad ? (
@@ -575,7 +617,7 @@ export function MainTabScreen({
       </View>
 
       {showLocationUnavailable ? (
-        <MainUnknownStatsFooter />
+        <MainUnknownStatsFooter onPressStat={openStatsGuide} />
       ) : weatherFooter ? (
         <View style={[styles.footerStats, { borderTopColor: theme.borderSubtle }]}>
           <View style={styles.footerStatsRow}>
@@ -584,18 +626,21 @@ export function MainTabScreen({
               icon="sun"
               primary={weatherFooter.sun.primary}
               secondary={weatherFooter.sun.secondary}
+              onPress={() => openStatsGuide('sun')}
             />
             <StatPill
               caption="빛공해"
               icon="zap"
               primary={weatherFooter.lightPollution.primary}
               secondary={weatherFooter.lightPollution.secondary}
+              onPress={() => openStatsGuide('lightPollution')}
             />
             <StatPill
               caption="구름"
               icon="cloud"
               primary={weatherFooter.cloud.primary}
               secondary={weatherFooter.cloud.secondary}
+              onPress={() => openStatsGuide('cloud')}
             />
           </View>
           <View style={[styles.footerRowDivider, { backgroundColor: theme.borderSubtle }]} />
@@ -605,18 +650,21 @@ export function MainTabScreen({
               icon="moon"
               primary={weatherFooter.moon.primary}
               secondary={weatherFooter.moon.secondary}
+              onPress={() => openStatsGuide('moon')}
             />
             <StatPill
               caption="습도"
               icon="droplet"
               primary={weatherFooter.humidity.primary}
               secondary={weatherFooter.humidity.secondary}
+              onPress={() => openStatsGuide('humidity')}
             />
             <StatPill
               caption="미세먼지"
               icon="activity"
               primary={weatherFooter.pm25.primary}
               secondary={weatherFooter.pm25.secondary}
+              onPress={() => openStatsGuide('pm25')}
             />
           </View>
         </View>
