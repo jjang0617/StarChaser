@@ -476,6 +476,54 @@ export class AuthService {
     code: string,
     purpose: VerificationPurpose,
   ): Promise<void> {
+    const resendApiKey = this.config.get<string>('RESEND_API_KEY');
+
+    const isReset = purpose === 'reset-password';
+    const subject = isReset
+      ? '[StarChaser] 비밀번호 재설정 인증번호'
+      : '[StarChaser] 이메일 인증번호';
+    const intro = isReset
+      ? '비밀번호 재설정을 위한 인증번호입니다.'
+      : '이메일 인증을 위한 인증번호입니다.';
+    const text = `${intro}\n\n인증번호: ${code}\n\n이 인증번호는 10분간 유효합니다.`;
+    const html = `<p>${intro}</p><h2>인증번호: <strong>${code}</strong></h2><p>이 인증번호는 10분간 유효합니다.</p>`;
+
+    // 1. Resend API Key가 설정되어 있다면 Resend HTTPS API 사용 (방화벽 차단 우회)
+    if (resendApiKey) {
+      const from =
+        this.config.get<string>('SMTP_FROM') ?? 'StarChaser <onboarding@resend.dev>';
+      try {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from,
+            to,
+            subject,
+            text,
+            html,
+          }),
+        });
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          throw new Error(
+            `Resend API returned status ${response.status}: ${errBody}`,
+          );
+        }
+
+        this.logger.log(`[Resend] 인증 메일 발송 완료: ${to}`);
+        return;
+      } catch (err) {
+        this.logger.error(`[Resend] 메일 발송 실패: ${err.message}`, err.stack);
+        throw err;
+      }
+    }
+
+    // 2. Resend API Key가 없다면 기존 SMTP 방식 사용
     const host = this.config.get<string>('SMTP_HOST');
     const port = this.config.get<number>('SMTP_PORT');
     const user = this.config.get<string>('SMTP_USER');
@@ -485,7 +533,7 @@ export class AuthService {
 
     if (!host || !user || !pass) {
       this.logger.warn(
-        `[개발 모드] SMTP 미설정 — 인증번호를 콘솔에 출력합니다: ${to} → ${code}`,
+        `[개발 모드] SMTP/Resend 미설정 — 인증번호를 콘솔에 출력합니다: ${to} → ${code}`,
       );
       return;
     }
@@ -498,22 +546,15 @@ export class AuthService {
       family: 4, // Force IPv4 to prevent connection timeouts on IPv6-unreachable environments like Railway
     } as any);
 
-    const isReset = purpose === 'reset-password';
-    const subject = isReset
-      ? '[StarChaser] 비밀번호 재설정 인증번호'
-      : '[StarChaser] 이메일 인증번호';
-    const intro = isReset
-      ? '비밀번호 재설정을 위한 인증번호입니다.'
-      : '이메일 인증을 위한 인증번호입니다.';
-
     await transporter.sendMail({
       from,
       to,
       subject,
-      text: `${intro}\n\n인증번호: ${code}\n\n이 인증번호는 10분간 유효합니다.`,
-      html: `<p>${intro}</p><h2>인증번호: <strong>${code}</strong></h2><p>이 인증번호는 10분간 유효합니다.</p>`,
+      text,
+      html,
     });
 
-    this.logger.log(`인증 메일 발송 완료: ${to}`);
+    this.logger.log(`[SMTP] 인증 메일 발송 완료: ${to}`);
   }
 }
+
