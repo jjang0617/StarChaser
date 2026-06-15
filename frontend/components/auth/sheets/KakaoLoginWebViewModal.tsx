@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Modal,
   Platform,
@@ -86,10 +87,18 @@ export function KakaoLoginWebViewModal({
             const { url } = request;
             // 카카오톡 앱 전환 스킴 또는 기타 외부 앱 스킴 허용 및 처리
             if (!url.startsWith('http://') && !url.startsWith('https://') && url !== 'about:blank') {
+              if (url.startsWith('kakaotalk://')) {
+                Alert.alert(
+                  '로그인 안내',
+                  '보안 설정 확인을 위해 카카오톡 앱 직접 연동 대신, 카카오계정(이메일)과 비밀번호를 화면에 직접 입력하여 로그인해 주세요.',
+                );
+                return false; // 카카오톡 앱으로 강제 이동하는 것을 차단하고 웹뷰 폼 유지
+              }
+
               Linking.openURL(url).catch((err) => {
                 if (__DEV__) {
                   // eslint-disable-next-line no-console
-                  console.warn('[KakaoLoginWebViewModal] 카카오톡 앱 열기 실패', err);
+                  console.warn('[KakaoLoginWebViewModal] 외부 앱 열기 실패', err);
                 }
               });
               return false; // WebView 자체 로딩은 차단
