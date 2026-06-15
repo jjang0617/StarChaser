@@ -68,36 +68,47 @@ export function KakaoLoginWebViewModal({
   const injectedJs = `
     (function() {
       const hideTalkBtn = () => {
-        // 1. 텍스트 매칭으로 찾기 (includes 매칭을 이용해 버튼 및 가이드 글 전체 숨김)
-        const els = document.querySelectorAll('a, button, span, div, p');
-        els.forEach(el => {
-          if (el.textContent) {
-            const text = el.textContent.trim();
-            if (
-              text.includes('카카오톡으로 로그인') ||
-              text.includes('계정과 비밀번호 입력 없이') ||
-              (text.includes('로그인') && text.includes('할 수'))
-            ) {
-              const btn = el.closest('a') || el.closest('button') || el;
-              btn.style.setProperty('display', 'none', 'important');
+        try {
+          // 자식 노드가 없는 최하단 텍스트 엘리먼트들만 감지하여 상위 버튼을 숨김
+          const els = document.querySelectorAll('a, button, span, p, div');
+          els.forEach(el => {
+            if (el && el.children.length === 0 && el.textContent) {
+              const text = el.textContent.trim();
+              if (
+                text === '카카오톡으로 로그인' ||
+                text === '💬 카카오톡으로 로그인' ||
+                text.includes('계정과 비밀번호 입력 없이') ||
+                text.includes('로그인할 수 있어요') ||
+                text.includes('로그인 할 수 있어요')
+              ) {
+                const btn = el.closest('a') || el.closest('button') || el;
+                if (btn && btn.style) {
+                  btn.style.setProperty('display', 'none', 'important');
+                }
+              }
             }
-          }
-        });
-        // 2. 클래스 및 속성 선택자로 찾기
-        const selectors = [
-          '.btn_talk',
-          'a[href*="kakaotalk"]',
-          'a[href*="talk-login"]',
-          '.link_talk'
-        ];
-        selectors.forEach(sel => {
-          document.querySelectorAll(sel).forEach(el => {
-            if (el) el.style.setProperty('display', 'none', 'important');
           });
-        });
+
+          // 클래스 및 속성 선택자로 감지하여 숨김
+          const selectors = [
+            '.btn_talk',
+            'a[href*="kakaotalk"]',
+            'a[href*="talk-login"]',
+            '.link_talk'
+          ];
+          selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+              if (el && el.style) {
+                el.style.setProperty('display', 'none', 'important');
+              }
+            });
+          });
+        } catch (e) {
+          console.error(e);
+        }
       };
       hideTalkBtn();
-      setInterval(hideTalkBtn, 100); // 동적 렌더링 대응을 위해 주기적으로 실행
+      setInterval(hideTalkBtn, 100); // 동적 렌더링 대응
     })();
     true;
   `;
