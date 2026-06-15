@@ -80,15 +80,15 @@ export function KakaoLoginWebViewModal({
           style.textContent = \`
             /* 인풋 필드 크기 및 글꼴 확대 */
             input[type="text"], input[type="email"], input[type="password"], input[type="tel"], .tf_g, .tf_cc {
-              font-size: 16px !important;
-              height: 48px !important;
-              padding: 8px 12px !important;
+              font-size: 18px !important;
+              height: 54px !important;
+              padding: 10px 16px !important;
               box-sizing: border-box !important;
             }
             /* 로그인 버튼 크기 확대 */
             button[type="submit"], .btn_g.btn_confirm {
-              font-size: 16px !important;
-              height: 48px !important;
+              font-size: 18px !important;
+              height: 54px !important;
               box-sizing: border-box !important;
             }
             /* 컨테이너 흰색 여백 축소 */
@@ -96,20 +96,32 @@ export function KakaoLoginWebViewModal({
               padding: 0 !important;
               margin: 0 !important;
             }
+            /* 모든 레이아웃 박스의 가로 고정크기 제한 해제 및 화면 꽉 차게 확장 */
+            div, section, main {
+              max-width: 100% !important;
+              box-sizing: border-box !important;
+            }
             /* 로그인 컨테이너 패딩 최소화 및 꽉 차게 확장 */
             .cont_login, .inner_login, .card_login, main, [class*="cont_"], [class*="inner_"], [class*="card_"] {
               padding-left: 16px !important;
               padding-right: 16px !important;
-              padding-top: 8px !important;
-              padding-bottom: 8px !important;
+              padding-top: 4px !important;
+              padding-bottom: 4px !important;
               margin: 0 auto !important;
               width: 100% !important;
               max-width: 100% !important;
               box-sizing: border-box !important;
             }
-            /* 기타 간격 미세 조정 */
-            .box_tf {
+            /* 로고 및 헤더 영역 마진 대폭 축소 */
+            h1, [class*="logo"], [class*="tit_"] {
+              margin-top: 8px !important;
               margin-bottom: 8px !important;
+              padding-top: 8px !important;
+              padding-bottom: 8px !important;
+            }
+            /* 기타 간격 미세 조정 */
+            .box_tf, [class*="box_tf"], [class*="item_ip"] {
+              margin-bottom: 12px !important;
             }
           \`;
           document.head.appendChild(style);
@@ -139,7 +151,7 @@ export function KakaoLoginWebViewModal({
           });
 
           // 3. 텍스트 매칭으로 카카오톡 로그인 유도 버튼 및 불필요한 가이드 텍스트 숨김 (div 컨테이너는 절대 건드리지 않음)
-          const els = document.querySelectorAll('a, button, span, p, li, div');
+          const els = document.querySelectorAll('*');
           els.forEach(el => {
             if (el && el.textContent) {
               const text = el.textContent.trim();
@@ -151,7 +163,27 @@ export function KakaoLoginWebViewModal({
                   if (btn.style && btn.style.display !== 'none') {
                     btn.style.setProperty('display', 'none', 'important');
                   }
-                } else if (el.tagName !== 'DIV') {
+                  
+                  // 상위 3단계 래퍼 중 input/form이 없는 래퍼들 모두 축소 및 숨김 (여백 완전 제거)
+                  let current = btn;
+                  for (let i = 0; i < 3; i++) {
+                    if (current.parentElement) {
+                      const parent = current.parentElement;
+                      if (parent.querySelector('input, form') === null) {
+                        parent.style.setProperty('display', 'none', 'important');
+                        parent.style.setProperty('height', '0', 'important');
+                        parent.style.setProperty('margin', '0', 'important');
+                        parent.style.setProperty('padding', '0', 'important');
+                        current = parent;
+                      } else {
+                        break;
+                      }
+                    } else {
+                      break;
+                    }
+                  }
+                } else if (el.children.length === 0) {
+                  // 잎 노드(텍스트 요소)일 때만 안전하게 숨김
                   if (el.style && el.style.display !== 'none') {
                     el.style.setProperty('display', 'none', 'important');
                   }
@@ -160,6 +192,8 @@ export function KakaoLoginWebViewModal({
               
               // (2) 가이드 문구 감지 및 숨김
               if (
+                text === '또는' ||
+                text === 'or' ||
                 text.includes('계정과 비밀번호 입력 없이') ||
                 text.includes('로그인할 수 있어요') ||
                 text.includes('로그인 할 수 있어요') ||
@@ -170,6 +204,9 @@ export function KakaoLoginWebViewModal({
                 if (el.querySelector('input, form, button, a') === null) {
                   if (el.style && el.style.display !== 'none') {
                     el.style.setProperty('display', 'none', 'important');
+                    el.style.setProperty('height', '0', 'important');
+                    el.style.setProperty('margin', '0', 'important');
+                    el.style.setProperty('padding', '0', 'important');
                   }
                 }
               }
