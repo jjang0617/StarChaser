@@ -86,9 +86,10 @@ export function KakaoLoginWebViewModal({
             const { url } = request;
             // 카카오톡 앱 전환 스킴 또는 기타 외부 앱 스킴 허용 및 처리
             if (!url.startsWith('http://') && !url.startsWith('https://') && url !== 'about:blank') {
-              Linking.canOpenURL(url).then((supported) => {
-                if (supported) {
-                  void Linking.openURL(url);
+              Linking.openURL(url).catch((err) => {
+                if (__DEV__) {
+                  // eslint-disable-next-line no-console
+                  console.warn('[KakaoLoginWebViewModal] 카카오톡 앱 열기 실패', err);
                 }
               });
               return false; // WebView 자체 로딩은 차단
