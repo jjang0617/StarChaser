@@ -112,27 +112,6 @@ export function KakaoLoginWebViewModal({
               max-width: 100% !important;
               box-sizing: border-box !important;
             }
-            /* 로고 및 헤더 영역 정가운데 정렬 및 마진 조정 */
-            h1, [class*="logo"], [class*="tit_"] {
-              display: flex !important;
-              justify-content: center !important;
-              align-items: center !important;
-              text-align: center !important;
-              margin-left: auto !important;
-              margin-right: auto !important;
-              margin-top: 24px !important;
-              margin-bottom: 16px !important;
-              padding-top: 0 !important;
-              padding-bottom: 0 !important;
-              width: 100% !important;
-            }
-            /* 로고 내부의 모든 자식 요소(a, span, img 등) 강제 중앙 정렬 (스프라이트 이미지 좌표 보존을 위해 background-position은 건드리지 않음) */
-            h1 *, [class*="logo"] *, [class*="tit_"] * {
-              margin-left: auto !important;
-              margin-right: auto !important;
-              float: none !important;
-              text-align: center !important;
-            }
             /* 기타 간격 미세 조정 */
             .box_tf, [class*="box_tf"], [class*="item_ip"] {
               margin-bottom: 12px !important;
@@ -164,15 +143,37 @@ export function KakaoLoginWebViewModal({
             });
           });
 
-          // 3. 텍스트 매칭으로 카카오톡 로그인 유도 버튼 및 불필요한 가이드 텍스트 숨김 (div 컨테이너는 절대 건드리지 않음)
+          // 3. 텍스트 및 클래스명 매칭으로 숨김 처리
           const els = document.querySelectorAll('*');
           els.forEach(el => {
-            if (el && el.textContent) {
+            if (!el) return;
+
+            // (1) 로고 및 헤더 영역 전체 숨김 & 공백 제거
+            const tagName = el.tagName ? el.tagName.toUpperCase() : '';
+            const className = el.className && typeof el.className === 'string' ? el.className.toLowerCase() : '';
+            
+            if (
+              tagName === 'HEADER' ||
+              tagName === 'H1' ||
+              className.includes('logo') ||
+              className.includes('tit_') ||
+              className.includes('header')
+            ) {
+              if (typeof el.querySelector === 'function' && el.querySelector('input, form') === null) {
+                el.style.setProperty('display', 'none', 'important');
+                el.style.setProperty('height', '0', 'important');
+                el.style.setProperty('margin', '0', 'important');
+                el.style.setProperty('padding', '0', 'important');
+                el.style.setProperty('border', 'none', 'important');
+              }
+            }
+
+            if (el.textContent) {
               const text = el.textContent.trim();
               
-              // (1) 카카오톡으로 로그인 버튼 감지 (a, button 또는 그 안의 텍스트 요소)
+              // (2) 카카오톡으로 로그인 버튼 감지
               if (text.includes('카카오톡') && text.includes('로그인')) {
-                const btn = el.closest('a') || el.closest('button');
+                const btn = (typeof el.closest === 'function') ? (el.closest('a') || el.closest('button')) : null;
                 if (btn) {
                   if (btn.style && btn.style.display !== 'none') {
                     btn.style.setProperty('display', 'none', 'important');
@@ -183,7 +184,7 @@ export function KakaoLoginWebViewModal({
                   for (let i = 0; i < 3; i++) {
                     if (current.parentElement) {
                       const parent = current.parentElement;
-                      if (parent.querySelector('input, form') === null) {
+                      if (typeof parent.querySelector === 'function' && parent.querySelector('input, form') === null) {
                         parent.style.setProperty('display', 'none', 'important');
                         parent.style.setProperty('height', '0', 'important');
                         parent.style.setProperty('margin', '0', 'important');
@@ -196,7 +197,7 @@ export function KakaoLoginWebViewModal({
                       break;
                     }
                   }
-                } else if (el.children.length === 0) {
+                } else if (el.children && el.children.length === 0) {
                   // 잎 노드(텍스트 요소)일 때만 안전하게 숨김
                   if (el.style && el.style.display !== 'none') {
                     el.style.setProperty('display', 'none', 'important');
@@ -204,7 +205,7 @@ export function KakaoLoginWebViewModal({
                 }
               }
               
-              // (2) 가이드 문구 감지 및 숨김
+              // (3) 가이드 문구 감지 및 숨김
               if (
                 text === '또는' ||
                 text === 'or' ||
@@ -215,7 +216,7 @@ export function KakaoLoginWebViewModal({
                 text.includes('계정 정보 입력으로도')
               ) {
                 // 부모/자식 관계에 input, form, button, a가 전혀 포함되지 않은 텍스트 컨테이너만 안전하게 숨김
-                if (el.querySelector('input, form, button, a') === null) {
+                if (typeof el.querySelector === 'function' && el.querySelector('input, form, button, a') === null) {
                   if (el.style && el.style.display !== 'none') {
                     el.style.setProperty('display', 'none', 'important');
                     el.style.setProperty('height', '0', 'important');
