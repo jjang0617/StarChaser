@@ -72,11 +72,8 @@
       "expo-navigation-bar": {
         "backgroundColor": "#030712",
         "barStyle": "light"
-      },
-      "eas": {
-        "projectId": "6b65a3ab-ee8e-4bb5-b2d8-9f2c0e2d2503"
       }
     },
-    "owner": "beomb"
+    "owner": "jjang0617"
   }
 }
