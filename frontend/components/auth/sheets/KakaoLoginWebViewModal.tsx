@@ -86,24 +86,36 @@ export function KakaoLoginWebViewModal({
           });
 
           // 2. 텍스트 매칭으로 카카오톡 로그인 유도 버튼 및 불필요한 가이드 텍스트 숨김 (div 컨테이너는 절대 건드리지 않음)
-          const els = document.querySelectorAll('a, button, span, p, li');
+          const els = document.querySelectorAll('a, button, span, p, li, div');
           els.forEach(el => {
-            if (el && el.children.length === 0 && el.textContent) {
+            if (el && el.textContent) {
               const text = el.textContent.trim();
+              
+              // (1) 카카오톡으로 로그인 버튼 감지 (a, button 또는 그 안의 텍스트 요소)
+              if (text.includes('카카오톡') && text.includes('로그인')) {
+                const btn = el.closest('a') || el.closest('button');
+                if (btn) {
+                  if (btn.style && btn.style.display !== 'none') {
+                    btn.style.setProperty('display', 'none', 'important');
+                  }
+                } else if (el.tagName !== 'DIV') {
+                  if (el.style && el.style.display !== 'none') {
+                    el.style.setProperty('display', 'none', 'important');
+                  }
+                }
+              }
+              
+              // (2) 가이드 문구 감지 및 숨김
               if (
-                text === '카카오톡으로 로그인' ||
-                text === '💬 카카오톡으로 로그인' ||
                 text.includes('계정과 비밀번호 입력 없이') ||
                 text.includes('로그인할 수 있어요') ||
-                text.includes('로그인 할 수 있어요')
+                text.includes('로그인 할 수 있어요') ||
+                text.includes('간편하게 로그인')
               ) {
-                // a 또는 button 이면 그 버튼 전체를 숨기고, 일반 텍스트(span, p, li)면 텍스트 자체만 숨김
-                const target = el.closest('a') || el.closest('button') || el;
-                if (target && target.style && target.style.display !== 'none') {
-                  // 레이아웃 div나 body가 실수로 숨겨지지 않도록 태그 검증
-                  const tagName = target.tagName.toUpperCase();
-                  if (tagName !== 'DIV' && tagName !== 'BODY' && tagName !== 'HTML') {
-                    target.style.setProperty('display', 'none', 'important');
+                // 부모/자식 관계에 input, form, button, a가 전혀 포함되지 않은 텍스트 컨테이너만 안전하게 숨김
+                if (el.querySelector('input, form, button, a') === null) {
+                  if (el.style && el.style.display !== 'none') {
+                    el.style.setProperty('display', 'none', 'important');
                   }
                 }
               }
