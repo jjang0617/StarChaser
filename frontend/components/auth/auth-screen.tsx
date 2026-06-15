@@ -232,6 +232,7 @@ export function AuthScreen() {
   );
 
   const handleKakaoPress = useCallback(() => {
+    Keyboard.dismiss();
     const clientId = getKakaoRestApiKey();
     if (!clientId) {
       Alert.alert(

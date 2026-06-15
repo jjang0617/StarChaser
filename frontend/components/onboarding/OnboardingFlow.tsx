@@ -124,9 +124,28 @@ export function OnboardingFlow({
     setBusy(true);
     const defaultPrefs = { starIndex90: false };
     try {
-      if (permissionStatus !== Location.PermissionStatus.GRANTED) {
-        await saveLocationEnabled(userId, false);
+      let currentStatus = permissionStatus;
+
+      // 만약 아직 권한이 결정되지 않은 상태라면 시작하기 터치 시점에 직접 요청
+      if (
+        currentStatus !== Location.PermissionStatus.GRANTED &&
+        currentStatus !== Location.PermissionStatus.DENIED
+      ) {
+        try {
+          const result = await Location.requestForegroundPermissionsAsync();
+          currentStatus = result.status;
+          setPermissionStatus(result.status);
+        } catch (e) {
+          if (__DEV__) {
+            // eslint-disable-next-line no-console
+            console.warn('[OnboardingFlow] 위치 권한 요청 실패', e);
+          }
+        }
       }
+
+      // 위치 정보 설정 저장
+      const isGranted = currentStatus === Location.PermissionStatus.GRANTED;
+      await saveLocationEnabled(userId, isGranted);
 
       await Promise.all([
         AsyncStorage.setItem(onboardingCompletedKey(userId), 'true'),
