@@ -72,8 +72,8 @@ function StatPill({
   onPress?: () => void;
 }) {
   const { theme } = useTheme();
-  const content = (
-    <View style={styles.statPill}>
+  const children = (
+    <>
       <Text style={[styles.statCaption, { color: theme.foreground }]} numberOfLines={1}>
         {caption}
       </Text>
@@ -97,17 +97,21 @@ function StatPill({
           {secondary}
         </Text>
       ) : null}
-    </View>
+    </>
   );
 
   if (onPress) {
     return (
-      <Pressable onPress={onPress} style={{ flex: 1 }}>
-        {content}
+      <Pressable onPress={onPress} style={styles.statPill}>
+        {children}
       </Pressable>
     );
   }
-  return content;
+  return (
+    <View style={styles.statPill}>
+      {children}
+    </View>
+  );
 }
 
 function formatSunState(sunAlt: number | undefined | null, refDate?: Date): string {
@@ -555,62 +559,16 @@ export function MainTabScreen({
             <AnimatedStarIndexGauge
               score={starIndexData.score}
               animateKey={gaugeKey}
+              onPressRefresh={onReloadStarIndex}
+              refreshing={starIndexRefreshing}
+              refreshFeedback={starIndexRefreshFeedback}
+              lastRefreshLabel={lastRefreshLabel}
             />
 
             {starIndexData.isStale ? (
               <Text style={[styles.staleHint, { color: theme.primaryGlow }]}>
                 {formatStarIndexStaleHint(starIndexData.cachedAt)}
               </Text>
-            ) : null}
-
-            {canLoad && starIndexData ? (
-              <Pressable
-                onPress={onReloadStarIndex}
-                disabled={starIndexRefreshing}
-                style={({ pressed }) => [
-                  styles.refreshTap,
-                  starIndexRefreshing && styles.refreshTapBusy,
-                  pressed && !starIndexRefreshing && { opacity: 0.7 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  starIndexRefreshing ? 'Star-Index 갱신 중' : 'Star-Index 새로고침'
-                }
-                accessibilityState={{ busy: starIndexRefreshing }}
-              >
-                {starIndexRefreshing ? (
-                  <View style={styles.refreshRow}>
-                    <ActivityIndicator size="small" color={theme.primaryGlow} />
-                    <Text style={[styles.refreshText, { color: theme.primaryGlow }]}>
-                      갱신 중…
-                    </Text>
-                  </View>
-                ) : starIndexRefreshFeedback?.tone === 'error' ? (
-                  <Text style={[styles.refreshText, { color: theme.destructive }]}>
-                    {starIndexRefreshFeedback.message}
-                  </Text>
-                ) : starIndexRefreshFeedback?.tone === 'success' ? (
-                  <View style={styles.refreshCol}>
-                    <Text style={[styles.refreshText, { color: theme.primaryGlow }]}>
-                      탭하여 갱신
-                    </Text>
-                    <Text style={[styles.refreshSubText, { color: theme.primaryGlow }]}>
-                      {starIndexRefreshFeedback.message}
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={styles.refreshCol}>
-                    <Text style={[styles.refreshText, { color: theme.mutedForeground }]}>
-                      탭하여 갱신
-                    </Text>
-                    {lastRefreshLabel ? (
-                      <Text style={[styles.refreshSubText, { color: theme.mutedForeground }]}>
-                        {lastRefreshLabel}
-                      </Text>
-                    ) : null}
-                  </View>
-                )}
-              </Pressable>
             ) : null}
           </>
         ) : null}

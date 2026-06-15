@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useTheme } from '../../themes/ThemeContext';
+import { spacing } from '../../themes/design-tokens';
 import { getStarIndexScoreDisplay } from '../../lib/star-index-display';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -84,6 +85,11 @@ interface AnimatedStarIndexGaugeProps {
   loading?: boolean;
   /** 위치 권한 등으로 측정 불가 — 중앙 ? */
   unknown?: boolean;
+  // New props for refresh
+  onPressRefresh?: () => void;
+  refreshing?: boolean;
+  refreshFeedback?: { tone: 'success' | 'error'; message: string } | null;
+  lastRefreshLabel?: string | null;
 }
 
 export function AnimatedStarIndexGauge({
@@ -91,6 +97,10 @@ export function AnimatedStarIndexGauge({
   animateKey,
   loading = false,
   unknown = false,
+  onPressRefresh,
+  refreshing = false,
+  refreshFeedback = null,
+  lastRefreshLabel = null,
 }: AnimatedStarIndexGaugeProps) {
   const { theme } = useTheme();
   const display = getStarIndexScoreDisplay(score);
@@ -247,7 +257,7 @@ export function AnimatedStarIndexGauge({
         )}
       </Svg>
 
-      <View style={styles.center} pointerEvents="none">
+      <View style={styles.center} pointerEvents="box-none">
         {loading ? (
           <MeasuringDots color={theme.mutedForeground} />
         ) : unknown ? (
@@ -278,6 +288,56 @@ export function AnimatedStarIndexGauge({
         <Text style={[styles.rateLabel, { color: theme.mutedForeground }]}>
           {loading ? 'MEASURING' : 'SUCCESS RATE'}
         </Text>
+
+        {!loading && !unknown && onPressRefresh ? (
+          <Pressable
+            onPress={onPressRefresh}
+            disabled={refreshing}
+            style={({ pressed }) => [
+              styles.refreshTap,
+              refreshing && styles.refreshTapBusy,
+              pressed && !refreshing && { opacity: 0.7 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={
+              refreshing ? 'Star-Index 갱신 중' : 'Star-Index 새로고침'
+            }
+            accessibilityState={{ busy: refreshing }}
+          >
+            {refreshing ? (
+              <View style={styles.refreshRow}>
+                <ActivityIndicator size="small" color={theme.primaryGlow} />
+                <Text style={[styles.refreshText, { color: theme.primaryGlow }]}>
+                  갱신 중…
+                </Text>
+              </View>
+            ) : refreshFeedback?.tone === 'error' ? (
+              <Text style={[styles.refreshText, { color: theme.destructive }]}>
+                {refreshFeedback.message}
+              </Text>
+            ) : refreshFeedback?.tone === 'success' ? (
+              <View style={styles.refreshCol}>
+                <Text style={[styles.refreshText, { color: theme.primaryGlow }]}>
+                  탭하여 갱신
+                </Text>
+                <Text style={[styles.refreshSubText, { color: theme.primaryGlow }]}>
+                  {refreshFeedback.message}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.refreshCol}>
+                <Text style={[styles.refreshText, { color: theme.mutedForeground }]}>
+                  탭하여 갱신
+                </Text>
+                {lastRefreshLabel ? (
+                  <Text style={[styles.refreshSubText, { color: theme.mutedForeground }]}>
+                    {lastRefreshLabel}
+                  </Text>
+                ) : null}
+              </View>
+            )}
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -303,7 +363,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 2,
   },
   score: {
     fontSize: 52,
@@ -337,5 +397,31 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     letterSpacing: 1.2,
+  },
+  refreshTap: {
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    minHeight: 28,
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  refreshTapBusy: {
+    opacity: 0.92,
+  },
+  refreshRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  refreshCol: {
+    alignItems: 'center',
+    gap: 1,
+  },
+  refreshText: {
+    fontSize: 11,
+  },
+  refreshSubText: {
+    fontSize: 10,
+    opacity: 0.85,
   },
 });
