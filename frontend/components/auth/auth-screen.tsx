@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -22,6 +23,7 @@ import { AuthWelcomeBackdrop } from './AuthWelcomeBackdrop';
 import { AuthWelcomeActions } from './AuthWelcomeActions';
 import { AUTH_SHEET_BG, authSheetStyles } from './auth-sheet-styles';
 import { AppAlertModal, GlassCard, Screen } from '../ui';
+import { getKakaoRestApiKey } from '../../lib/config';
 import {
   ApiRequestError,
   checkNickname,
@@ -228,6 +230,18 @@ export function AuthScreen() {
     },
     [mode],
   );
+
+  const handleKakaoPress = useCallback(() => {
+    const clientId = getKakaoRestApiKey();
+    if (!clientId) {
+      Alert.alert(
+        '설정 필요',
+        '프론트엔드 .env 파일에 EXPO_PUBLIC_KAKAO_REST_API_KEY 환경변수 설정이 필요합니다. 설정법은 walkthrough.md 또는 대화를 참조해 주세요.',
+      );
+      return;
+    }
+    setKakaoModalOpen(true);
+  }, []);
 
   const openForm = useCallback(
     (next: Mode) => {
@@ -636,7 +650,7 @@ export function AuthScreen() {
             setMode('resetPassword');
           }}
           kakaoLoading={kakaoLoading}
-          onKakaoPress={() => setKakaoModalOpen(true)}
+          onKakaoPress={handleKakaoPress}
         />
       );
     }
@@ -734,7 +748,7 @@ export function AuthScreen() {
         onOpenPrivacy={() => setRegisterLegalOpen('privacy')}
         onRegisterSubmit={onRegisterSubmit}
         kakaoLoading={kakaoLoading}
-        onKakaoPress={() => setKakaoModalOpen(true)}
+        onKakaoPress={handleKakaoPress}
       />
     );
   };
