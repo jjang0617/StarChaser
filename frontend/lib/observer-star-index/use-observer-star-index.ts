@@ -114,8 +114,20 @@ export function useObserverStarIndex({
       !observerCoordsReady &&
       !gpsPermissionBlocked);
 
-  const [manualRefreshing, setManualRefreshing] = useState(false);
-  const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
+  const [manualRefreshing, setManualRefreshingState] = useState(false);
+  const manualRefreshingRef = useRef(false);
+  const setManualRefreshing = (value: boolean) => {
+    manualRefreshingRef.current = value;
+    setManualRefreshingState(value);
+  };
+
+  const [lastRefreshedAt, setLastRefreshedAtState] = useState<number | null>(null);
+  const lastRefreshedAtRef = useRef<number | null>(null);
+  const setLastRefreshedAt = (value: number | null) => {
+    lastRefreshedAtRef.current = value;
+    setLastRefreshedAtState(value);
+  };
+
   const [refreshFeedback, setRefreshFeedback] = useState<{
     tone: 'success' | 'error';
     message: string;
@@ -124,6 +136,20 @@ export function useObserverStarIndex({
   const reload = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
     const silent = opts?.silent ?? false;
     const force = opts?.force ?? false;
+
+    if (force) {
+      if (manualRefreshingRef.current) {
+        // 이미 수동 갱신이 진행 중이면 중복 요청 방지
+        return;
+      }
+      const now = Date.now();
+      if (lastRefreshedAtRef.current && now - lastRefreshedAtRef.current < 5000) {
+        // 5초 이내에 다시 갱신 시도를 하면, 네트워크 요청을 생략하고 즉시 완료 피드백 노출
+        setRefreshFeedback({ tone: 'success', message: '방금 갱신됨' });
+        return;
+      }
+    }
+
     const seq = ++reloadSeqRef.current;
     const isLatest = () => reloadSeqRef.current === seq;
     const applyLoading = (value: boolean) => {
