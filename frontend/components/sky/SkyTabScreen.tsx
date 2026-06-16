@@ -787,6 +787,7 @@ export function SkyTabScreen({
             size="md"
             onPress={() => void load()}
             loading={loading}
+            style={{ alignSelf: 'center' }}
           />
         </View>
       ) : (

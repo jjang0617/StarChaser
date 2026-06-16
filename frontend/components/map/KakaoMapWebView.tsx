@@ -267,6 +267,17 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
   const [mapReady, setMapReady] = useState(false);
   /** nearby: 첫 GPS 좌표(주변 spots API 트리거) */
   const [coordsForSpots, setCoordsForSpots] = useState<LatLng | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    setLoadError(false);
+  }, [mapPageUrl]);
+
+  useEffect(() => {
+    if (loadError) {
+      setMapReady(false);
+    }
+  }, [loadError]);
 
   const html = useMemo(
     () => buildKakaoMapInlineHtml(kakaoJavascriptKey ?? ''),
@@ -523,31 +534,55 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
 
   return (
     <View style={{ flex: 1 }}>
-      {!useBundledInlineMap && !hasHostedPage && (
-        <View style={{ padding: 12 }}>
-          <Text style={{ fontSize: 12, opacity: 0.8 }}>
-            EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY(권장) 또는 EXPO_PUBLIC_KAKAO_MAP_PAGE_URL을
-            frontend/.env에 설정하세요.
+      {loadError ? (
+        <View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
+          <View style={[styles.iconRing, { borderColor: theme.primaryGlowBorder }]}>
+            <Feather name="wifi-off" size={32} color={theme.primaryGlow} />
+          </View>
+          <Text style={[styles.errorTitle, { color: theme.foreground }]}>
+            지도를 불러올 수 없습니다
           </Text>
+          <Text style={[styles.errorSub, { color: theme.mutedForeground }]}>
+            네트워크 연결이 끊겼거나 지연되고 있습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.
+          </Text>
+          <Button
+            label="다시 시도"
+            variant="secondary"
+            size="sm"
+            onPress={() => setLoadError(false)}
+            style={styles.retryBtn}
+          />
         </View>
+      ) : (
+        <>
+          {!useBundledInlineMap && !hasHostedPage && (
+            <View style={{ padding: 12 }}>
+              <Text style={{ fontSize: 12, opacity: 0.8 }}>
+                EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY(권장) 또는 EXPO_PUBLIC_KAKAO_MAP_PAGE_URL을
+                frontend/.env에 설정하세요.
+              </Text>
+            </View>
+          )}
+          <View style={[{ flex: 1 }, androidLayer]}>
+            <WebView
+              ref={webViewRef}
+              originWhitelist={['*']}
+              source={
+                useBundledInlineMap
+                  ? { html }
+                  : hasHostedPage
+                    ? { uri: hostedMapPageUri(mapPageUrl!) }
+                    : { html: '<html><body style="margin:0"></body></html>' }
+              }
+              javaScriptEnabled
+              domStorageEnabled
+              onMessage={handleMessage}
+              onError={() => setLoadError(true)}
+              renderError={renderWebviewError}
+            />
+          </View>
+        </>
       )}
-      <View style={[{ flex: 1 }, androidLayer]}>
-        <WebView
-          ref={webViewRef}
-          originWhitelist={['*']}
-          source={
-            useBundledInlineMap
-              ? { html }
-              : hasHostedPage
-                ? { uri: hostedMapPageUri(mapPageUrl!) }
-                : { html: '<html><body style="margin:0"></body></html>' }
-          }
-          javaScriptEnabled
-          domStorageEnabled
-          onMessage={handleMessage}
-          renderError={renderWebviewError}
-        />
-      </View>
     </View>
   );
   },
@@ -587,5 +622,6 @@ const styles = StyleSheet.create({
   },
   retryBtn: {
     minWidth: 120,
+    alignSelf: 'center',
   },
 });
