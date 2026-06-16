@@ -14,6 +14,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing } from '../../themes/design-tokens';
 import { useTheme } from '../../themes/ThemeContext';
 import { AppPressable } from '../ui/AppPressable';
@@ -80,6 +81,7 @@ export function DiaryWriteModal({
   onSessionInvalidated,
 }: DiaryWriteModalProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [starIndexScore, setStarIndexScore] = useState('');
@@ -184,7 +186,14 @@ export function DiaryWriteModal({
         <View style={styles.backdrop}>
           <AppPressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="닫기" />
           <View
-            style={[styles.sheet, { backgroundColor: theme.deepNavy, borderColor: theme.border }]}
+            style={[
+              styles.sheet,
+              {
+                backgroundColor: theme.deepNavy,
+                borderColor: theme.border,
+                paddingBottom: insets.bottom > 0 ? insets.bottom + spacing.sm : spacing.xl,
+              },
+            ]}
           >
             <View style={[styles.handle, { backgroundColor: theme.border }]} />
             <Text style={[styles.title, { color: theme.foreground }]}>오늘의 일기</Text>
@@ -203,7 +212,7 @@ export function DiaryWriteModal({
                   setTitle(text);
                   if (error) setError(null);
                 }}
-                placeholder="오늘 밤하늘은 어땠나요?"
+                placeholder="밤하늘은 어땠나요?"
                 maxLength={120}
               />
 

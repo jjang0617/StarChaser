@@ -15,6 +15,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DiaryImagePreviewModal } from './DiaryImagePreviewModal';
 import {
   ApiRequestError,
@@ -279,6 +280,7 @@ export function DiaryDetailModal({
   onSessionInvalidated,
 }: DiaryDetailModalProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -323,7 +325,16 @@ export function DiaryDetailModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="닫기" />
-        <View style={[styles.sheet, { backgroundColor: theme.deepNavy, borderColor: theme.border }]}>
+        <View
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: theme.deepNavy,
+              borderColor: theme.border,
+              paddingBottom: insets.bottom > 0 ? insets.bottom + spacing.sm : spacing.xl,
+            },
+          ]}
+        >
           <View style={[styles.handle, { backgroundColor: theme.border }]} />
 
           <View style={styles.header}>
