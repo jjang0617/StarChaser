@@ -566,9 +566,7 @@ export function MainTabScreen({
             />
 
             {starIndexData.isStale ? (
-              <Text style={[styles.staleHint, { color: theme.primaryGlow }]}>
-                {formatStarIndexStaleHint(starIndexData.cachedAt)}
-              </Text>
+              <View style={{ height: 16 }} />
             ) : null}
           </>
         ) : null}
