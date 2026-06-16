@@ -375,8 +375,8 @@ export function SpotCard({
 
       <View style={styles.badgeRow}>
         <Badge label={`▲ ${elevation}m`} variant="steel" mono />
-        {hasParking && <Badge label="주차" variant="muted" />}
-        {hasToilet  && <Badge label="화장실" variant="muted" />}
+        <Badge label={hasParking ? '주차 O' : '주차 X'} variant="blue" />
+        <Badge label={hasToilet ? '화장실 O' : '화장실 X'} variant="green" />
       </View>
     </>
   );

@@ -7,7 +7,7 @@ import React from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useTheme } from '../../themes/ThemeContext';
 
-export type BadgeVariant = 'gold' | 'glow' | 'bronze' | 'steel' | 'muted' | 'red' | 'outline';
+export type BadgeVariant = 'gold' | 'glow' | 'bronze' | 'steel' | 'muted' | 'red' | 'outline' | 'blue' | 'green';
 
 interface BadgeProps {
   label:    string;
@@ -17,7 +17,7 @@ interface BadgeProps {
 }
 
 export function Badge({ label, variant = 'muted', mono = false, style }: BadgeProps) {
-  const { theme } = useTheme();
+  const { theme, isRedMode } = useTheme();
 
   const resolved = variant === 'gold' ? 'glow' : variant;
 
@@ -51,6 +51,16 @@ export function Badge({ label, variant = 'muted', mono = false, style }: BadgePr
       bg:     'transparent',
       text:   theme.mutedForeground,
       border: theme.cardBorder,
+    },
+    blue: {
+      bg:     isRedMode ? theme.dimRed + '1F' : 'rgba(14, 165, 233, 0.12)',
+      text:   isRedMode ? theme.dimRedFg : '#38bdf8',
+      border: isRedMode ? theme.dimRed + '4D' : 'rgba(56, 189, 248, 0.3)',
+    },
+    green: {
+      bg:     isRedMode ? theme.dimRed + '1F' : 'rgba(16, 185, 129, 0.12)',
+      text:   isRedMode ? theme.dimRedFg : '#34d399',
+      border: isRedMode ? theme.dimRed + '4D' : 'rgba(16, 185, 129, 0.3)',
     },
   }[resolved];
 
