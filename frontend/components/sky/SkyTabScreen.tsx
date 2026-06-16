@@ -776,7 +776,7 @@ export function SkyTabScreen({
             <Feather name="wifi-off" size={32} color={theme.primaryGlow} />
           </View>
           <Text style={[styles.errorTitle, { color: theme.foreground }]}>
-            천구 데이터를 불러오지 못했습니다.
+            천구를 불러오지 못했습니다.
           </Text>
           <Text style={[styles.errorSub, { color: theme.mutedForeground }]}>
             네트워크 연결이 끊겼거나 지연되고 있습니다.{"\n"}인터넷 연결을 확인하고 다시 시도해 주세요.
