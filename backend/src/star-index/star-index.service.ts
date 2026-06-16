@@ -36,7 +36,33 @@ import {
   type StarIndexCachePayload,
   type StarIndexFromCacheResult,
   type StarIndexInput,
+  type WeatherData,
+  type DustData,
 } from './star-index.types';
+
+const FALLBACK_WEATHER: WeatherData = {
+  skyCode: 1, // Clear sky
+  cloud: 0,   // No cloud
+  humidity: 40,
+  windSpeed: 1.5,
+  visibility: 20,
+  visibilityKnown: true,
+  temperature: 15,
+  pop: 0,
+  pty: 0,
+};
+
+const FALLBACK_DUST: DustData = {
+  pm25: 15,
+  pm25Label: '좋음',
+  stationName: '임시 측정소',
+};
+
+const FALLBACK_MOON: MoonData = {
+  phase: 0.5,
+  altitude: 0,
+  moonAltitudeKnown: true,
+};
 
 export {
   GPS_NEAREST_SPOT_RADIUS_M,
@@ -111,7 +137,11 @@ export class StarIndexService {
       ? haversineKm(lat, lng, nearest.lat, nearest.lng)
       : null;
 
-    if (!weather || !dust || !moonRaw) {
+    let finalWeather = weather;
+    let finalDust = dust;
+    let finalMoonRaw = moonRaw;
+
+    if (!finalWeather || !finalDust || !finalMoonRaw) {
       const staleSpotId = nearest?.id ?? null;
       if (staleSpotId) {
         const stale = await this.staleFallbackFromSpot(
@@ -130,10 +160,15 @@ export class StarIndexService {
           };
         }
       }
-      throwStarIndexInputCacheUnavailable();
+      this.logger.warn(
+        `Star-Index cache missing and no stale fallback for LatLng: ${lat}, ${lng}. Using default values.`,
+      );
+      finalWeather = finalWeather || FALLBACK_WEATHER;
+      finalDust = finalDust || FALLBACK_DUST;
+      finalMoonRaw = finalMoonRaw || FALLBACK_MOON;
     }
 
-    const moon = this.inputCache.resolveMoonAt(lat, lng, moonRaw, atUtc);
+    const moon = this.inputCache.resolveMoonAt(lat, lng, finalMoonRaw, atUtc);
     const bortleClass = nearest?.bortleClass ?? 5;
     const elevationM = nearest?.elevationM ?? 100;
     const correctionScore = nearest
@@ -141,8 +176,8 @@ export class StarIndexService {
       : 100;
 
     const { score, weatherSnapshot } = buildStarIndexWithSnapshot({
-      weather,
-      dust,
+      weather: finalWeather,
+      dust: finalDust,
       moon,
       bortleClass,
       elevationM,
@@ -197,24 +232,29 @@ export class StarIndexService {
       spot.dustStationName,
     );
 
-    const weather = this.inputCache.readWeatherCache(
+    let finalWeather = this.inputCache.readWeatherCache(
       await this.cache.get(cacheKeys.weatherKey),
     );
-    const dust = this.inputCache.readDustCache(
+    let finalDust = this.inputCache.readDustCache(
       await this.cache.get(cacheKeys.dustKey),
     );
-    const moonRaw = await this.cache.get<MoonData>(cacheKeys.moonKey);
+    let finalMoonRaw = await this.cache.get<MoonData>(cacheKeys.moonKey);
 
-    if (!weather || !dust || !moonRaw) {
-      throwStarIndexInputCacheUnavailable(STAR_INDEX_INPUT_CACHE_UNAVAILABLE_BATCH);
+    if (!finalWeather || !finalDust || !finalMoonRaw) {
+      this.logger.warn(
+        `stale/fresh cache missing for spot: ${spot.name} (id: ${spot.id}). Using default values.`,
+      );
+      finalWeather = finalWeather || FALLBACK_WEATHER;
+      finalDust = finalDust || FALLBACK_DUST;
+      finalMoonRaw = finalMoonRaw || FALLBACK_MOON;
     }
 
-    const moon = this.inputCache.resolveMoonAt(spot.lat, spot.lng, moonRaw);
+    const moon = this.inputCache.resolveMoonAt(spot.lat, spot.lng, finalMoonRaw);
     const correctionScore = await this.correctionScoreForSpot(spot.id);
 
     const payload = buildStarIndexWithSnapshot({
-      weather,
-      dust,
+      weather: finalWeather,
+      dust: finalDust,
       moon,
       bortleClass: spot.bortleClass,
       elevationM: spot.elevationM,
@@ -327,27 +367,32 @@ export class StarIndexService {
     cacheKeys: { weatherKey: string; dustKey: string; moonKey: string },
     atUtc?: Date,
   ): Promise<StarIndexFromCacheResult> {
-    const weather = this.inputCache.readWeatherCache(
+    let finalWeather = this.inputCache.readWeatherCache(
       await this.cache.get(cacheKeys.weatherKey),
       atUtc,
     );
-    const dust = await this.inputCache.readDustCacheForLocation(
+    let finalDust = await this.inputCache.readDustCacheForLocation(
       spot.lat,
       spot.lng,
       cacheKeys.dustKey,
     );
-    const moonRaw = await this.cache.get<MoonData>(cacheKeys.moonKey);
+    let finalMoonRaw = await this.cache.get<MoonData>(cacheKeys.moonKey);
 
-    if (!weather || !dust || !moonRaw) {
-      throwStarIndexInputCacheUnavailable();
+    if (!finalWeather || !finalDust || !finalMoonRaw) {
+      this.logger.warn(
+        `Star-Index cache missing for spot: ${spot.name} (id: ${spot.id}). Using default values.`,
+      );
+      finalWeather = finalWeather || FALLBACK_WEATHER;
+      finalDust = finalDust || FALLBACK_DUST;
+      finalMoonRaw = finalMoonRaw || FALLBACK_MOON;
     }
 
-    const moon = this.inputCache.resolveMoonAt(spot.lat, spot.lng, moonRaw, atUtc);
+    const moon = this.inputCache.resolveMoonAt(spot.lat, spot.lng, finalMoonRaw, atUtc);
     const correctionScore = await this.correctionScoreForSpot(spot.id);
 
     const { score, weatherSnapshot } = await this.getStarIndexBySpotId(spot.id, {
-      weather,
-      dust,
+      weather: finalWeather,
+      dust: finalDust,
       moon,
       bortleClass: spot.bortleClass,
       elevationM: spot.elevationM,
