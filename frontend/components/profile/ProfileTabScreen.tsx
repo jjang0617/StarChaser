@@ -298,7 +298,7 @@ export function ProfileTabScreen({
                   {profile.nickname?.trim() || '닉네임 없음'}
                 </Text>
                 <Text style={[styles.profileEmail, { color: theme.mutedForeground }]}>
-                  {profile.email}
+                  {profile.kakaoId ? '카카오 계정' : profile.email}
                 </Text>
               </View>
             </>
