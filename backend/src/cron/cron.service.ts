@@ -17,12 +17,12 @@ export class CronService {
     private readonly cacheRefresh: StarIndexCacheRefreshService,
   ) {}
 
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron('0 */3 * * *')
   async collectWeatherData() {
     await this.cacheRefresh.refreshWeatherFromSpots();
   }
 
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron('0 */3 * * *')
   async collectDustData() {
     await this.cacheRefresh.refreshDust();
   }

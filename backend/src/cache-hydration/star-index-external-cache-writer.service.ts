@@ -31,8 +31,8 @@ import { AirkoreaStationCatalogService } from './airkorea-station-catalog.servic
 const REF_LAT = 37.5665;
 const REF_LNG = 126.978;
 
-const WEATHER_CACHE_TTL_MS = 3600 * 1000;
-const DUST_STATION_CACHE_TTL_MS = 3600 * 1000;
+const WEATHER_CACHE_TTL_MS = 3 * 3600 * 1000; // 3 hours
+const DUST_STATION_CACHE_TTL_MS = 3 * 3600 * 1000; // 3 hours
 const MOON_CACHE_TTL_MS = 86400 * 1000;
 
 @Injectable()
@@ -136,9 +136,14 @@ export class StarIndexExternalCacheWriterService {
       const weatherKey = weatherGridCacheKey(nx, ny);
       tasks.push(
         (async () => {
-          const hit = await this.cache.get(weatherKey);
-          if (!hit) {
-            await this.fetchAndStoreWeatherGrid(nx, ny);
+          try {
+            const hit = await this.cache.get(weatherKey);
+            if (!hit) {
+              await this.fetchAndStoreWeatherGrid(nx, ny);
+            }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            this.logger.warn(`ensure batch weather 실패 ${weatherKey}: ${msg}`);
           }
         })(),
       );
@@ -155,11 +160,21 @@ export class StarIndexExternalCacheWriterService {
       }
     }
     for (const sidoName of sidosNeedingDust) {
-      tasks.push(this.fetchAndStoreDustForSido(sidoName));
+      tasks.push(
+        this.fetchAndStoreDustForSido(sidoName).catch((e) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          this.logger.warn(`ensure batch dust 실패 sido=${sidoName}: ${msg}`);
+        }),
+      );
     }
 
     if (!moonRaw) {
-      tasks.push(this.fetchAndStoreMoonKstToday(REF_LAT, REF_LNG));
+      tasks.push(
+        this.fetchAndStoreMoonKstToday(REF_LAT, REF_LNG).catch((e) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          this.logger.warn(`ensure batch moon 실패: ${msg}`);
+        }),
+      );
     }
 
     await Promise.all(tasks);
