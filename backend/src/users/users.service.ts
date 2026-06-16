@@ -40,6 +40,7 @@ export class UsersService {
       email: user.email,
       nickname: user.nickname,
       avatarUrl: user.avatarUrl,
+      kakaoId: user.kakaoId || null,
     };
   }
 
@@ -147,7 +148,9 @@ export class UsersService {
     dto: DeleteAccountDto,
   ): Promise<{ message: string }> {
     const user = await this.findUserOrThrow(userId);
-    await this.assertCurrentPassword(user, dto.currentPassword);
+    if (!user.kakaoId) {
+      await this.assertCurrentPassword(user, dto.currentPassword);
+    }
 
     await this.storage.removeAllDiaryPhotosForUser(userId);
     await this.storage.removeAvatar(userId);

@@ -11,6 +11,7 @@ export interface StoredUser {
   email: string;
   nickname: string;
   avatarUrl?: string | null;
+  kakaoId?: string | null;
 }
 
 export async function saveSession(params: {

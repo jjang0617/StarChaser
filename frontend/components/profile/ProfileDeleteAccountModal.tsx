@@ -10,6 +10,7 @@ import { useTheme } from '../../themes/ThemeContext';
 import { dangerAccent } from '../../themes/themes';
 import { ApiRequestError, deleteMyAccount } from '../../lib/api-client';
 import { Button, Input } from '../ui';
+import { useAuth } from '../../contexts/auth-context';
 
 export function ProfileDeleteAccountModal({
   visible,
@@ -21,6 +22,8 @@ export function ProfileDeleteAccountModal({
   onDeleted: () => void;
 }) {
   const { theme, isRedMode } = useTheme();
+  const { user } = useAuth();
+  const isKakao = !!user?.kakaoId;
   const danger = dangerAccent(theme, isRedMode);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -41,7 +44,7 @@ export function ProfileDeleteAccountModal({
 
   const handleDelete = useCallback(async () => {
     setFormError(null);
-    if (!password) {
+    if (!isKakao && !password) {
       setPasswordError('비밀번호를 입력해 주세요.');
       return;
     }
@@ -49,7 +52,7 @@ export function ProfileDeleteAccountModal({
 
     setBusy(true);
     try {
-      await deleteMyAccount(password);
+      await deleteMyAccount(isKakao ? 'kakao_dummy' : password);
       resetForm();
       onDeleted();
     } catch (e) {
@@ -59,7 +62,7 @@ export function ProfileDeleteAccountModal({
     } finally {
       setBusy(false);
     }
-  }, [onDeleted, password, resetForm]);
+  }, [onDeleted, password, resetForm, isKakao]);
 
   return (
     <Modal
@@ -78,19 +81,21 @@ export function ProfileDeleteAccountModal({
             탈퇴하면 프로필·관측 기록·알림 설정 등 모든 데이터가 삭제되며 복구할 수 없습니다.
           </Text>
 
-          <Input
-            label="비밀번호 확인"
-            monoLabel
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              setPasswordError(null);
-              setFormError(null);
-            }}
-            secureTextEntry
-            placeholder="현재 비밀번호"
-            errorMessage={passwordError ?? undefined}
-          />
+          {!isKakao ? (
+            <Input
+              label="비밀번호 확인"
+              monoLabel
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                setPasswordError(null);
+                setFormError(null);
+              }}
+              secureTextEntry
+              placeholder="현재 비밀번호"
+              errorMessage={passwordError ?? undefined}
+            />
+          ) : null}
 
           {formError ? (
             <Text style={[styles.err, { color: theme.destructive }]}>{formError}</Text>

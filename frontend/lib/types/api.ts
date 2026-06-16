@@ -59,6 +59,7 @@ export interface UserProfileDto {
   email: string;
   nickname: string | null;
   avatarUrl: string | null;
+  kakaoId: string | null;
 }
 
 export interface AuthTokensResponseDto {

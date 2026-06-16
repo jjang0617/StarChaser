@@ -5,6 +5,7 @@ export function getJwtPayload(jwt: string): {
   sub?: string;
   email?: string;
   exp?: number;
+  kakaoId?: string;
 } | null {
   const parts = jwt.split('.');
   if (parts.length < 2) return null;

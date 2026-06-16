@@ -326,17 +326,19 @@ export function ProfileTabScreen({
               chevron
               onPress={() => setEditOpen(true)}
             />
-            <SettingRow
-              theme={theme}
-              icon="shield"
-              title="비밀번호 변경"
-              chevron
-              onPress={() => {
-                setPasswordSuccessMsg(null);
-                setPasswordOpen(true);
-              }}
-            />
-            {passwordSuccessMsg ? (
+            {!profile.kakaoId ? (
+              <SettingRow
+                theme={theme}
+                icon="shield"
+                title="비밀번호 변경"
+                chevron
+                onPress={() => {
+                  setPasswordSuccessMsg(null);
+                  setPasswordOpen(true);
+                }}
+              />
+            ) : null}
+            {!profile.kakaoId && passwordSuccessMsg ? (
               <Text style={[styles.passwordSuccess, { color: theme.primaryGlow }]}>
                 {passwordSuccessMsg}
               </Text>

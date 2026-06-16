@@ -52,6 +52,7 @@ function userFromAccessToken(accessToken: string): StoredUser | null {
     email: typeof p.email === 'string' ? p.email : '',
     nickname: '',
     avatarUrl: null,
+    kakaoId: typeof p.kakaoId === 'string' ? p.kakaoId : null,
   };
 }
 
@@ -61,6 +62,7 @@ function storedUserFromProfile(profile: UserProfileDto): StoredUser {
     email: profile.email,
     nickname: profile.nickname ?? '',
     avatarUrl: profile.avatarUrl ?? null,
+    kakaoId: profile.kakaoId ?? null,
   };
 }
 
