@@ -45,6 +45,8 @@ import { PhotographyGuideModal } from '../guide/PhotographyGuideModal';
 import { AppAlertModal } from '../ui/AppAlertModal';
 import { AppToggle } from '../ui/AppToggle';
 import { GlassCard } from '../ui/GlassCard';
+import { Button } from '../ui';
+import Feather from '@expo/vector-icons/Feather';
 import { ProfileSettingIcon, type ProfileSettingIconName } from './ProfileSettingIcon';
 
 interface ProfileTabScreenProps {
@@ -291,38 +293,58 @@ export function ProfileTabScreen({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.profileHeader}>
-          {profileLoading ? (
+        {profileLoading ? (
+          <View style={styles.profileHeader}>
             <ActivityIndicator color={theme.primaryGlow} style={{ marginVertical: 12 }} />
-          ) : profile ? (
-            <>
-              <ProfileAvatar
-                nickname={profile.nickname}
-                avatarUrl={profile.avatarUrl}
-                size={64}
-              />
-              <View style={styles.profileText}>
-                <Text style={[styles.profileName, { color: theme.foreground }]}>
-                  {profile.nickname?.trim() || '닉네임 없음'}
+          </View>
+        ) : profile ? (
+          <View style={styles.profileHeader}>
+            <ProfileAvatar
+              nickname={profile.nickname}
+              avatarUrl={profile.avatarUrl}
+              size={64}
+            />
+            <View style={styles.profileText}>
+              <Text style={[styles.profileName, { color: theme.foreground }]}>
+                {profile.nickname?.trim() || '닉네임 없음'}
+              </Text>
+              <Text style={[styles.profileEmail, { color: theme.mutedForeground }]}>
+                {profile.kakaoId ? '카카오 계정' : profile.email}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <GlassCard padding={spacing.md} style={styles.profileErrorCard}>
+            <View style={styles.profileErrorHeader}>
+              <View
+                style={[
+                  styles.avatarPlaceholder,
+                  {
+                    backgroundColor: theme.primaryGlowMuted,
+                    borderColor: theme.primaryGlowBorder,
+                  },
+                ]}
+              >
+                <Feather name="user" size={24} color={theme.mutedForeground} />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[styles.profileErrorTitle, { color: theme.destructive }]}>
+                  프로필을 불러오지 못했습니다.
                 </Text>
-                <Text style={[styles.profileEmail, { color: theme.mutedForeground }]}>
-                  {profile.kakaoId ? '카카오 계정' : profile.email}
+                <Text style={[styles.profileErrorSub, { color: theme.mutedForeground }]}>
+                  인터넷 연결 상태를 확인해 주세요.
                 </Text>
               </View>
-            </>
-          ) : (
-            <View style={{ flex: 1, gap: 8 }}>
-              {profileError ? (
-                <Text style={[styles.errBanner, { color: theme.destructive }]}>
-                  {profileError}
-                </Text>
-              ) : null}
-              <Pressable onPress={() => void loadProfile()}>
-                <Text style={{ color: theme.primaryGlow }}>프로필 다시 불러오기</Text>
-              </Pressable>
             </View>
-          )}
-        </View>
+            <Button
+              label="프로필 다시 불러오기"
+              variant="outline"
+              size="sm"
+              onPress={() => void loadProfile()}
+              style={{ marginTop: spacing.sm }}
+            />
+          </GlassCard>
+        )}
 
         {profile ? (
           <GlassCard padding={8} style={styles.profileActionsCard}>
@@ -354,9 +376,7 @@ export function ProfileTabScreen({
           </GlassCard>
         ) : null}
 
-        {prefsError ? (
-          <Text style={[styles.errBanner, { color: theme.destructive }]}>{prefsError}</Text>
-        ) : null}
+
 
         <ProfileSection title="알림 설정" theme={theme}>
           {prefsLoading ? (
@@ -449,9 +469,22 @@ export function ProfileTabScreen({
               ) : null}
             </GlassCard>
           ) : (
-            <Pressable onPress={loadPrefs} style={styles.retryWrap}>
-              <Text style={{ color: theme.primaryGlow }}>다시 불러오기</Text>
-            </Pressable>
+            <GlassCard padding={spacing.md} style={styles.prefErrorCard}>
+              <Feather name="bell-off" size={24} color={theme.mutedForeground} />
+              <Text style={[styles.prefErrorTitle, { color: theme.foreground }]}>
+                알림 설정을 불러올 수 없습니다
+              </Text>
+              <Text style={[styles.prefErrorSub, { color: theme.mutedForeground }]}>
+                네트워크 연결 상태를 확인하고 다시 시도해 주세요.
+              </Text>
+              <Button
+                label="알림 설정 다시 불러오기"
+                variant="outline"
+                size="sm"
+                onPress={loadPrefs}
+                style={{ width: '100%', marginTop: spacing.xs }}
+              />
+            </GlassCard>
           )}
         </ProfileSection>
 
@@ -806,6 +839,46 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   retryWrap: { padding: spacing.lg, alignItems: 'center' },
+  profileErrorCard: {
+    marginBottom: spacing.xl,
+    gap: spacing.sm,
+  },
+  profileErrorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  avatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileErrorTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  profileErrorSub: {
+    fontSize: 12,
+  },
+  prefErrorCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.lg,
+  },
+  prefErrorTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  prefErrorSub: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

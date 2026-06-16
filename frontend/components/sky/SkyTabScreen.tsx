@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Feather from '@expo/vector-icons/Feather';
 import {
   ActivityIndicator,
   Dimensions,
@@ -769,12 +770,30 @@ export function SkyTabScreen({
           locationPermissionStatus={locationPermissionStatus}
           onRequestLocationPermission={onRequestLocationPermission}
         />
+      ) : err && !data ? (
+        <View style={styles.errorContainer}>
+          <View style={[styles.iconRing, { borderColor: theme.primaryGlowBorder }]}>
+            <Feather name="wifi-off" size={36} color={theme.primaryGlow} />
+          </View>
+          <Text style={[styles.errorTitle, { color: theme.foreground }]}>
+            천구 데이터를 불러오지 못했습니다
+          </Text>
+          <Text style={[styles.errorSub, { color: theme.mutedForeground }]}>
+            네트워크 연결이 끊겼거나 지연되고 있습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.
+          </Text>
+          <Button
+            label="다시 불러오기"
+            variant="secondary"
+            size="md"
+            onPress={() => void load()}
+            loading={loading}
+          />
+        </View>
       ) : (
         <View style={styles.skyStage}>
           {loading && !data ? (
             <ActivityIndicator color={theme.starGold} style={{ marginTop: 24 }} />
           ) : null}
-          {err ? <Text style={{ color: theme.destructive, padding: 16, textAlign: 'center' }}>{err}</Text> : null}
           {data ? (
             <View
               collapsable={false}
@@ -983,6 +1002,38 @@ export function SkyTabScreen({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+    maxWidth: 360,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  iconRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(141, 220, 255, 0.06)',
+    marginBottom: spacing.xs,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+  errorSub: {
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
   skyStage: {
     flex: 1,
     minHeight: 0,

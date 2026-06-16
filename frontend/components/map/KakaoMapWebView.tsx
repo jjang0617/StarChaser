@@ -8,8 +8,12 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import WebView, { WebViewMessageEvent } from 'react-native-webview';
+import Feather from '@expo/vector-icons/Feather';
+import { useTheme } from '../../themes/ThemeContext';
+import { Button } from '../ui';
+import { spacing } from '../../themes/design-tokens';
 
 import {
   fetchSpotsAll,
@@ -178,7 +182,35 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
     },
     ref,
   ) {
+  const { theme } = useTheme();
   const webViewRef = useRef<WebView>(null);
+
+  const handleReload = useCallback(() => {
+    webViewRef.current?.reload();
+  }, []);
+
+  const renderWebviewError = useCallback(() => {
+    return (
+      <View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
+        <View style={[styles.iconRing, { borderColor: theme.primaryGlowBorder }]}>
+          <Feather name="wifi-off" size={32} color={theme.primaryGlow} />
+        </View>
+        <Text style={[styles.errorTitle, { color: theme.foreground }]}>
+          지도를 불러올 수 없습니다
+        </Text>
+        <Text style={[styles.errorSub, { color: theme.mutedForeground }]}>
+          네트워크 연결이 끊겼거나 지연되고 있습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.
+        </Text>
+        <Button
+          label="다시 시도"
+          variant="secondary"
+          size="sm"
+          onPress={handleReload}
+          style={styles.retryBtn}
+        />
+      </View>
+    );
+  }, [theme, handleReload]);
 
   useImperativeHandle(
     ref,
@@ -513,6 +545,7 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
           javaScriptEnabled
           domStorageEnabled
           onMessage={handleMessage}
+          renderError={renderWebviewError}
         />
       </View>
     </View>
@@ -521,3 +554,38 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
 );
 
 KakaoMapWebView.displayName = 'KakaoMapWebView';
+
+const styles = StyleSheet.create({
+  errorContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  iconRing: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(141, 220, 255, 0.06)',
+    marginBottom: spacing.xs,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  errorSub: {
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+    maxWidth: 240,
+  },
+  retryBtn: {
+    minWidth: 120,
+  },
+});
