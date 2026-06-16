@@ -26,6 +26,7 @@ import {
   SessionExpiredError,
   type ObservationRowDto,
 } from '../../lib/api-client';
+import { useAuth } from '../../contexts/auth-context';
 
 interface RecordsTabScreenProps {
   observerLat?: number | null;
@@ -41,6 +42,7 @@ export function RecordsTabScreen({
   starIndexPlaceLabel = null,
 }: RecordsTabScreenProps) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [diarySection, setDiarySection] = useState<DiarySectionKey>('write');
   const [list, setList] = useState<ObservationRowDto[]>([]);
   const [listLoading, setListLoading] = useState(true);
@@ -73,8 +75,13 @@ export function RecordsTabScreen({
   }, [onSessionInvalidated]);
 
   useEffect(() => {
+    if (!user) {
+      setList([]);
+      setListLoading(false);
+      return;
+    }
     void loadList();
-  }, [loadList]);
+  }, [loadList, user?.id]);
 
   const onDiarySaved = useCallback(async () => {
     await loadList();

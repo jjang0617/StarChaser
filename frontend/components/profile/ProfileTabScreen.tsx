@@ -80,7 +80,7 @@ export function ProfileTabScreen({
 }: ProfileTabScreenProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { applyProfile, completeAccountDeletion } = useAuth();
+  const { user, applyProfile, completeAccountDeletion } = useAuth();
   const [profile, setProfile] = useState<UserProfileDto | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -139,10 +139,6 @@ export function ProfileTabScreen({
     }
   }, [applyProfile, onSessionInvalidated]);
 
-  useEffect(() => {
-    void loadProfile();
-  }, [loadProfile]);
-
   const loadPrefs = useCallback(async () => {
     setPrefsError(null);
     setPrefsLoading(true);
@@ -165,34 +161,46 @@ export function ProfileTabScreen({
     }
   }, [onSessionInvalidated]);
 
-  useEffect(() => {
-    void loadPrefs();
-  }, [loadPrefs]);
+  const loadMySpots = useCallback(async (cancelledRef: { cancelled: boolean }) => {
+    setSpotsLoading(true);
+    try {
+      const list = await fetchSpotsAll();
+      if (!cancelledRef.cancelled) setSpots(list);
+    } catch (e) {
+      if (e instanceof SessionExpiredError) {
+        await onSessionInvalidated();
+        return;
+      }
+      if (!cancelledRef.cancelled && __DEV__) {
+        // eslint-disable-next-line no-console
+        console.warn('[ProfileTabScreen] 명소 목록 로드 실패', e);
+      }
+    } finally {
+      if (!cancelledRef.cancelled) setSpotsLoading(false);
+    }
+  }, [onSessionInvalidated]);
 
   useEffect(() => {
-    let cancelled = false;
-    setSpotsLoading(true);
-    void (async () => {
-      try {
-        const list = await fetchSpotsAll();
-        if (!cancelled) setSpots(list);
-      } catch (e) {
-        if (e instanceof SessionExpiredError) {
-          await onSessionInvalidated();
-          return;
-        }
-        if (!cancelled && __DEV__) {
-          // eslint-disable-next-line no-console
-          console.warn('[ProfileTabScreen] 명소 목록 로드 실패', e);
-        }
-      } finally {
-        if (!cancelled) setSpotsLoading(false);
-      }
-    })();
+    if (!user) {
+      setProfile(null);
+      setPrefs(null);
+      setSpots([]);
+      setProfileLoading(false);
+      setPrefsLoading(false);
+      setSpotsLoading(false);
+      return;
+    }
+
+    void loadProfile();
+    void loadPrefs();
+
+    const cancelledRef = { cancelled: false };
+    void loadMySpots(cancelledRef);
+
     return () => {
-      cancelled = true;
+      cancelledRef.cancelled = true;
     };
-  }, [onSessionInvalidated]);
+  }, [loadProfile, loadPrefs, loadMySpots, user?.id]);
 
   const alertSpotLabel = useMemo(() => {
     const id = prefs?.alertSpotId;
