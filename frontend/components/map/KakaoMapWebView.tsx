@@ -196,10 +196,10 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
           <Feather name="wifi-off" size={32} color={theme.primaryGlow} />
         </View>
         <Text style={[styles.errorTitle, { color: theme.foreground }]}>
-          지도를 불러올 수 없습니다
+          지도를 불러오지 못했습니다.
         </Text>
         <Text style={[styles.errorSub, { color: theme.mutedForeground }]}>
-          네트워크 연결이 끊겼거나 지연되고 있습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.
+          네트워크 연결이 끊겼거나 지연되고 있습니다.{"\n"}인터넷 연결을 확인하고 다시 시도해 주세요.
         </Text>
         <Button
           label="다시 시도"
@@ -540,10 +540,10 @@ export const KakaoMapWebView = forwardRef<KakaoMapWebViewHandle, KakaoMapWebView
             <Feather name="wifi-off" size={32} color={theme.primaryGlow} />
           </View>
           <Text style={[styles.errorTitle, { color: theme.foreground }]}>
-            지도를 불러올 수 없습니다
+            지도를 불러오지 못했습니다.
           </Text>
           <Text style={[styles.errorSub, { color: theme.mutedForeground }]}>
-            네트워크 연결이 끊겼거나 지연되고 있습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.
+            네트워크 연결이 끊겼거나 지연되고 있습니다.{"\n"}인터넷 연결을 확인하고 다시 시도해 주세요.
           </Text>
           <Button
             label="다시 시도"

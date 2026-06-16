@@ -773,21 +773,21 @@ export function SkyTabScreen({
       ) : err && !data ? (
         <View style={styles.errorContainer}>
           <View style={[styles.iconRing, { borderColor: theme.primaryGlowBorder }]}>
-            <Feather name="wifi-off" size={36} color={theme.primaryGlow} />
+            <Feather name="wifi-off" size={32} color={theme.primaryGlow} />
           </View>
           <Text style={[styles.errorTitle, { color: theme.foreground }]}>
-            천구 데이터를 불러오지 못했습니다
+            천구 데이터를 불러오지 못했습니다.
           </Text>
           <Text style={[styles.errorSub, { color: theme.mutedForeground }]}>
-            네트워크 연결이 끊겼거나 지연되고 있습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.
+            네트워크 연결이 끊겼거나 지연되고 있습니다.{"\n"}인터넷 연결을 확인하고 다시 시도해 주세요.
           </Text>
           <Button
-            label="다시 불러오기"
+            label="다시 시도"
             variant="secondary"
-            size="md"
+            size="sm"
             onPress={() => void load()}
             loading={loading}
-            style={{ alignSelf: 'center' }}
+            style={{ alignSelf: 'center', minWidth: 120 }}
           />
         </View>
       ) : (
@@ -1014,9 +1014,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   iconRing: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1024,16 +1024,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   errorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    letterSpacing: -0.5,
+    fontSize: 16,
+    fontWeight: '600',
     textAlign: 'center',
   },
   errorSub: {
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 12,
+    lineHeight: 18,
     textAlign: 'center',
     marginBottom: spacing.sm,
+    maxWidth: 240,
   },
   skyStage: {
     flex: 1,
